@@ -188,6 +188,11 @@ class FlasherFrame(wx.Frame):
         self.font_size = 9
         self.high_contrast = False
 
+        # Window icon
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon_128.png")
+        if os.path.exists(icon_path):
+            self.SetIcon(wx.Icon(icon_path))
+
         # Menu bar
         menubar = wx.MenuBar()
         view_menu = wx.Menu()
@@ -569,19 +574,28 @@ class FlasherFrame(wx.Frame):
             "SOFTWARE."
         )
         info = wx.adv.AboutDialogInfo()
-        # Render the radio emoji as the About dialog icon
-        bmp = wx.Bitmap(128, 128, 32)
+        # Render the radio emoji as the About dialog icon with transparency
+        sz = 128
+        bmp = wx.Bitmap(sz, sz, 32)
+        bmp.UseAlpha()
         dc = wx.MemoryDC(bmp)
-        dc.SetBackground(wx.Brush(wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)))
+        dc.SetBackground(wx.TRANSPARENT_BRUSH)
         dc.Clear()
+        # Fill with transparent
+        gc = wx.GraphicsContext.Create(dc)
+        gc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 0)))
+        gc.DrawRectangle(0, 0, sz, sz)
         font = wx.Font(wx.FontInfo(80).FaceName("Noto Color Emoji"))
         if not font.IsOk():
             font = wx.Font(80, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
         dc.SetFont(font)
         tw, th = dc.GetTextExtent("\U0001f4fb")
-        dc.DrawText("\U0001f4fb", (128 - tw) // 2, (128 - th) // 2)
+        dc.DrawText("\U0001f4fb", (sz - tw) // 2, (sz - th) // 2)
         dc.SelectObject(wx.NullBitmap)
-        img = bmp.ConvertToImage().Rescale(64, 64, wx.IMAGE_QUALITY_HIGH)
+        img = bmp.ConvertToImage()
+        if not img.HasAlpha():
+            img.InitAlpha()
+        img.Rescale(64, 64, wx.IMAGE_QUALITY_HIGH)
         icon = wx.Icon()
         icon.CopyFromBitmap(wx.Bitmap(img))
         info.SetIcon(icon)
