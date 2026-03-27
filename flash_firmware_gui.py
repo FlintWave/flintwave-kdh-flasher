@@ -244,7 +244,14 @@ class FlasherFrame(wx.Frame):
         self.flash_btn = wx.Button(panel, label="Flash Firmware")
         self.flash_btn.Bind(wx.EVT_BUTTON, self.on_flash)
         btn_sizer.Add(self.flash_btn, 0)
-        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
+        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.BOTTOM, 5)
+
+        # Footer
+        VERSION = "26.03.1"
+        footer = wx.StaticText(panel, label=f"FlintWave Radio Tools  v{VERSION}  —  github.com/FlintWave/btech-flasher")
+        footer.SetForegroundColour(wx.Colour(140, 140, 140))
+        footer.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        sizer.Add(footer, 0, wx.ALIGN_CENTER | wx.BOTTOM, 6)
 
         panel.SetSizer(sizer)
         self.Centre()
