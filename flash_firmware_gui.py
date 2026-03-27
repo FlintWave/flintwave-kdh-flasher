@@ -569,9 +569,18 @@ class FlasherFrame(wx.Frame):
             "SOFTWARE."
         )
         info = wx.adv.AboutDialogInfo()
-        # Use a stock icon to avoid the broken red cross from missing app icon
-        info.SetIcon(wx.ArtProvider.GetIcon(wx.ART_INFORMATION, wx.ART_OTHER, (64, 64)))
-        info.SetName("\U0001f4fb KDH Bootloader Firmware Flasher")
+        # Render the radio emoji as the About dialog icon
+        bmp = wx.Bitmap(64, 64, 32)
+        dc = wx.MemoryDC(bmp)
+        dc.SetBackground(wx.Brush(wx.Colour(0, 0, 0, 0)))
+        dc.Clear()
+        dc.SetFont(wx.Font(48, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        dc.DrawText("\U0001f4fb", 0, 0)
+        dc.SelectObject(wx.NullBitmap)
+        icon = wx.Icon()
+        icon.CopyFromBitmap(bmp)
+        info.SetIcon(icon)
+        info.SetName("KDH Bootloader Firmware Flasher")
         info.SetVersion(VERSION)
         info.SetDescription(
             "Flash .kdhx firmware to BTECH, Baofeng, Radtel,\n"
