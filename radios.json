@@ -1,0 +1,109 @@
+{
+  "_comment": "Radio definitions for the KDH bootloader flasher. Community contributions welcome — add your radio and submit a PR. Set 'tested' to true only after confirming a successful flash.",
+  "radios": [
+    {
+      "id": "bf-f8hp-pro",
+      "name": "BTECH BF-F8HP Pro",
+      "manufacturer": "BTECH",
+      "model_type": "H802",
+      "firmware_url": "https://baofengtech.com/wp-content/uploads/2026/01/F8HPPRO-V53-Update-Bundle.zip",
+      "firmware_page": "https://baofengtech.com/product/bf-f8hp-pro/",
+      "firmware_filename_pattern": "BTECH_V*.kdhx",
+      "bootloader_keys": "SK1 + SK2 (top and bottom side buttons, not PTT)",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "Protocol verified via decompilation and dry-run. Untested on hardware due to faulty cable."
+    },
+    {
+      "id": "uv-25-pro",
+      "name": "Baofeng UV-25 Plus / UV-25 Pro",
+      "manufacturer": "Baofeng",
+      "model_type": "BF2",
+      "firmware_url": null,
+      "firmware_page": "https://www.baofengradio.com/blogs/news/how-to-update-uv-25-plus-firmware",
+      "firmware_filename_pattern": "UV25Pro_*.kdhx",
+      "bootloader_keys": "SK2 + SK3",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "Uses same KDH bootloader. Firmware available from baofengradio.com."
+    },
+    {
+      "id": "uv-17-pro",
+      "name": "Baofeng UV-17 Pro",
+      "manufacturer": "Baofeng",
+      "model_type": "BFH",
+      "firmware_url": null,
+      "firmware_page": null,
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "Unknown — check manual",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "AT32F415 MCU. KDH bootloader confirmed via community reverse engineering."
+    },
+    {
+      "id": "uv-18-pro",
+      "name": "Baofeng UV-18 Pro",
+      "manufacturer": "Baofeng",
+      "model_type": "BFH",
+      "firmware_url": null,
+      "firmware_page": null,
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "Unknown — check manual",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "KD32F401RBT6 MCU. KDH bootloader confirmed."
+    },
+    {
+      "id": "uv-21-pro",
+      "name": "Baofeng UV-21 Pro",
+      "manufacturer": "Baofeng",
+      "model_type": "BFH",
+      "firmware_url": null,
+      "firmware_page": null,
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "Unknown — check manual",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "KDH bootloader confirmed. Related to UV-19, UV-20, UV-22 Pro."
+    },
+    {
+      "id": "rt-470",
+      "name": "Radtel RT-470",
+      "manufacturer": "Radtel",
+      "model_type": "WLT",
+      "firmware_url": null,
+      "firmware_page": "https://www.radtels.com/pages/software-download",
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "Unknown — check manual",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "Uses WLT2000 CPS. KDH bootloader with .kdhx firmware."
+    },
+    {
+      "id": "rt-490",
+      "name": "Radtel RT-490",
+      "manufacturer": "Radtel",
+      "model_type": "WLT",
+      "firmware_url": null,
+      "firmware_page": "https://www.radtels.com/pages/software-download",
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "Unknown — check manual",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "Shares JJCC JC-8629 PCB. KDH bootloader."
+    },
+    {
+      "id": "jc-8629",
+      "name": "JJCC JC-8629",
+      "manufacturer": "JJCC / Math Mark",
+      "model_type": "JJCC",
+      "firmware_url": null,
+      "firmware_page": null,
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "Unknown — check manual",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "Reference PCB design used by many clones (Abbree AR-869, Hamgeek HG-590, Socotran FB-8629, etc.)"
+    }
+  ]
+}

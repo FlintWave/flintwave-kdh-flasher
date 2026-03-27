@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-GUI frontend for the BTECH BF-F8HP Pro firmware flasher.
+GUI frontend for the KDH bootloader firmware flasher.
+Supports BTECH, Baofeng, Radtel, and other KDH-based radios.
 Cross-platform: works on Linux, macOS, and Windows.
 """
 
 import threading
 import wx
 import flash_firmware as fw
+import firmware_download as dl
 import serial
 import serial.tools.list_ports
 
@@ -164,11 +166,33 @@ class PortFinderDialog(wx.Dialog):
 
 class FlasherFrame(wx.Frame):
     def __init__(self):
-        super().__init__(None, title="BTECH BF-F8HP Pro Firmware Flasher", size=(520, 420))
-        self.SetMinSize((520, 420))
+        super().__init__(None, title="KDH Bootloader Firmware Flasher", size=(560, 500))
+        self.SetMinSize((560, 500))
 
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
+
+        # Radio model selector
+        radio_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        radio_sizer.Add(wx.StaticText(panel, label="Radio:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        self.radios = dl.load_radios()
+        radio_names = [f"{r['manufacturer']} {r['name']}" for r in self.radios]
+        self.radio_combo = wx.ComboBox(panel, choices=radio_names,
+                                       style=wx.CB_DROPDOWN | wx.CB_READONLY)
+        if radio_names:
+            self.radio_combo.SetSelection(0)
+        self.radio_combo.Bind(wx.EVT_COMBOBOX, self.on_radio_changed)
+        radio_sizer.Add(self.radio_combo, 1, wx.EXPAND | wx.RIGHT, 5)
+        self.download_btn = wx.Button(panel, label="Download Latest")
+        self.download_btn.Bind(wx.EVT_BUTTON, self.on_download)
+        radio_sizer.Add(self.download_btn, 0)
+        sizer.Add(radio_sizer, 0, wx.EXPAND | wx.ALL, 10)
+
+        # Radio info
+        self.radio_info = wx.StaticText(panel, label="")
+        self.radio_info.SetForegroundColour(wx.Colour(80, 80, 80))
+        sizer.Add(self.radio_info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        self._update_radio_info()
 
         # Firmware file
         file_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -178,7 +202,9 @@ class FlasherFrame(wx.Frame):
         browse_btn = wx.Button(panel, label="Browse...")
         browse_btn.Bind(wx.EVT_BUTTON, self.on_browse)
         file_sizer.Add(browse_btn, 0)
-        sizer.Add(file_sizer, 0, wx.EXPAND | wx.ALL, 10)
+        sizer.Add(file_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+
+        sizer.AddSpacer(5)
 
         # COM port
         port_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -207,12 +233,15 @@ class FlasherFrame(wx.Frame):
 
         # Buttons
         btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.flash_btn = wx.Button(panel, label="Flash Firmware")
-        self.flash_btn.Bind(wx.EVT_BUTTON, self.on_flash)
-        btn_sizer.Add(self.flash_btn, 0, wx.RIGHT, 10)
+        self.dryrun_btn = wx.Button(panel, label="Dry Run")
+        self.dryrun_btn.Bind(wx.EVT_BUTTON, self.on_dry_run)
+        btn_sizer.Add(self.dryrun_btn, 0, wx.RIGHT, 10)
         self.diag_btn = wx.Button(panel, label="Run Diagnostics")
         self.diag_btn.Bind(wx.EVT_BUTTON, self.on_diag)
-        btn_sizer.Add(self.diag_btn, 0)
+        btn_sizer.Add(self.diag_btn, 0, wx.RIGHT, 10)
+        self.flash_btn = wx.Button(panel, label="Flash Firmware")
+        self.flash_btn.Bind(wx.EVT_BUTTON, self.on_flash)
+        btn_sizer.Add(self.flash_btn, 0)
         sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
 
         panel.SetSizer(sizer)
@@ -233,6 +262,79 @@ class FlasherFrame(wx.Frame):
             self.log.AppendText(f"Auto-detected: {label}\n")
         elif port_devices:
             self.port_combo.SetSelection(0)
+
+    def _get_selected_radio(self):
+        idx = self.radio_combo.GetSelection()
+        if 0 <= idx < len(self.radios):
+            return self.radios[idx]
+        return None
+
+    def _update_radio_info(self):
+        radio = self._get_selected_radio()
+        if radio:
+            tested = "Tested" if radio.get("tested") else "Untested"
+            info = f"Bootloader: {radio['bootloader_keys']}  |  Connector: {radio['connector']}  |  {tested}"
+            self.radio_info.SetLabel(info)
+            has_url = bool(radio.get("firmware_url"))
+            self.download_btn.Enable(has_url)
+            if not has_url:
+                self.download_btn.SetLabel("No Direct URL")
+            else:
+                self.download_btn.SetLabel("Download Latest")
+
+    def on_radio_changed(self, event):
+        self._update_radio_info()
+
+    def on_download(self, event):
+        radio = self._get_selected_radio()
+        if not radio:
+            return
+
+        if not radio.get("tested"):
+            dlg = wx.MessageDialog(self,
+                f"{radio['name']} has NOT been tested with this tool.\n\n"
+                "The protocol should be compatible, but flashing untested\n"
+                "firmware could potentially brick the radio.\n\n"
+                "Download anyway?",
+                "Untested Radio", wx.YES_NO | wx.ICON_WARNING)
+            if dlg.ShowModal() != wx.ID_YES:
+                dlg.Destroy()
+                return
+            dlg.Destroy()
+
+        self.log.Clear()
+        self.progress.SetValue(0)
+        self.set_buttons(False)
+        threading.Thread(target=self._download_thread, args=(radio,), daemon=True).start()
+
+    def _download_thread(self, radio):
+        try:
+            self.log_msg(f"Downloading firmware for {radio['name']}...")
+            self.log_msg(f"URL: {radio['firmware_url']}")
+            self.log_msg("")
+
+            def on_progress(pct):
+                self.set_progress(pct * 0.8)  # 80% for download
+
+            kdhx_path, _ = dl.download_and_extract(
+                radio["id"], progress_callback=on_progress
+            )
+
+            self.set_progress(100)
+            self.log_msg(f"Firmware extracted: {kdhx_path}")
+            self.log_msg("")
+            self.log_msg("Firmware ready. You can now flash it.")
+
+            wx.CallAfter(self.file_path.SetValue, kdhx_path)
+
+        except Exception as e:
+            self.log_msg(f"\nERROR: {e}")
+            if "No direct download URL" in str(e):
+                page = radio.get("firmware_page", "")
+                if page:
+                    self.log_msg(f"Visit: {page}")
+        finally:
+            self.set_buttons(True)
 
     def on_find_cable(self, event):
         dlg = PortFinderDialog(self)
@@ -264,7 +366,11 @@ class FlasherFrame(wx.Frame):
 
     def set_buttons(self, enabled):
         wx.CallAfter(self.flash_btn.Enable, enabled)
+        wx.CallAfter(self.dryrun_btn.Enable, enabled)
         wx.CallAfter(self.diag_btn.Enable, enabled)
+        wx.CallAfter(self.download_btn.Enable, enabled)
+        if enabled:
+            wx.CallAfter(self._update_radio_info)
 
     def on_flash(self, event):
         port = self.port_combo.GetValue()
@@ -359,6 +465,85 @@ class FlasherFrame(wx.Frame):
             self.log_msg(f"\nERROR: {e}")
             self.log_msg("Radio may need to be power cycled and put back in bootloader mode.")
             wx.CallAfter(wx.MessageBox, f"Flash failed:\n{e}", "Error", wx.OK | wx.ICON_ERROR)
+        finally:
+            self.set_buttons(True)
+
+    def on_dry_run(self, event):
+        firmware_path = self.file_path.GetValue()
+        if not firmware_path:
+            wx.MessageBox("Select a firmware file first.", "Error", wx.OK | wx.ICON_ERROR)
+            return
+
+        self.log.Clear()
+        self.progress.SetValue(0)
+        self.set_buttons(False)
+        threading.Thread(target=self._dryrun_thread, args=(firmware_path,), daemon=True).start()
+
+    def _dryrun_thread(self, firmware_path):
+        try:
+            import os
+            import hashlib
+            import math
+
+            self.log_msg("*** DRY RUN MODE — no serial communication ***")
+            self.log_msg("")
+
+            fw_size = os.path.getsize(firmware_path)
+            if fw_size > fw.MAX_FIRMWARE_BYTES:
+                self.log_msg(f"FAIL: File too large ({fw_size} bytes, max {fw.MAX_FIRMWARE_BYTES})")
+                return
+            with open(firmware_path, "rb") as f:
+                firmware = f.read()
+
+            fw_size = len(firmware)
+            total_chunks = math.ceil(fw_size / 1024)
+
+            if fw_size < fw.MIN_FIRMWARE_BYTES:
+                self.log_msg(f"FAIL: File too small ({fw_size} bytes)")
+                return
+            if total_chunks > fw.MAX_CHUNKS:
+                self.log_msg(f"FAIL: Too many chunks ({total_chunks}, max {fw.MAX_CHUNKS})")
+                return
+
+            sha256 = hashlib.sha256(firmware).hexdigest()
+            self.log_msg(f"Firmware: {firmware_path}")
+            self.log_msg(f"Size: {fw_size} bytes, {total_chunks} chunks")
+            self.log_msg(f"SHA-256: {sha256}")
+            self.log_msg("")
+
+            sp = int.from_bytes(firmware[0:4], "little")
+            reset = int.from_bytes(firmware[4:8], "little")
+            ok_sp = 0x20000000 <= sp <= 0x20100000
+            ok_reset = 0x08000000 <= reset <= 0x08100000
+            self.log_msg("ARM vector table check:")
+            self.log_msg(f"  Stack pointer:  0x{sp:08X} {'(valid)' if ok_sp else '(INVALID)'}")
+            self.log_msg(f"  Reset handler:  0x{reset:08X} {'(valid)' if ok_reset else '(INVALID)'}")
+            if not ok_sp or not ok_reset:
+                self.log_msg("")
+                self.log_msg("FAIL: Invalid ARM vector table")
+                return
+
+            self.log_msg("")
+            self.log_msg("Building and verifying all packets...")
+            self.set_progress(10)
+
+            for i in range(total_chunks):
+                chunk = firmware[i * 1024:(i + 1) * 1024]
+                p = fw.build_packet(fw.CMD_UPDATE, i & 0xFF, chunk)
+                payload = p[1:-3]
+                pkt_crc = (p[-3] << 8) | p[-2]
+                if fw.crc16_ccitt(payload) != pkt_crc:
+                    self.log_msg(f"FAIL: CRC self-check failed on chunk {i}")
+                    return
+                self.set_progress(10 + (i + 1) / total_chunks * 90)
+
+            self.log_msg(f"  {total_chunks + 3} packets built, all CRCs verified")
+            self.log_msg("")
+            self.log_msg("DRY RUN PASSED — firmware file is valid and ready to flash")
+            self.set_progress(100)
+
+        except Exception as e:
+            self.log_msg(f"\nERROR: {e}")
         finally:
             self.set_buttons(True)
 
