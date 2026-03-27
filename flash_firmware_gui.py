@@ -731,14 +731,32 @@ class FlasherFrame(wx.Frame):
             wx.MessageBox("Select a firmware file.", "Error", wx.OK | wx.ICON_ERROR)
             return
 
+        radio = self._get_selected_radio()
+        if radio:
+            keys = radio["bootloader_keys"]
+            radio_name = radio["name"]
+            tested = radio.get("tested", False)
+        else:
+            keys = "the bootloader keys (check your radio's manual)"
+            radio_name = "your radio"
+            tested = False
+
+        warning = ""
+        if not tested:
+            warning = (
+                f"NOTE: {radio_name} has NOT been tested with this tool.\n"
+                "The protocol should be compatible, but proceed with caution.\n\n"
+            )
+
         dlg = wx.MessageDialog(self,
-            "Make sure the radio is in bootloader mode:\n\n"
-            "1. Power off the radio\n"
-            "2. Hold SK1 + SK2 (top and bottom side buttons)\n"
-            "3. Turn power knob to turn on\n"
-            "4. Screen stays blank, green LED lights up\n\n"
-            "Do not disconnect the radio or cable during the update!\n\n"
-            "Ready to flash?",
+            f"{warning}"
+            f"Make sure the {radio_name} is in bootloader mode:\n\n"
+            f"1. Power off the radio\n"
+            f"2. Hold {keys}\n"
+            f"3. Turn power knob to turn on\n"
+            f"4. Screen stays blank, green LED lights up\n\n"
+            f"Do not disconnect the radio or cable during the update!\n\n"
+            f"Ready to flash?",
             "Confirm", wx.YES_NO | wx.ICON_WARNING)
         if dlg.ShowModal() != wx.ID_YES:
             dlg.Destroy()
