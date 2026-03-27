@@ -329,55 +329,124 @@ class FlasherFrame(wx.Frame):
 
     def _set_font_size(self, size):
         self.font_size = size
-        font = wx.Font(size, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-        self.log.SetFont(font)
-        self.log.Refresh()
+        mono = wx.Font(size, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        ui = wx.Font(size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        self.log.SetFont(mono)
+        for child in self.panel.GetChildren():
+            if isinstance(child, wx.TextCtrl):
+                child.SetFont(mono)
+            elif not isinstance(child, wx.adv.HyperlinkCtrl):
+                child.SetFont(ui)
+        self.panel.Layout()
+        self.panel.Refresh()
 
     def _set_theme(self, theme):
         panel = self.panel
 
-        # Catppuccin palettes: (base, mantle, text, subtext0, green, link)
+        # Catppuccin palettes: (base, surface0, mantle, text, subtext1, green, link)
+        # Using surface0 for interactive elements (buttons, dropdowns) for contrast
         themes = {
-            "latte": ((239, 241, 245), (230, 233, 239), (76, 79, 105),
-                      (108, 111, 133), (64, 160, 43), (30, 102, 245)),
-            "frappe": ((48, 52, 70), (41, 44, 60), (198, 208, 245),
-                       (165, 173, 206), (166, 209, 137), (140, 170, 238)),
-            "macchiato": ((36, 39, 58), (30, 32, 48), (202, 211, 245),
-                          (165, 173, 203), (166, 218, 149), (138, 173, 244)),
-            "mocha": ((30, 30, 46), (24, 24, 37), (205, 214, 244),
-                      (166, 173, 200), (166, 227, 161), (137, 180, 250)),
-            "high_contrast": ((0, 0, 0), (0, 0, 0), (255, 255, 0),
-                              (255, 255, 0), (0, 255, 0), (0, 255, 255)),
+            "latte": (
+                (239, 241, 245),  # base
+                (204, 208, 218),  # surface0
+                (230, 233, 239),  # mantle (log bg)
+                (76, 79, 105),    # text
+                (92, 95, 119),    # subtext1
+                (64, 160, 43),    # green (log text)
+                (30, 102, 245),   # link
+            ),
+            "frappe": (
+                (48, 52, 70),     # base
+                (65, 69, 89),     # surface0
+                (41, 44, 60),     # mantle
+                (198, 208, 245),  # text
+                (181, 191, 226),  # subtext1
+                (166, 209, 137),  # green
+                (140, 170, 238),  # link
+            ),
+            "macchiato": (
+                (36, 39, 58),     # base
+                (54, 58, 79),     # surface0
+                (30, 32, 48),     # mantle
+                (202, 211, 245),  # text
+                (184, 192, 224),  # subtext1
+                (166, 218, 149),  # green
+                (138, 173, 244),  # link
+            ),
+            "mocha": (
+                (30, 30, 46),     # base
+                (49, 50, 68),     # surface0
+                (24, 24, 37),     # mantle
+                (205, 214, 244),  # text
+                (186, 194, 222),  # subtext1
+                (166, 227, 161),  # green
+                (137, 180, 250),  # link
+            ),
+            "high_contrast": (
+                (0, 0, 0),        # base
+                (30, 30, 30),     # surface0
+                (0, 0, 0),        # mantle
+                (255, 255, 0),    # text
+                (255, 255, 100),  # subtext1
+                (0, 255, 0),      # green
+                (0, 255, 255),    # link
+            ),
         }
 
         if theme not in themes:
-            panel.SetBackgroundColour(wx.NullColour)
-            panel.SetForegroundColour(wx.NullColour)
-            self.log.SetBackgroundColour(wx.NullColour)
-            self.log.SetForegroundColour(wx.NullColour)
-            self.radio_info.SetForegroundColour(wx.Colour(80, 80, 80))
+            # System default — reset everything
+            panel.SetOwnBackgroundColour(wx.NullColour)
+            panel.SetOwnForegroundColour(wx.NullColour)
+            self.log.SetOwnBackgroundColour(wx.NullColour)
+            self.log.SetOwnForegroundColour(wx.NullColour)
+            self.radio_info.SetOwnForegroundColour(wx.Colour(80, 80, 80))
+            for child in panel.GetChildren():
+                child.SetOwnBackgroundColour(wx.NullColour)
+                child.SetOwnForegroundColour(wx.NullColour)
             panel.Refresh()
-            self.log.Refresh()
+            for child in panel.GetChildren():
+                child.Refresh()
             return
 
-        base, mantle, text, subtext, green, link = [wx.Colour(*c) for c in themes[theme]]
+        base, surface0, mantle, text, subtext1, green, link = \
+            [wx.Colour(*c) for c in themes[theme]]
 
-        panel.SetBackgroundColour(base)
-        panel.SetForegroundColour(text)
-        self.log.SetBackgroundColour(mantle)
-        self.log.SetForegroundColour(green)
-        self.radio_info.SetForegroundColour(subtext)
+        panel.SetOwnBackgroundColour(base)
+        panel.SetOwnForegroundColour(text)
+        self.log.SetOwnBackgroundColour(mantle)
+        self.log.SetOwnForegroundColour(green)
+        self.radio_info.SetOwnForegroundColour(subtext1)
 
         for child in panel.GetChildren():
             if isinstance(child, wx.adv.HyperlinkCtrl):
                 child.SetNormalColour(link)
                 child.SetVisitedColour(link)
                 child.SetHoverColour(green)
-            elif not isinstance(child, wx.TextCtrl):
-                child.SetForegroundColour(text)
+                child.SetOwnBackgroundColour(base)
+            elif isinstance(child, (wx.Button,)):
+                child.SetOwnBackgroundColour(surface0)
+                child.SetOwnForegroundColour(text)
+            elif isinstance(child, (wx.ComboBox,)):
+                child.SetOwnBackgroundColour(surface0)
+                child.SetOwnForegroundColour(text)
+            elif isinstance(child, wx.TextCtrl):
+                child.SetOwnBackgroundColour(mantle)
+                child.SetOwnForegroundColour(text)
+            elif isinstance(child, wx.Gauge):
+                child.SetOwnBackgroundColour(surface0)
+            elif isinstance(child, wx.StaticText):
+                child.SetOwnForegroundColour(text)
+                child.SetOwnBackgroundColour(base)
+            else:
+                child.SetOwnForegroundColour(text)
+                child.SetOwnBackgroundColour(base)
+
+        # Log gets green text for that terminal feel
+        self.log.SetOwnForegroundColour(green)
 
         panel.Refresh()
-        self.log.Refresh()
+        for child in panel.GetChildren():
+            child.Refresh()
 
     def on_about(self, event):
         VERSION = "26.03.1"
