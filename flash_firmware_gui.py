@@ -120,11 +120,11 @@ class PortFinderDialog(wx.Dialog):
             vid_pid = (p.vid, p.pid) if p.vid and p.pid else None
             cable = KNOWN_CABLES.get(vid_pid, "")
             usb_id = f"{p.vid:04X}:{p.pid:04X}" if p.vid and p.pid else ""
-            sn = p.serial_number or ""
+            sn = (p.serial_number or "")[:8]  # truncate for privacy
 
             idx = self.port_list.InsertItem(self.port_list.GetItemCount(), p.device)
             self.port_list.SetItem(idx, 1, cable or p.description or "")
-            self.port_list.SetItem(idx, 2, sn)
+            self.port_list.SetItem(idx, 2, sn[:4] + "..." if len(sn) > 4 else sn)
             self.port_list.SetItem(idx, 3, usb_id)
             self.ports.append(p.device)
 
@@ -183,7 +183,7 @@ class FlasherFrame(wx.Frame):
         # COM port
         port_sizer = wx.BoxSizer(wx.HORIZONTAL)
         port_sizer.Add(wx.StaticText(panel, label="Port:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.port_combo = wx.ComboBox(panel, style=wx.CB_DROPDOWN)
+        self.port_combo = wx.ComboBox(panel, style=wx.CB_DROPDOWN | wx.CB_READONLY)
         port_sizer.Add(self.port_combo, 1, wx.EXPAND | wx.RIGHT, 5)
         find_btn = wx.Button(panel, label="Find Cable...")
         find_btn.Bind(wx.EVT_BUTTON, self.on_find_cable)
@@ -299,48 +299,56 @@ class FlasherFrame(wx.Frame):
 
     def _flash_thread(self, port, firmware_path):
         try:
+            import math
+            import time
+            import os
+            import hashlib
+
+            fw_size = os.path.getsize(firmware_path)
+            if fw_size > fw.MAX_FIRMWARE_BYTES:
+                raise ValueError(f"File too large ({fw_size} bytes)")
             with open(firmware_path, "rb") as f:
                 firmware = f.read()
 
-            import math
-            import time
-            fw_size = len(firmware)
-            total_chunks = math.ceil(fw_size / 1024)
+            fw.validate_firmware(firmware, firmware_path)
+            total_chunks = math.ceil(len(firmware) / 1024)
+            sha256 = hashlib.sha256(firmware).hexdigest()
             self.log_msg(f"Firmware: {firmware_path}")
-            self.log_msg(f"Size: {fw_size} bytes, {total_chunks} chunks")
+            self.log_msg(f"Size: {len(firmware)} bytes, {total_chunks} chunks")
+            self.log_msg(f"SHA-256: {sha256}")
             self.log_msg(f"Port: {port}")
             self.log_msg("")
 
-            ser = serial.Serial(
+            with serial.Serial(
                 port=port, baudrate=115200, bytesize=8,
                 parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
                 timeout=2.0, write_timeout=2.0
-            )
-            ser.dtr = True
-            ser.rts = True
-            time.sleep(0.1)
-            ser.reset_input_buffer()
-            ser.reset_output_buffer()
+            ) as ser:
+                ser.dtr = True
+                ser.rts = True
+                time.sleep(0.1)
+                ser.reset_input_buffer()
+                ser.reset_output_buffer()
 
-            self.log_msg("[1/3] Bootloader handshake...")
-            fw.send_command(ser, fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
-            self.log_msg("  OK")
+                self.log_msg("[1/3] Bootloader handshake...")
+                fw.send_command(ser, fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
+                self.log_msg("  OK")
 
-            self.log_msg(f"[2/3] Sending firmware ({total_chunks} chunks)...")
-            fw.send_command(ser, fw.CMD_UPDATE_DATA_PACKAGES, 0, bytes([total_chunks]))
+                self.log_msg(f"[2/3] Sending firmware ({total_chunks} chunks)...")
+                fw.send_command(ser, fw.CMD_UPDATE_DATA_PACKAGES, 0, bytes([total_chunks]))
 
-            for i in range(total_chunks):
-                offset = i * 1024
-                chunk = firmware[offset:offset + 1024]
-                fw.send_command(ser, fw.CMD_UPDATE, i & 0xFF, chunk)
-                pct = ((i + 1) / total_chunks) * 100
-                self.set_progress(pct)
-                if (i + 1) % 10 == 0 or i == total_chunks - 1:
-                    self.log_msg(f"  {pct:.0f}% ({i + 1}/{total_chunks})")
+                for i in range(total_chunks):
+                    offset = i * 1024
+                    chunk = firmware[offset:offset + 1024]
+                    fw.send_command(ser, fw.CMD_UPDATE, i & 0xFF, chunk)
+                    pct = ((i + 1) / total_chunks) * 100
+                    self.set_progress(pct)
+                    if (i + 1) % 10 == 0 or i == total_chunks - 1:
+                        self.log_msg(f"  {pct:.0f}% ({i + 1}/{total_chunks})")
 
-            self.log_msg("[3/3] Finalizing...")
-            fw.send_command(ser, fw.CMD_UPDATE_END, 0)
-            ser.close()
+                self.log_msg("[3/3] Finalizing...")
+                fw.send_command(ser, fw.CMD_UPDATE_END, 0)
+
             self.log_msg("  OK")
             self.log_msg("")
             self.log_msg("Firmware update complete!")
@@ -373,41 +381,40 @@ class FlasherFrame(wx.Frame):
             self.log_msg(f"Running diagnostics on {port}...")
             self.log_msg("")
 
-            ser = serial.Serial(
+            with serial.Serial(
                 port=port, baudrate=115200, bytesize=8,
                 parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
                 timeout=1.0
-            )
-            ser.dtr = True
-            ser.rts = True
-            time.sleep(0.1)
+            ) as ser:
+                ser.dtr = True
+                ser.rts = True
+                time.sleep(0.1)
 
-            self.log_msg(f"  Baud: {ser.baudrate}, DTR: {ser.dtr}, RTS: {ser.rts}")
-            self.log_msg(f"  CTS: {ser.cts}, DSR: {ser.dsr}")
-            self.log_msg("")
-
-            self.log_msg("Sending CMD_HANDSHAKE...")
-            packet = fw.build_packet(fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
-            self.log_msg(f"  TX: {packet.hex()}")
-            ser.reset_input_buffer()
-            ser.write(packet)
-            ser.flush()
-
-            self.set_progress(50)
-            time.sleep(1.0)
-            avail = ser.in_waiting
-            if avail:
-                data = ser.read(avail)
-                self.log_msg(f"  RX ({avail} bytes): {data.hex()}")
+                self.log_msg(f"  Baud: {ser.baudrate}, DTR: {ser.dtr}, RTS: {ser.rts}")
+                self.log_msg(f"  CTS: {ser.cts}, DSR: {ser.dsr}")
                 self.log_msg("")
-                self.log_msg("Radio is responding! Flash should work.")
-            else:
-                self.log_msg("  RX: no data")
-                self.log_msg("")
-                self.log_msg("Radio did not respond.")
-                self.log_msg("Check: cable, bootloader mode, serial port.")
 
-            ser.close()
+                self.log_msg("Sending CMD_HANDSHAKE...")
+                packet = fw.build_packet(fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
+                self.log_msg(f"  TX: {packet.hex()}")
+                ser.reset_input_buffer()
+                ser.write(packet)
+                ser.flush()
+
+                self.set_progress(50)
+                time.sleep(1.0)
+                avail = ser.in_waiting
+                if avail:
+                    data = ser.read(min(avail, 128))
+                    self.log_msg(f"  RX ({avail} bytes): {data.hex()}")
+                    self.log_msg("")
+                    self.log_msg("Radio is responding! Flash should work.")
+                else:
+                    self.log_msg("  RX: no data")
+                    self.log_msg("")
+                    self.log_msg("Radio did not respond.")
+                    self.log_msg("Check: cable, bootloader mode, serial port.")
+
             self.set_progress(100)
 
         except Exception as e:

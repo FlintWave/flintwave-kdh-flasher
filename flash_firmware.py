@@ -25,9 +25,12 @@ Usage:
     python3 flash_firmware.py --diag /dev/ttyUSB0
 """
 
+import os
+import re
 import sys
 import time
 import math
+import hashlib
 import argparse
 
 try:
@@ -45,6 +48,12 @@ CMD_UPDATE_END = 0x45
 HEADER = 0xAA
 TRAILER = 0xEF
 ACK = 0x06
+
+# Safety limits
+MAX_RESPONSE_DATA = 64
+MAX_FIRMWARE_BYTES = 1 * 1024 * 1024  # 1 MB
+MIN_FIRMWARE_BYTES = 256
+MAX_CHUNKS = 255
 
 ERROR_MESSAGES = {
     0xE1: "Handshake code error",
@@ -85,8 +94,7 @@ def read_response_polling(ser, timeout_s=2.0):
       2. Read 4 header bytes (cmd, args, lenH, lenL)
       3. Read data + CRC + trailer
     """
-    buf = bytearray(128)
-    idx = 0
+    buf = bytearray()
     deadline = time.time() + timeout_s
 
     # Stage 1: wait for header byte 0xAA
@@ -94,8 +102,7 @@ def read_response_polling(ser, timeout_s=2.0):
         if ser.in_waiting >= 1:
             b = ser.read(1)
             if b[0] == HEADER:
-                buf[0] = b[0]
-                idx = 1
+                buf.append(b[0])
                 break
         time.sleep(0.001)
     else:
@@ -104,40 +111,39 @@ def read_response_polling(ser, timeout_s=2.0):
     # Stage 2: read 4 bytes (cmd, cmdArgs, lenH, lenL)
     while time.time() < deadline:
         if ser.in_waiting >= 4:
-            chunk = ser.read(4)
-            buf[idx:idx+4] = chunk
-            idx += 4
+            buf.extend(ser.read(4))
             break
         time.sleep(0.001)
     else:
         return None
 
-    cmd = buf[1]
-    cmd_args = buf[2]
     data_len = (buf[3] << 8) | buf[4]
+
+    if data_len > MAX_RESPONSE_DATA:
+        raise ValueError(f"Oversized response data_len={data_len}, max={MAX_RESPONSE_DATA}")
 
     # Stage 3: read data + CRC(2) + trailer(1)
     remain = data_len + 3
     while time.time() < deadline:
         if ser.in_waiting >= remain:
-            chunk = ser.read(remain)
-            buf[idx:idx+remain] = chunk
-            idx += remain
+            buf.extend(ser.read(remain))
             break
         time.sleep(0.001)
     else:
         return None
 
     # Validate CRC
-    crc_calc = crc16_ccitt(bytes(buf[1:5+data_len]))
-    crc_recv = (buf[5+data_len] << 8) | buf[5+data_len+1]
+    crc_calc = crc16_ccitt(bytes(buf[1:5 + data_len]))
+    crc_recv = (buf[5 + data_len] << 8) | buf[5 + data_len + 1]
     if crc_calc != crc_recv:
         raise ValueError(f"CRC mismatch: calc=0x{crc_calc:04X} recv=0x{crc_recv:04X}")
 
-    if buf[5+data_len+2] != TRAILER:
-        raise ValueError(f"Bad trailer: 0x{buf[5+data_len+2]:02X}")
+    if buf[5 + data_len + 2] != TRAILER:
+        raise ValueError(f"Bad trailer: 0x{buf[5 + data_len + 2]:02X}")
 
-    data = bytes(buf[5:5+data_len])
+    cmd = buf[1]
+    cmd_args = buf[2]
+    data = bytes(buf[5:5 + data_len])
     return cmd, cmd_args, data
 
 
@@ -172,56 +178,88 @@ def send_command(ser, cmd, seed, data=b"", retries=5):
     raise RuntimeError("Max retries exceeded")
 
 
+def validate_firmware(firmware: bytes, path: str):
+    """Validate firmware before flashing. Aborts on failure."""
+    fw_size = len(firmware)
+    total_chunks = math.ceil(fw_size / 1024)
+
+    if fw_size < MIN_FIRMWARE_BYTES:
+        raise ValueError(f"Firmware too small ({fw_size} bytes). Not a valid firmware file.")
+
+    if fw_size > MAX_FIRMWARE_BYTES:
+        raise ValueError(f"Firmware too large ({fw_size} bytes, max {MAX_FIRMWARE_BYTES}).")
+
+    if total_chunks > MAX_CHUNKS:
+        raise ValueError(
+            f"Firmware requires {total_chunks} chunks, exceeds protocol limit of {MAX_CHUNKS}."
+        )
+
+    # ARM vector table sanity check
+    sp = int.from_bytes(firmware[0:4], "little")
+    reset = int.from_bytes(firmware[4:8], "little")
+    if not (0x20000000 <= sp <= 0x20100000):
+        raise ValueError(
+            f"Invalid ARM stack pointer 0x{sp:08X} — not a valid firmware file."
+        )
+    if not (0x08000000 <= reset <= 0x08100000):
+        raise ValueError(
+            f"Invalid ARM reset handler 0x{reset:08X} — not a valid firmware file."
+        )
+
+    sha256 = hashlib.sha256(firmware).hexdigest()
+    print(f"Firmware: {path}")
+    print(f"Size: {fw_size} bytes, {total_chunks} chunks")
+    print(f"SHA-256: {sha256}")
+
+
 def flash_firmware(port: str, firmware_path: str):
+    fw_size = os.path.getsize(firmware_path)
+    if fw_size > MAX_FIRMWARE_BYTES:
+        raise ValueError(f"File too large ({fw_size} bytes, max {MAX_FIRMWARE_BYTES}).")
+
     with open(firmware_path, "rb") as f:
         firmware = f.read()
 
-    fw_size = len(firmware)
-    total_chunks = math.ceil(fw_size / 1024)
-    print(f"Firmware: {firmware_path}")
-    print(f"Size: {fw_size} bytes, {total_chunks} chunks")
+    validate_firmware(firmware, firmware_path)
+    total_chunks = math.ceil(len(firmware) / 1024)
     print(f"Port: {port}")
     print()
 
-    ser = serial.Serial(
+    with serial.Serial(
         port=port, baudrate=115200, bytesize=8,
         parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
         timeout=2.0, write_timeout=2.0
-    )
-    ser.dtr = True
-    ser.rts = True
-    time.sleep(0.1)
-    ser.reset_input_buffer()
-    ser.reset_output_buffer()
+    ) as ser:
+        ser.dtr = True
+        ser.rts = True
+        time.sleep(0.1)
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
 
-    # Manual download flow: radio is already in bootloader mode (SK1+SK2 held
-    # during power on). No need to send CMD_INTO_BOOT, which is only used when
-    # the software triggers bootloader mode automatically.
+        print("[1/3] Bootloader handshake...")
+        send_command(ser, CMD_HANDSHAKE, 0, b"BOOTLOADER")
+        print("  OK")
 
-    print("[1/3] Bootloader handshake...")
-    send_command(ser, CMD_HANDSHAKE, 0, b"BOOTLOADER")
-    print("  OK")
+        print(f"[2/3] Sending firmware ({total_chunks} chunks)...")
+        send_command(ser, CMD_UPDATE_DATA_PACKAGES, 0, bytes([total_chunks]))
 
-    print(f"[2/3] Sending firmware ({total_chunks} chunks)...")
-    send_command(ser, CMD_UPDATE_DATA_PACKAGES, 0, bytes([total_chunks]))
+        seq = 0
+        for i in range(total_chunks):
+            offset = i * 1024
+            chunk = firmware[offset:offset + 1024]
+            send_command(ser, CMD_UPDATE, seq & 0xFF, chunk)
+            seq += 1
+            pct = ((i + 1) / total_chunks) * 100
+            bar_len = 30
+            filled = int(bar_len * (i + 1) / total_chunks)
+            bar = "\u2588" * filled + "\u2591" * (bar_len - filled)
+            print(f"\r  [{bar}] {pct:5.1f}% ({i + 1}/{total_chunks})", end="", flush=True)
 
-    seq = 0
-    for i in range(total_chunks):
-        offset = i * 1024
-        chunk = firmware[offset:offset + 1024]
-        send_command(ser, CMD_UPDATE, seq & 0xFF, chunk)
-        seq += 1
-        pct = ((i + 1) / total_chunks) * 100
-        bar_len = 30
-        filled = int(bar_len * (i + 1) / total_chunks)
-        bar = "\u2588" * filled + "\u2591" * (bar_len - filled)
-        print(f"\r  [{bar}] {pct:5.1f}% ({i + 1}/{total_chunks})", end="", flush=True)
+        print()
 
-    print()
+        print("[3/3] Finalizing...")
+        send_command(ser, CMD_UPDATE_END, 0)
 
-    print("[3/3] Finalizing...")
-    send_command(ser, CMD_UPDATE_END, 0)
-    ser.close()
     print("  OK")
     print()
     print("Firmware update complete! Power cycle the radio and check Menu > Radio Info.")
@@ -232,84 +270,83 @@ def run_diagnostics(port: str):
     print(f"Running diagnostics on {port}...")
     print()
 
-    ser = serial.Serial(
+    with serial.Serial(
         port=port, baudrate=115200, bytesize=8,
         parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
         timeout=1.0
-    )
-    ser.dtr = True
-    ser.rts = True
-    time.sleep(0.1)
+    ) as ser:
+        ser.dtr = True
+        ser.rts = True
+        time.sleep(0.1)
 
-    print(f"  Port opened: {ser.name}")
-    print(f"  Baud: {ser.baudrate}, DTR: {ser.dtr}, RTS: {ser.rts}")
-    print(f"  CTS: {ser.cts}, DSR: {ser.dsr}, CD: {ser.cd}, RI: {ser.ri}")
-    print()
+        print(f"  Port opened: {ser.name}")
+        print(f"  Baud: {ser.baudrate}, DTR: {ser.dtr}, RTS: {ser.rts}")
+        print(f"  CTS: {ser.cts}, DSR: {ser.dsr}, CD: {ser.cd}, RI: {ser.ri}")
+        print()
 
-    try:
-        dev = port.split("/")[-1]
-        with open(f"/sys/bus/usb-serial/devices/{dev}/latency_timer") as f:
-            lat = f.read().strip()
-        print(f"  FTDI latency timer: {lat}ms")
-    except Exception:
-        print("  FTDI latency timer: unknown")
-    print()
+        # FTDI latency timer (Linux only, safe path construction)
+        dev = os.path.basename(port)
+        if re.fullmatch(r'tty[A-Za-z0-9]+', dev):
+            sysfs = f"/sys/bus/usb-serial/devices/{dev}/latency_timer"
+            try:
+                with open(sysfs) as f:
+                    print(f"  FTDI latency timer: {f.read().strip()}ms")
+            except OSError:
+                print("  FTDI latency timer: unknown")
+        print()
 
-    # Test 1: CMD_HANDSHAKE (manual mode)
-    print("Test 1: Sending CMD_HANDSHAKE (manual mode)...")
-    packet = build_packet(CMD_HANDSHAKE, 0, b"BOOTLOADER")
-    print(f"  TX: {packet.hex()}")
-    ser.reset_input_buffer()
-    ser.write(packet)
-    ser.flush()
+        # Test 1: CMD_HANDSHAKE (manual mode)
+        print("Test 1: Sending CMD_HANDSHAKE...")
+        packet = build_packet(CMD_HANDSHAKE, 0, b"BOOTLOADER")
+        print(f"  TX: {packet.hex()}")
+        ser.reset_input_buffer()
+        ser.write(packet)
+        ser.flush()
 
-    time.sleep(1.0)
-    avail = ser.in_waiting
-    if avail:
-        data = ser.read(avail)
-        print(f"  RX ({avail} bytes): {data.hex()}")
-    else:
-        print("  RX: no data")
+        time.sleep(1.0)
+        avail = ser.in_waiting
+        if avail:
+            data = ser.read(min(avail, 128))
+            print(f"  RX ({avail} bytes): {data.hex()}")
+        else:
+            print("  RX: no data")
 
-    # Test 2: CMD_INTO_BOOT (auto mode)
-    print()
-    print("Test 2: Sending CMD_INTO_BOOT (auto mode)...")
-    packet = build_packet(CMD_INTO_BOOT, 0)
-    print(f"  TX: {packet.hex()}")
-    ser.reset_input_buffer()
-    ser.write(packet)
-    ser.flush()
+        # Test 2: CMD_INTO_BOOT (auto mode)
+        print()
+        print("Test 2: Sending CMD_INTO_BOOT...")
+        packet = build_packet(CMD_INTO_BOOT, 0)
+        print(f"  TX: {packet.hex()}")
+        ser.reset_input_buffer()
+        ser.write(packet)
+        ser.flush()
 
-    time.sleep(1.0)
-    avail = ser.in_waiting
-    if avail:
-        data = ser.read(avail)
-        print(f"  RX ({avail} bytes): {data.hex()}")
-    else:
-        print("  RX: no data")
+        time.sleep(1.0)
+        avail = ser.in_waiting
+        if avail:
+            data = ser.read(min(avail, 128))
+            print(f"  RX ({avail} bytes): {data.hex()}")
+        else:
+            print("  RX: no data")
 
-    # Test 3: Poll for any unsolicited data
-    print()
-    print("Test 3: Polling for any data over 3 seconds...")
-    ser.reset_input_buffer()
-    ser.write(bytes([0x55]))
-    ser.flush()
-    start = time.time()
-    got_data = False
-    while time.time() - start < 3.0:
-        if ser.in_waiting:
-            b = ser.read(ser.in_waiting)
-            print(f"  RX at {time.time()-start:.2f}s: {b.hex()}")
-            got_data = True
-        time.sleep(0.001)
-    if not got_data:
-        print("  No data received")
+        # Test 3: Poll for any response
+        print()
+        print("Test 3: Polling for any data over 3 seconds...")
+        ser.reset_input_buffer()
+        start = time.time()
+        got_data = False
+        while time.time() - start < 3.0:
+            if ser.in_waiting:
+                b = ser.read(min(ser.in_waiting, 128))
+                print(f"  RX at {time.time() - start:.2f}s: {b.hex()}")
+                got_data = True
+            time.sleep(0.001)
+        if not got_data:
+            print("  No data received")
 
-    print()
-    print("Test 4: Line status check...")
-    print(f"  CTS: {ser.cts}, DSR: {ser.dsr}, CD: {ser.cd}, RI: {ser.ri}")
+        print()
+        print("Test 4: Line status check...")
+        print(f"  CTS: {ser.cts}, DSR: {ser.dsr}, CD: {ser.cd}, RI: {ser.ri}")
 
-    ser.close()
     print()
     if not got_data:
         print("RESULT: Radio is not responding on RX.")
@@ -323,27 +360,43 @@ def run_diagnostics(port: str):
 
 def dry_run(firmware_path: str):
     """Verify packet construction without touching serial port."""
+    fw_size = os.path.getsize(firmware_path)
+    if fw_size > MAX_FIRMWARE_BYTES:
+        print(f"FAIL: File too large ({fw_size} bytes, max {MAX_FIRMWARE_BYTES})")
+        return False
+
     with open(firmware_path, "rb") as f:
         firmware = f.read()
 
     fw_size = len(firmware)
     total_chunks = math.ceil(fw_size / 1024)
 
+    if fw_size < MIN_FIRMWARE_BYTES:
+        print(f"FAIL: Firmware too small ({fw_size} bytes)")
+        return False
+
+    if total_chunks > MAX_CHUNKS:
+        print(f"FAIL: Too many chunks ({total_chunks}, max {MAX_CHUNKS})")
+        return False
+
+    sha256 = hashlib.sha256(firmware).hexdigest()
     print(f"Firmware: {firmware_path}")
     print(f"Size: {fw_size} bytes, {total_chunks} chunks")
+    print(f"SHA-256: {sha256}")
     print()
-
-    if fw_size < 8:
-        print("FAIL: Firmware file too small")
-        return False
 
     sp = int.from_bytes(firmware[0:4], "little")
     reset = int.from_bytes(firmware[4:8], "little")
     print("ARM vector table check:")
     print(f"  Stack pointer:  0x{sp:08X}", end="")
-    print(" (valid SRAM)" if 0x20000000 <= sp <= 0x20100000 else " (WARNING)")
+    ok_sp = 0x20000000 <= sp <= 0x20100000
+    print(" (valid SRAM)" if ok_sp else " (INVALID)")
     print(f"  Reset handler:  0x{reset:08X}", end="")
-    print(" (valid Flash)" if 0x08000000 <= reset <= 0x08100000 else " (WARNING)")
+    ok_reset = 0x08000000 <= reset <= 0x08100000
+    print(" (valid Flash)" if ok_reset else " (INVALID)")
+    if not ok_sp or not ok_reset:
+        print("\nFAIL: Invalid ARM vector table")
+        return False
     print()
 
     print("Building all packets (manual download flow)...")
