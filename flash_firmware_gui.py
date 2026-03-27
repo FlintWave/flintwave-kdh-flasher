@@ -186,7 +186,8 @@ class FlasherFrame(wx.Frame):
         self.SetMinSize((560, 500))
 
         self.font_size = 9
-        self.high_contrast = False
+        self.current_theme = "system"
+        self.current_theme_palette = None
 
         # Window icon
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon_128.png")
@@ -405,6 +406,8 @@ class FlasherFrame(wx.Frame):
 
         if theme not in themes:
             # System default — reset everything
+            self.current_theme = "system"
+            self.current_theme_palette = None
             panel.SetOwnBackgroundColour(wx.NullColour)
             panel.SetOwnForegroundColour(wx.NullColour)
             self.log.SetOwnBackgroundColour(wx.NullColour)
@@ -418,6 +421,9 @@ class FlasherFrame(wx.Frame):
             for child in panel.GetChildren():
                 child.Refresh()
             return
+
+        self.current_theme = theme
+        self.current_theme_palette = themes[theme]
 
         base, surface0, mantle, text, subtext1, green, link = \
             [wx.Colour(*c) for c in themes[theme]]
@@ -554,7 +560,61 @@ class FlasherFrame(wx.Frame):
 
     def on_about(self, event):
         VERSION = "26.03.1"
-        mit_license = (
+        dlg = wx.Dialog(self, title="About", size=(420, 440),
+                        style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        dlg.SetMinSize((420, 440))
+        dlg.SetMaxSize((420, 560))
+
+        notebook = wx.Notebook(dlg)
+
+        # About page
+        about_panel = wx.Panel(notebook)
+        about_sizer = wx.BoxSizer(wx.VERTICAL)
+        about_sizer.AddSpacer(15)
+
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon_128.png")
+        if os.path.exists(icon_path):
+            img = wx.Image(icon_path).Rescale(64, 64, wx.IMAGE_QUALITY_HIGH)
+            about_sizer.Add(wx.StaticBitmap(about_panel, bitmap=wx.Bitmap(img)),
+                            0, wx.ALIGN_CENTER)
+            about_sizer.AddSpacer(10)
+
+        title = wx.StaticText(about_panel, label="KDH Bootloader Firmware Flasher")
+        title.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        about_sizer.Add(title, 0, wx.ALIGN_CENTER)
+
+        ver = wx.StaticText(about_panel, label=f"Version {VERSION}")
+        about_sizer.Add(ver, 0, wx.ALIGN_CENTER | wx.TOP, 5)
+        about_sizer.AddSpacer(10)
+
+        desc = wx.StaticText(about_panel,
+            label="Flash .kdhx firmware to BTECH, Baofeng, Radtel,\n"
+                  "and other KDH bootloader radios from any OS.",
+            style=wx.ALIGN_CENTRE_HORIZONTAL)
+        about_sizer.Add(desc, 0, wx.ALIGN_CENTER)
+        about_sizer.AddSpacer(15)
+
+        copy_text = wx.StaticText(about_panel, label="(c) 2026 FlintWave Radio Tools")
+        copy_text.SetForegroundColour(wx.Colour(120, 120, 120))
+        about_sizer.Add(copy_text, 0, wx.ALIGN_CENTER)
+        about_sizer.AddSpacer(5)
+
+        link = wx.adv.HyperlinkCtrl(about_panel,
+            label="github.com/FlintWave/flintwave-kdh-flasher",
+            url="https://github.com/FlintWave/flintwave-kdh-flasher")
+        about_sizer.Add(link, 0, wx.ALIGN_CENTER)
+
+        about_panel.SetSizer(about_sizer)
+        notebook.AddPage(about_panel, "About")
+
+        # License page
+        license_panel = wx.Panel(notebook)
+        license_sizer = wx.BoxSizer(wx.VERTICAL)
+        license_text = wx.TextCtrl(license_panel,
+            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP)
+        license_text.SetFont(wx.Font(9, wx.FONTFAMILY_TELETYPE,
+                                     wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+        license_text.SetValue(
             "MIT License\n\n"
             "Copyright (c) 2026 FlintWave Radio Tools\n\n"
             "Permission is hereby granted, free of charge, to any person obtaining a copy "
@@ -573,42 +633,53 @@ class FlasherFrame(wx.Frame):
             "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE "
             "SOFTWARE."
         )
-        info = wx.adv.AboutDialogInfo()
-        # Render the radio emoji as the About dialog icon with transparency
-        sz = 128
-        bmp = wx.Bitmap(sz, sz, 32)
-        bmp.UseAlpha()
-        dc = wx.MemoryDC(bmp)
-        dc.SetBackground(wx.TRANSPARENT_BRUSH)
-        dc.Clear()
-        # Fill with transparent
-        gc = wx.GraphicsContext.Create(dc)
-        gc.SetBrush(wx.Brush(wx.Colour(0, 0, 0, 0)))
-        gc.DrawRectangle(0, 0, sz, sz)
-        font = wx.Font(wx.FontInfo(80).FaceName("Noto Color Emoji"))
-        if not font.IsOk():
-            font = wx.Font(80, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-        dc.SetFont(font)
-        tw, th = dc.GetTextExtent("\U0001f4fb")
-        dc.DrawText("\U0001f4fb", (sz - tw) // 2, (sz - th) // 2)
-        dc.SelectObject(wx.NullBitmap)
-        img = bmp.ConvertToImage()
-        if not img.HasAlpha():
-            img.InitAlpha()
-        img.Rescale(64, 64, wx.IMAGE_QUALITY_HIGH)
-        icon = wx.Icon()
-        icon.CopyFromBitmap(wx.Bitmap(img))
-        info.SetIcon(icon)
-        info.SetName("KDH Bootloader Firmware Flasher")
-        info.SetVersion(VERSION)
-        info.SetDescription(
-            "Flash .kdhx firmware to BTECH, Baofeng, Radtel,\n"
-            "and other KDH bootloader radios from any OS."
-        )
-        info.SetCopyright("(c) 2026 FlintWave Radio Tools")
-        info.SetWebSite("https://github.com/FlintWave/flintwave-kdh-flasher")
-        info.SetLicence(mit_license)
-        wx.adv.AboutBox(info)
+        license_sizer.Add(license_text, 1, wx.EXPAND | wx.ALL, 10)
+        license_panel.SetSizer(license_sizer)
+        notebook.AddPage(license_panel, "License")
+
+        dlg_sizer = wx.BoxSizer(wx.VERTICAL)
+        dlg_sizer.Add(notebook, 1, wx.EXPAND | wx.ALL, 5)
+        close_btn = wx.Button(dlg, wx.ID_CLOSE, "Close")
+        close_btn.Bind(wx.EVT_BUTTON, lambda e: dlg.EndModal(wx.ID_CLOSE))
+        dlg_sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
+        dlg.SetSizer(dlg_sizer)
+
+        # Apply current theme to dialog
+        if self.current_theme_palette:
+            p = self.current_theme_palette
+            base, surface0, mantle, text, subtext1, green, link_c = \
+                [wx.Colour(*c) for c in p]
+            for w in [dlg, notebook, about_panel, license_panel]:
+                w.SetOwnBackgroundColour(base)
+                w.SetOwnForegroundColour(text)
+            for child in about_panel.GetChildren():
+                if isinstance(child, wx.adv.HyperlinkCtrl):
+                    child.SetNormalColour(link_c)
+                    child.SetVisitedColour(link_c)
+                    child.SetOwnBackgroundColour(base)
+                elif isinstance(child, wx.StaticText):
+                    child.SetOwnForegroundColour(text)
+            copy_text.SetOwnForegroundColour(subtext1)
+            license_text.SetOwnBackgroundColour(mantle)
+            license_text.SetOwnForegroundColour(green)
+            close_btn.SetOwnBackgroundColour(surface0)
+            close_btn.SetOwnForegroundColour(text)
+
+        # Apply current font size
+        ui_font = wx.Font(self.font_size, wx.FONTFAMILY_DEFAULT,
+                          wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        mono_font = wx.Font(self.font_size, wx.FONTFAMILY_TELETYPE,
+                            wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
+        title.SetFont(wx.Font(self.font_size + 4, wx.FONTFAMILY_DEFAULT,
+                              wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        ver.SetFont(ui_font)
+        desc.SetFont(ui_font)
+        copy_text.SetFont(ui_font)
+        license_text.SetFont(mono_font)
+
+        dlg.Centre()
+        dlg.ShowModal()
+        dlg.Destroy()
 
     def _check_update(self):
         try:
