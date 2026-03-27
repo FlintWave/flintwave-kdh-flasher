@@ -553,7 +553,7 @@ class FlasherFrame(wx.Frame):
                 pass
 
     def on_about(self, event):
-        VERSION = "26.03.1"
+        VERSION = "26.03.1.0"
         mit_license = (
             "MIT License\n\n"
             "Copyright (c) 2026 FlintWave Radio Tools\n\n"
