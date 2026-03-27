@@ -569,7 +569,7 @@ class FlasherFrame(wx.Frame):
             "SOFTWARE."
         )
         info = wx.adv.AboutDialogInfo()
-        info.SetName("\U0001f4fb KDH Bootloader Firmware Flasher")
+        info.SetName("KDH Bootloader Firmware Flasher")
         info.SetVersion(VERSION)
         info.SetDescription(
             "Flash .kdhx firmware to BTECH, Baofeng, Radtel,\n"
