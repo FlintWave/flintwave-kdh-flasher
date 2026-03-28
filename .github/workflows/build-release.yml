@@ -7,6 +7,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -27,10 +28,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libnotify-dev \
+            libsdl2-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            freeglut3-dev libjpeg-dev libtiff-dev
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyserial wxPython requests pyinstaller
+          python -m pip install pyserial requests pyinstaller
+          python -m pip install wxPython --prefer-binary
 
       - name: Build binary
         run: pyinstaller build.spec

@@ -4,8 +4,8 @@ A cross-platform tool for flashing `.kdhx` firmware to radios that use the KDH b
 
 Maintained by [FlintWave Radio Tools](https://github.com/FlintWave). Contact: flintwave@tuta.com
 
-![FlintWave KDH Flasher — Dark Theme](screenshots/screenshot-linux-dark.png)
-![FlintWave KDH Flasher — Light Theme](screenshots/screenshot-linux-light.png)
+![FlintWave KDH Flasher — Dark Theme](screenshots/screenshot-dark.png)
+![FlintWave KDH Flasher — Light Theme](screenshots/screenshot-light.png)
 
 ## Status
 
