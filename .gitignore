@@ -5,3 +5,5 @@ __pycache__/
 *.zip
 test_screenshots/
 test_gui_visual.py
+*.png
+!icon_128.png
