@@ -3,6 +3,13 @@ __pycache__/
 *.kdhx
 *.exe
 *.zip
+*.deb
+*.rpm
+*.AppImage
+*.dmg
+build/
+dist/
+*.spec.bak
 test_screenshots/
 test_gui_visual.py
 *.png

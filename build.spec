@@ -26,6 +26,10 @@ a = Analysis(
         'flash_firmware',
         'firmware_download',
         'updater',
+        'gui_main',
+        'gui_dialogs',
+        'gui_themes',
+        'gui_ports',
         'serial',
         'serial.tools',
         'serial.tools.list_ports',
@@ -52,7 +56,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=(sys.platform != 'win32'),  # UPX causes AV false positives on Windows
     console=False,
     icon='icon.ico' if sys.platform == 'win32' else ('icon_128.png' if sys.platform != 'darwin' else None),
 )

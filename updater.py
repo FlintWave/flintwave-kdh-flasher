@@ -6,6 +6,7 @@ or directs the user to download the latest release (packaged installs).
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.request
@@ -13,6 +14,14 @@ import urllib.request
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_URL = "https://github.com/FlintWave/flintwave-kdh-flasher"
 RELEASES_URL = "https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest"
+
+EXPECTED_ORIGINS = {
+    "https://github.com/FlintWave/flintwave-kdh-flasher.git",
+    "https://github.com/FlintWave/flintwave-kdh-flasher",
+    "git@github.com:FlintWave/flintwave-kdh-flasher.git",
+    "git@codeberg.org:flintwaveradio/flintwave-kdh-flasher.git",
+    "https://codeberg.org/flintwaveradio/flintwave-kdh-flasher.git",
+}
 API_URL = "https://api.github.com/repos/FlintWave/flintwave-kdh-flasher/releases/latest"
 
 
@@ -33,9 +42,9 @@ def get_local_version():
         if os.path.exists(gui_path):
             with open(gui_path) as f:
                 for line in f:
-                    if 'VERSION' in line and '=' in line:
-                        ver = line.split('"')[1]
-                        return ver
+                    m = re.match(r'^VERSION\s*=\s*"([^"]+)"', line)
+                    if m:
+                        return m.group(1)
     except Exception:
         pass
     return None
@@ -108,6 +117,20 @@ def check_for_update():
         return local_ver != remote_ver, local_ver, remote_ver
 
 
+def _verify_origin():
+    """Verify git remote origin matches expected repositories."""
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            return result.stdout.strip() in EXPECTED_ORIGINS
+    except Exception:
+        pass
+    return False
+
+
 def apply_update():
     """Pull latest from origin (git installs only).
 
@@ -115,6 +138,9 @@ def apply_update():
     """
     if not is_git_install():
         return False, "Cannot auto-update packaged installs. Download the latest from the releases page."
+
+    if not _verify_origin():
+        return False, "Remote origin does not match expected repository. Update manually."
 
     try:
         result = subprocess.run(

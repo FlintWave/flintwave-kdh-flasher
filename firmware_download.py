@@ -16,6 +16,8 @@ from urllib.parse import urlparse
 import requests
 
 # Only allow downloads from known manufacturer domains
+MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
 ALLOWED_DOMAINS = {
     "baofengtech.com",
     "www.baofengtech.com",
@@ -91,6 +93,10 @@ def download_firmware_bundle(url, progress_callback=None):
         for chunk in resp.iter_content(chunk_size=8192):
             f.write(chunk)
             downloaded += len(chunk)
+            if downloaded > MAX_DOWNLOAD_BYTES:
+                f.close()
+                os.unlink(dest)
+                raise ValueError(f"Download exceeds size limit ({MAX_DOWNLOAD_BYTES} bytes)")
             if progress_callback and total:
                 progress_callback(downloaded / total * 100)
 
@@ -114,8 +120,9 @@ def extract_kdhx(zip_path, pattern="*.kdhx"):
             if fnmatch.fnmatch(basename, pattern):
                 # Extract to flat directory (no nested paths)
                 dest = os.path.join(extract_dir, basename)
+                import shutil
                 with zf.open(name) as src, open(dest, "wb") as dst:
-                    dst.write(src.read())
+                    shutil.copyfileobj(src, dst, length=65536)
                 extracted.append(dest)
 
     return extracted
