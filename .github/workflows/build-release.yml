@@ -32,7 +32,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-wxgtk4.0
+          sudo apt-get install -y python3-wxgtk4.0 libfuse2
 
       - name: Install Python dependencies
         shell: bash
@@ -50,11 +50,35 @@ jobs:
       - name: Build binary
         run: pyinstaller build.spec
 
+      - name: Build AppImage (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p AppDir/usr/bin AppDir/usr/share/icons/hicolor/128x128/apps AppDir/usr/share/applications
+          cp dist/FlintWave-KDH-Flasher AppDir/usr/bin/
+          cp icon_128.png AppDir/usr/share/icons/hicolor/128x128/apps/flintwave-kdh-flasher.png
+          cp icon_128.png AppDir/flintwave-kdh-flasher.png
+          cat > AppDir/usr/share/applications/flintwave-kdh-flasher.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Type=Application
+          Name=FlintWave KDH Flasher
+          Exec=FlintWave-KDH-Flasher
+          Icon=flintwave-kdh-flasher
+          Categories=Utility;HamRadio;
+          DESKTOP
+          cp AppDir/usr/share/applications/flintwave-kdh-flasher.desktop AppDir/
+          ln -sf usr/bin/FlintWave-KDH-Flasher AppDir/AppRun
+          curl -sL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool AppDir FlintWave-KDH-Flasher-x86_64.AppImage
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: dist/
+          path: |
+            dist/
+            *.AppImage
 
   release:
     needs: build
@@ -65,20 +89,29 @@ jobs:
       - uses: actions/download-artifact@v4
 
       - name: Package artifacts
+        shell: bash
         run: |
-          cd FlintWave-KDH-Flasher-Linux && tar czf ../FlintWave-KDH-Flasher-Linux.tar.gz * && cd ..
-          cd FlintWave-KDH-Flasher-Windows && zip -r ../FlintWave-KDH-Flasher-Windows.zip * && cd ..
-          cd FlintWave-KDH-Flasher-macOS && tar czf ../FlintWave-KDH-Flasher-macOS.tar.gz * && cd ..
+          # Linux AppImage
+          cp FlintWave-KDH-Flasher-Linux/FlintWave-KDH-Flasher-x86_64.AppImage . 2>/dev/null || \
+            (cd FlintWave-KDH-Flasher-Linux/dist && tar czf ../../FlintWave-KDH-Flasher-Linux.tar.gz *)
+          # Windows exe
+          cp FlintWave-KDH-Flasher-Windows/dist/FlintWave-KDH-Flasher.exe . 2>/dev/null || true
+          # macOS
+          cd FlintWave-KDH-Flasher-macOS/dist && tar czf ../../FlintWave-KDH-Flasher-macOS.tar.gz * && cd ../..
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
+        shell: bash
         run: |
+          ASSETS=""
+          [ -f FlintWave-KDH-Flasher-x86_64.AppImage ] && ASSETS="$ASSETS FlintWave-KDH-Flasher-x86_64.AppImage"
+          [ -f FlintWave-KDH-Flasher-Linux.tar.gz ] && ASSETS="$ASSETS FlintWave-KDH-Flasher-Linux.tar.gz"
+          [ -f FlintWave-KDH-Flasher.exe ] && ASSETS="$ASSETS FlintWave-KDH-Flasher.exe"
+          [ -f FlintWave-KDH-Flasher-macOS.tar.gz ] && ASSETS="$ASSETS FlintWave-KDH-Flasher-macOS.tar.gz"
           gh release create "$TAG_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$TAG_NAME" \
             --generate-notes \
-            FlintWave-KDH-Flasher-Linux.tar.gz \
-            FlintWave-KDH-Flasher-Windows.zip \
-            FlintWave-KDH-Flasher-macOS.tar.gz
+            $ASSETS
