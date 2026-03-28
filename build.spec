@@ -3,10 +3,18 @@
 # Build with: pyinstaller build.spec
 
 import sys
+import os
+
+# On Linux, find system wxPython if not in pip
+extra_paths = []
+if sys.platform.startswith('linux'):
+    for p in ['/usr/lib/python3/dist-packages', '/usr/lib/python3.12/dist-packages']:
+        if os.path.isdir(p):
+            extra_paths.append(p)
 
 a = Analysis(
     ['flash_firmware_gui.py'],
-    pathex=[],
+    pathex=extra_paths,
     binaries=[],
     datas=[
         ('radios.json', '.'),
@@ -46,7 +54,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    icon='icon_128.png' if sys.platform != 'darwin' else None,
+    icon='icon.ico' if sys.platform == 'win32' else ('icon_128.png' if sys.platform != 'darwin' else None),
 )
 
 if sys.platform == 'darwin':
