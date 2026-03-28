@@ -248,7 +248,11 @@ class FlasherFrame(wx.Frame):
         radio_sizer = wx.BoxSizer(wx.HORIZONTAL)
         radio_sizer.Add(wx.StaticText(panel, label="Radio:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
         self.radios = dl.load_radios()
-        radio_names = [f"{r['manufacturer']} {r['name']}" for r in self.radios]
+        radio_names = [
+            r['name'] if r['name'].startswith(r['manufacturer'])
+            else f"{r['manufacturer']} {r['name']}"
+            for r in self.radios
+        ]
         self.radio_combo = wx.ComboBox(panel, choices=radio_names,
                                        style=wx.CB_DROPDOWN | wx.CB_READONLY)
         if radio_names:
@@ -318,6 +322,30 @@ class FlasherFrame(wx.Frame):
 
         panel.SetSizer(sizer)
         self.Centre()
+
+        # Show getting started guide
+        self.log.SetValue(
+            "Getting Started:\n"
+            "\n"
+            "1. Select your radio model from the dropdown above\n"
+            "2. Get the firmware file:\n"
+            "   - Click 'Download Latest' if available, or\n"
+            "   - Click 'Browse...' to select a .kdhx file you've downloaded\n"
+            "3. Plug in your programming cable (PC03 or compatible K1 cable)\n"
+            "4. Click 'Find Cable...' to detect your cable\n"
+            "5. Click 'Dry Run' to verify the firmware file\n"
+            "6. Put the radio in bootloader mode:\n"
+            "   - Turn off the radio completely\n"
+            "   - Hold the bootloader keys (shown in the info line above)\n"
+            "   - While holding, turn the power/volume knob to turn on\n"
+            "   - The screen stays blank and the green Rx LED lights up\n"
+            "   - Do NOT release the keys until the LED is on\n"
+            "7. Click 'Flash Firmware' and wait for it to complete\n"
+            "8. Power cycle the radio and check Menu > Radio Info\n"
+            "\n"
+            "IMPORTANT: Do not unplug the cable or turn off the radio\n"
+            "during the flash process.\n"
+        )
 
         # Auto-detect cable on startup
         self._auto_detect_port()
@@ -441,6 +469,10 @@ class FlasherFrame(wx.Frame):
                 child.SetHoverColour(green)
                 child.SetOwnBackgroundColour(base)
             elif isinstance(child, (wx.Button,)):
+                if sys.platform == "win32":
+                    # Windows native buttons need flat style to accept colors
+                    child.SetWindowStyleFlag(
+                        child.GetWindowStyleFlag() | wx.BORDER_NONE)
                 child.SetOwnBackgroundColour(surface0)
                 child.SetOwnForegroundColour(text)
             elif isinstance(child, (wx.ComboBox,)):
