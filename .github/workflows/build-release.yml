@@ -1,0 +1,69 @@
+name: Build Release Binaries
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            artifact: FlintWave-KDH-Flasher-Linux
+          - os: windows-latest
+            name: Windows
+            artifact: FlintWave-KDH-Flasher-Windows
+          - os: macos-latest
+            name: macOS
+            artifact: FlintWave-KDH-Flasher-macOS
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyserial wxPython requests pyinstaller
+
+      - name: Build binary
+        run: pyinstaller build.spec
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Package artifacts
+        run: |
+          cd FlintWave-KDH-Flasher-Linux && tar czf ../FlintWave-KDH-Flasher-Linux.tar.gz * && cd ..
+          cd FlintWave-KDH-Flasher-Windows && zip -r ../FlintWave-KDH-Flasher-Windows.zip * && cd ..
+          cd FlintWave-KDH-Flasher-macOS && tar czf ../FlintWave-KDH-Flasher-macOS.tar.gz * && cd ..
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG_NAME" \
+            --generate-notes \
+            FlintWave-KDH-Flasher-Linux.tar.gz \
+            FlintWave-KDH-Flasher-Windows.zip \
+            FlintWave-KDH-Flasher-macOS.tar.gz
