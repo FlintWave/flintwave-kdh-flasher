@@ -239,7 +239,7 @@ def show_about_dialog(frame):
     dlg.Destroy()
 
 
-def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg):
+def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg, log_content=""):
     """Show the test report submission dialog after a flash attempt."""
     import platform
     import urllib.parse
@@ -256,7 +256,11 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
     )
     if error_msg:
         report_body += f"Error: {error_msg}\n"
-    report_body += "\nAdditional notes:\n"
+    report_body += "\nAdditional notes:\n\n"
+    if log_content:
+        # Truncate log to last 2000 chars to keep URL manageable
+        truncated = log_content[-2000:] if len(log_content) > 2000 else log_content
+        report_body += f"--- Log ---\n{truncated}\n"
 
     title = f"Test Report: {radio_name} — {status}"
 

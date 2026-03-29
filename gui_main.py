@@ -482,6 +482,8 @@ class FlasherFrame(wx.Frame):
                 for i in range(total_chunks):
                     offset = i * 1024
                     chunk = firmware[offset:offset + 1024]
+                    if len(chunk) < 1024:
+                        chunk = chunk + b'\x00' * (1024 - len(chunk))
                     fw.send_command(ser, fw.CMD_UPDATE, i & 0xFF, chunk)
                     pct = ((i + 1) / total_chunks) * 100
                     self.set_progress(pct)
@@ -506,7 +508,8 @@ class FlasherFrame(wx.Frame):
             self.set_buttons(True)
 
     def _offer_test_report(self, radio_name, firmware_path, success, error_msg):
-        show_test_report_dialog(self, radio_name, firmware_path, success, error_msg)
+        log_content = self.log.GetValue()
+        show_test_report_dialog(self, radio_name, firmware_path, success, error_msg, log_content)
 
     def on_dry_run(self, event):
         firmware_path = self.file_path.GetValue()

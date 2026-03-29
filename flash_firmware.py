@@ -148,7 +148,7 @@ def read_response_polling(ser, timeout_s=2.0):
 
 
 def send_command(ser, cmd, seed, data=b"", retries=5):
-    """Send command and wait for ACK. Retry on data verification errors."""
+    """Send command and wait for ACK. Retry on recoverable errors."""
     packet = build_packet(cmd, seed, data)
     for attempt in range(retries):
         ser.reset_input_buffer()
@@ -159,18 +159,39 @@ def send_command(ser, cmd, seed, data=b"", retries=5):
         if resp is None:
             if attempt < retries - 1:
                 print(f"  Timeout, retrying ({attempt + 1}/{retries})...")
+                time.sleep(0.1)
                 continue
             raise TimeoutError("No response from radio")
 
         resp_cmd, resp_args, resp_data = resp
 
+        # Check for error codes in both cmd and args fields.
+        # The radio may return errors as either:
+        #   cmd=error_code, args=anything (error in command field)
+        #   cmd=echoed_cmd, args=error_code (error in args field)
+        error_code = None
         if resp_cmd in ERROR_MESSAGES:
-            if resp_cmd == 0xE2 and attempt < retries - 1:
-                print(f"  Data verification error, retrying ({attempt + 1}/{retries})...")
+            error_code = resp_cmd
+        elif resp_args in ERROR_MESSAGES:
+            error_code = resp_args
+
+        if error_code is not None:
+            error_msg = ERROR_MESSAGES[error_code]
+            # 0xE3 (address) and 0xE4 (flash write) are fatal
+            if error_code in (0xE3, 0xE4):
+                raise RuntimeError(f"Radio error: {error_msg}")
+            # All other errors are retryable
+            if attempt < retries - 1:
+                print(f"  Error 0x{error_code:02X}: {error_msg}, retrying ({attempt + 1}/{retries})...")
+                time.sleep(0.1)
                 continue
-            raise RuntimeError(f"Radio error: {ERROR_MESSAGES[resp_cmd]}")
+            raise RuntimeError(f"Radio error: {error_msg}")
 
         if resp_args != ACK:
+            if attempt < retries - 1:
+                print(f"  Unexpected response (cmd=0x{resp_cmd:02X} args=0x{resp_args:02X}), retrying ({attempt + 1}/{retries})...")
+                time.sleep(0.1)
+                continue
             raise RuntimeError(f"Unexpected response: cmd=0x{resp_cmd:02X} args=0x{resp_args:02X}")
 
         return resp_cmd, resp_args, resp_data
@@ -247,8 +268,12 @@ def flash_firmware(port: str, firmware_path: str):
         for i in range(total_chunks):
             offset = i * 1024
             chunk = firmware[offset:offset + 1024]
+            # Pad last chunk to 1024 bytes with zeros (bootloader expects fixed size)
+            if len(chunk) < 1024:
+                chunk = chunk + b'\x00' * (1024 - len(chunk))
             send_command(ser, CMD_UPDATE, seq & 0xFF, chunk)
             seq += 1
+            time.sleep(0.02)  # Brief delay for flash write
             pct = ((i + 1) / total_chunks) * 100
             bar_len = 30
             filled = int(bar_len * (i + 1) / total_chunks)

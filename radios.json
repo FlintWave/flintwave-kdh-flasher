@@ -9,10 +9,10 @@
       "firmware_url": "https://baofengtech.com/wp-content/uploads/2026/01/F8HPPRO-V53-Update-Bundle.zip",
       "firmware_page": "https://baofengtech.com/product/bf-f8hp-pro/",
       "firmware_filename_pattern": "BTECH_V*.kdhx",
-      "bootloader_keys": "SK1 + SK2 (top and bottom side buttons, not PTT)",
+      "bootloader_keys": "SK1 + SK2 (top and bottom side buttons, not PTT). Volume to max. Press cable connector firmly into radio and hold pressure during entire flash.",
       "connector": "K1 Kenwood 2-pin",
-      "tested": false,
-      "notes": "Protocol verified via decompilation and dry-run. Untested on hardware due to faulty cable."
+      "tested": true,
+      "notes": "Confirmed working on V0.53 firmware. The K1 connector may need firm pressure to maintain the data return contact on the 2.5mm ring. Keep steady pressure on the cable plug during the entire flash process."
     },
     {
       "id": "uv-25-pro",
