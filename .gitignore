@@ -16,3 +16,4 @@ test_gui_visual.py
 !icon_128.png
 !icon.ico
 !screenshots/*.png
+*.resources
