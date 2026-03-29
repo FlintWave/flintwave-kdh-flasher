@@ -83,6 +83,12 @@ Visit your radio manufacturer's website, download the firmware bundle (usually a
 
 Plug in your programming cable (PC03 or compatible K1 2-pin Kenwood cable), then click **Find Cable...** to detect it. The wizard scans for USB serial devices and auto-highlights known cable chips (FTDI, CH340, Prolific, etc.).
 
+**Important cable tips:**
+- Turn the radio's volume to **maximum** before connecting
+- Push the cable connector **firmly** into the radio — it needs more force than you'd expect
+- You may need to **hold pressure on the connector during the entire flash** — the K1 2.5mm ring contact that carries return data is sensitive to movement
+- If you get "no response" errors, try pressing harder or at a slight angle
+
 **Tip:** If your cable isn't listed, unplug it, click Rescan, plug it back in, and click Rescan again. The new entry is your cable.
 
 ### Step 4: Verify with a dry run
@@ -118,7 +124,7 @@ With the radio in bootloader mode (see below), click **Run Diagnostics** to test
 
 | Radio | Keys to Hold |
 |-------|-------------|
-| BTECH BF-F8HP Pro | SK1 (top) + SK2 (bottom) — not PTT |
+| BTECH BF-F8HP Pro | SK1 (top) + SK2 (bottom) — not PTT. Volume to max. Hold cable firmly. |
 | Baofeng UV-25 Plus/Pro | SK2 + SK3 |
 | Others | Check your radio's manual or `radios.json` |
 

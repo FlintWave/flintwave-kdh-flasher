@@ -9,7 +9,7 @@ Maintained by [FlintWave Radio Tools](https://github.com/FlintWave). Contact: fl
 
 ## Status
 
-**Untested** — the protocol implementation has been verified via dry-run packet construction and CRC validation, but has not yet been confirmed on hardware. Community testing reports welcome — please open an issue.
+**Tested** — successfully flashed BF-F8HP Pro (V0.53) on Linux. Community testing reports for other radios welcome — please open an issue.
 
 ## Download
 
@@ -85,7 +85,7 @@ Or download and run `install.bat` for an automated setup.
 
 | Radio | Manufacturer | Tested |
 |-------|-------------|--------|
-| BF-F8HP Pro | BTECH | No |
+| BF-F8HP Pro | BTECH | Yes |
 | UV-25 Plus / UV-25 Pro | Baofeng | No |
 | UV-17 Pro | Baofeng | No |
 | UV-18 Pro | Baofeng | No |

@@ -510,6 +510,45 @@ class FlasherFrame(wx.Frame):
     def _offer_test_report(self, radio_name, firmware_path, success, error_msg):
         log_content = self.log.GetValue()
         show_test_report_dialog(self, radio_name, firmware_path, success, error_msg, log_content)
+        if success:
+            self._offer_firmware_cleanup(firmware_path)
+
+    def _offer_firmware_cleanup(self, firmware_path):
+        """Ask user if they want to delete downloaded firmware files."""
+        import firmware_download as dl
+
+        # Only offer cleanup if the firmware was downloaded by us
+        if not firmware_path or not firmware_path.startswith(dl.DOWNLOAD_DIR):
+            return
+
+        try:
+            download_dir = dl.DOWNLOAD_DIR
+            files = os.listdir(download_dir)
+            if not files:
+                return
+
+            total_size = sum(
+                os.path.getsize(os.path.join(download_dir, f))
+                for f in files
+                if os.path.isfile(os.path.join(download_dir, f))
+            )
+            size_mb = total_size / (1024 * 1024)
+
+            dlg = wx.MessageDialog(self,
+                f"Downloaded firmware files are using {size_mb:.1f} MB:\n"
+                f"{download_dir}\n\n"
+                f"Delete them to free up space?\n"
+                f"(You can always re-download later)",
+                "Clean Up Downloads",
+                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
+
+            if dlg.ShowModal() == wx.ID_YES:
+                import shutil
+                shutil.rmtree(download_dir, ignore_errors=True)
+                self.log_msg("Downloaded firmware files cleaned up.")
+            dlg.Destroy()
+        except Exception:
+            pass
 
     def on_dry_run(self, event):
         firmware_path = self.file_path.GetValue()
