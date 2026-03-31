@@ -22,7 +22,7 @@ from gui_ports import list_serial_ports, find_programming_cable
 from gui_dialogs import PortFinderDialog, show_about_dialog, show_test_report_dialog
 from gui_themes import apply_theme, THEME_PALETTES
 
-VERSION = "26.03.4"
+VERSION = "26.03.8"
 
 
 class FlasherFrame(wx.Frame):
