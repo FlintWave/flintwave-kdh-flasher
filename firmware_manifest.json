@@ -16,10 +16,10 @@
       "release_notes": "V0.20: fixed GPS radar distance display after location sharing"
     },
     "rt-470": {
-      "firmware_version": "2.13A",
-      "firmware_url": "https://cdn.shopifycdn.net/s/files/1/0564/8855/8800/files/RT-470_2.13A.rar",
+      "firmware_version": "2.12A",
+      "firmware_url": "https://cdn.shopify.com/s/files/1/0564/8855/8800/files/RT-470_2.12A.rar",
       "firmware_sha256": null,
-      "release_notes": "V2.13A: new PCB, full band + 8.33kHz airband spacing"
+      "release_notes": "V2.12A: new PCB, full band"
     },
     "rt-490": {
       "firmware_version": "1.03",

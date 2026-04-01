@@ -32,13 +32,13 @@
       "name": "Radtel RT-470",
       "manufacturer": "Radtel",
       "model_type": "WLT",
-      "firmware_url": "https://cdn.shopifycdn.net/s/files/1/0564/8855/8800/files/RT-470_2.13A.rar",
+      "firmware_url": "https://cdn.shopify.com/s/files/1/0564/8855/8800/files/RT-470_2.12A.rar",
       "firmware_page": "https://www.radtels.com/pages/software-download",
       "firmware_filename_pattern": "*.kdhx",
       "bootloader_keys": "Unknown — check manual",
       "connector": "K1 Kenwood 2-pin",
       "tested": false,
-      "notes": "Uses WLT2000 CPS. KDH bootloader with .kdhx firmware. This URL is for the NEW PCB (V2.13A). Old PCB (10W) uses different firmware — see radtels.com."
+      "notes": "Uses WLT2000 CPS. KDH bootloader with .kdhx firmware. This URL is for the NEW PCB (V2.12A, full band). Old PCB (10W) uses different firmware — see radtels.com."
     },
     {
       "id": "rt-490",
