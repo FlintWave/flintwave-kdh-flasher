@@ -115,7 +115,8 @@ class FlasherFrame(wx.Frame):
         # Radio info
         self.radio_info = wx.StaticText(panel, label="")
         self.radio_info.SetForegroundColour(wx.Colour(80, 80, 80))
-        sizer.Add(self.radio_info, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        self.radio_info.Wrap(self.GetMinSize().GetWidth() - 30)
+        sizer.Add(self.radio_info, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         self._update_radio_info()
 
         # Firmware file
@@ -321,7 +322,14 @@ class FlasherFrame(wx.Frame):
             if version:
                 info += f"  |  Latest FW: v{version}"
 
+            notes = radio.get("notes", "")
+            if notes:
+                info += f"\n{notes}"
+
             self.radio_info.SetLabel(info)
+            self.radio_info.Wrap(self.panel.GetSize().GetWidth() - 30)
+            self.panel.Layout()
+
             has_url = bool(url)
             self.download_btn.Enable(has_url)
             if not has_url:
