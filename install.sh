@@ -36,8 +36,8 @@ echo "Found Python $PY_VER"
 
 # Install Python dependencies
 echo "Installing dependencies..."
-$PYTHON -m pip install --user --quiet pyserial requests rarfile 2>/dev/null || \
-    $PYTHON -m pip install --quiet pyserial requests rarfile
+$PYTHON -m pip install --user --quiet pyserial "requests>=2.33.0" "urllib3>=2.6.3" "certifi>=2024.8.30" rarfile 2>/dev/null || \
+    $PYTHON -m pip install --quiet pyserial "requests>=2.33.0" "urllib3>=2.6.3" "certifi>=2024.8.30" rarfile
 
 # unrar — needed by rarfile for RAR firmware archives
 if ! command -v unrar &>/dev/null; then
