@@ -1,6 +1,6 @@
 {
   "_comment": "Remote firmware manifest. Update this file to publish new firmware URLs without requiring an app update. Community contributions welcome — submit a PR.",
-  "_updated": "2026-03-31",
+  "_updated": "2026-04-01",
   "manifest_version": 1,
   "radios": {
     "bf-f8hp-pro": {

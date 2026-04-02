@@ -54,6 +54,32 @@
       "notes": "Shares JJCC JC-8629 PCB. KDH bootloader. This URL is for the old PCB (v1.03). Newer PCB versions with channel name editing available on radtels.com."
     },
     {
+      "id": "uv-5rm",
+      "name": "Baofeng UV-5RM / UV-5RM Plus",
+      "manufacturer": "Baofeng",
+      "model_type": "BF5RM",
+      "firmware_url": null,
+      "firmware_page": "https://www.baofengradio.com/pages/download",
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "SK2 + SK3 (two buttons below PTT)",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "KDH bootloader confirmed (BK4819 RF, 5RB10W hardware). Firmware must be v0.09+ — older hardware revisions may have incompatible RF. No official firmware download available yet; browse for a .kdhx file manually."
+    },
+    {
+      "id": "uv-5rh",
+      "name": "Baofeng UV-5RH",
+      "manufacturer": "Baofeng",
+      "model_type": "BF5RH",
+      "firmware_url": null,
+      "firmware_page": "https://www.baofengradio.com/pages/download",
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "SK2 + SK3 (two buttons below PTT)",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "Chinese tri-band variant (M Edition). KDH bootloader confirmed. Same hardware family as UV-5RM. No official firmware download available yet; browse for a .kdhx file manually."
+    },
+    {
       "id": "generic",
       "name": "Other KDH Radio",
       "manufacturer": "Generic",

@@ -668,11 +668,11 @@ class TestManifestSchema(unittest.TestCase):
         self.assertIn("manifest_version", self.manifest)
         self.assertIsInstance(self.manifest["manifest_version"], int)
 
-    def test_manifest_covers_specific_radios(self):
-        """Every non-generic radio in radios.json should be in the manifest."""
+    def test_manifest_covers_radios_with_firmware(self):
+        """Every radio with a firmware_url in radios.json should be in the manifest."""
         manifest_ids = set(self.manifest["radios"].keys())
         for radio in self.radios:
-            if radio["id"] == "generic":
+            if radio["id"] == "generic" or not radio.get("firmware_url"):
                 continue
             self.assertIn(radio["id"], manifest_ids,
                           f"Radio {radio['id']} missing from manifest")

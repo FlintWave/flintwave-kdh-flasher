@@ -87,13 +87,15 @@ Or download and run `install.bat` for an automated setup.
 |-------|-------------|-------------------|--------|
 | BF-F8HP Pro | BTECH | Automatic | Yes |
 | UV-25 Plus / UV-25 Pro | Baofeng | Automatic | No |
-| RT-470 | Radtel | Automatic | No |
-| RT-490 | Radtel | Automatic | No |
+| UV-5RM / UV-5RM Plus | Baofeng | Manual (browse) | No |
+| UV-5RH | Baofeng | Manual (browse) | No |
+| RT-470 | Radtel | Automatic (live) | No |
+| RT-490 | Radtel | Automatic (live) | No |
 | Other KDH Radio | Generic | Manual (browse) | — |
 
 The "Other KDH Radio" option works with any radio that uses the KDH bootloader — browse for a `.kdhx` file and flash it. Many radios from Abbree, Hamgeek, Socotran, JJCC, and other manufacturers use this bootloader.
 
-Radio definitions live in `radios.json`. Firmware URLs are also tracked in `firmware_manifest.json`, which is fetched at runtime from GitHub — new firmware URLs can be published via PR without an app update.
+Radio definitions live in `radios.json`. Firmware URLs are also tracked in `firmware_manifest.json`, which is fetched at runtime from GitHub — new firmware URLs can be published via PR without an app update. Radtel radios additionally get live firmware discovery by scraping the manufacturer's download page.
 
 ## Features
 

@@ -8,6 +8,7 @@ locally and tracks which firmware versions have been flashed to each radio.
 
 import json
 import os
+import re
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -98,14 +99,120 @@ def fetch_manifest(force=False):
 def get_radio_firmware_info(radio_id, manifest=None):
     """Look up firmware info for a radio from the manifest.
 
+    For Radtel radios, also checks the manufacturer's page for newer
+    firmware (the page is scrapable, unlike Baofeng/BTECH).
+
     Returns dict with keys: firmware_version, firmware_url, firmware_sha256,
     release_notes. Returns None if radio not in manifest.
     """
     if manifest is None:
         manifest = fetch_manifest()
-    if not manifest:
+
+    manifest_info = manifest.get(radio_id) if manifest else None
+
+    # For Radtel radios, try live scraping for a newer version
+    if radio_id in _RADTEL_SCRAPE_PATTERNS:
+        scraped = _scrape_radtel_firmware(radio_id)
+        if scraped:
+            # Use scraped if manifest has no URL, or scraped version is newer
+            if not manifest_info or not manifest_info.get("firmware_url"):
+                return scraped
+            from firmware_version import compare_versions
+            scraped_ver = scraped.get("firmware_version", "")
+            manifest_ver = manifest_info.get("firmware_version", "")
+            if scraped_ver and manifest_ver and compare_versions(scraped_ver, manifest_ver) > 0:
+                return scraped
+
+    return manifest_info
+
+
+RADTEL_DOWNLOAD_URL = "https://www.radtels.com/pages/software-download"
+
+# Radtel scraper: radio_id -> regex to find firmware archive URLs on the page
+_RADTEL_SCRAPE_PATTERNS = {
+    "rt-470": re.compile(
+        r'(https://cdn\.shopify[^\s"?]+RT-?470[^\s"?]*\.rar)', re.IGNORECASE
+    ),
+    "rt-490": re.compile(
+        r'(https://cdn\.shopify[^\s"?]+(?:rt.?490|Firmware_Version)[^\s"?]*\.(?:zip|rar))',
+        re.IGNORECASE,
+    ),
+}
+
+# Exclude CPS/programming software and beta builds
+_RADTEL_EXCLUDE = re.compile(
+    r'CPS|Programming|Software|CHIRP|Driver|Setup|Installer|[Bb]eta', re.IGNORECASE
+)
+
+_radtel_page_cache = None
+_radtel_page_cache_time = 0
+
+
+def _fetch_radtel_page():
+    """Fetch and cache the Radtel download page HTML."""
+    global _radtel_page_cache, _radtel_page_cache_time
+
+    if _radtel_page_cache and (time.time() - _radtel_page_cache_time) < MANIFEST_CACHE_TTL:
+        return _radtel_page_cache
+
+    resp = requests.get(
+        RADTEL_DOWNLOAD_URL,
+        headers={"User-Agent": USER_AGENT},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    _radtel_page_cache = resp.text
+    _radtel_page_cache_time = time.time()
+    return _radtel_page_cache
+
+
+def _scrape_radtel_firmware(radio_id):
+    """Scrape the Radtel download page for the latest firmware.
+
+    Returns a firmware info dict or None.
+    """
+    pattern = _RADTEL_SCRAPE_PATTERNS.get(radio_id)
+    if not pattern:
         return None
-    return manifest.get(radio_id)
+
+    try:
+        html = _fetch_radtel_page()
+        urls = pattern.findall(html)
+        if not urls:
+            return None
+
+        # Filter out CPS/software links, keep only firmware
+        urls = [u for u in urls if not _RADTEL_EXCLUDE.search(u)]
+        if not urls:
+            return None
+
+        # Find the highest version among the URLs
+        from firmware_version import parse_version, extract_version_from_filename
+        best_url = None
+        best_ver = None
+        best_parsed = (0, 0, 0)
+        for url in set(urls):
+            filename = url.rsplit("/", 1)[-1]
+            ver = extract_version_from_filename(filename)
+            if ver:
+                parsed = parse_version(ver)
+                if parsed > best_parsed:
+                    best_parsed = parsed
+                    best_ver = ver
+                    best_url = url
+
+        if not best_url or best_parsed == (0, 0, 0):
+            return None
+
+        return {
+            "firmware_version": best_ver,
+            "firmware_url": best_url,
+            "firmware_sha256": None,
+            "release_notes": f"v{best_ver} (from radtels.com)",
+        }
+
+    except Exception:
+        return None
 
 
 def record_flash(radio_id, version, sha256):
