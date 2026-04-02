@@ -102,6 +102,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyserial requests rarfile pyinstaller wxPython --prefer-binary
 
+      - name: Download UnRAR
+        shell: bash
+        run: |
+          curl -sL https://www.rarlab.com/rar/unrarw64.exe -o unrarw64.exe
+          mkdir -p unrar_tmp && cd unrar_tmp
+          ../unrarw64.exe -y > /dev/null 2>&1 || true
+          cp -f UnRAR.exe ../bundled_unrar.exe 2>/dev/null || cp -f unrar.exe ../bundled_unrar.exe 2>/dev/null
+          cd .. && rm -rf unrar_tmp unrarw64.exe
+
       - name: Build binary
         run: pyinstaller build.spec
 
@@ -157,7 +166,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pyserial requests rarfile pyinstaller wxPython --prefer-binary
-          brew install create-dmg
+          brew install create-dmg unrar
+
+      - name: Bundle unrar
+        run: cp "$(which unrar)" bundled_unrar
 
       - name: Build binary
         run: pyinstaller build.spec

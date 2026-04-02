@@ -7,6 +7,7 @@ import io
 import json
 import os
 import re
+import sys
 import fnmatch
 import shutil
 import zipfile
@@ -15,6 +16,31 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+
+
+def _configure_unrar():
+    """Point rarfile at the bundled unrar binary if available."""
+    try:
+        import rarfile
+    except ImportError:
+        return
+
+    # In PyInstaller builds, look next to the executable
+    if getattr(sys, 'frozen', False):
+        base = sys._MEIPASS
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+
+    if sys.platform == 'win32':
+        bundled = os.path.join(base, 'bundled_unrar.exe')
+    else:
+        bundled = os.path.join(base, 'bundled_unrar')
+
+    if os.path.exists(bundled):
+        rarfile.UNRAR_TOOL = bundled
+
+
+_configure_unrar()
 
 # Only allow downloads from known manufacturer domains
 MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024  # 50 MB

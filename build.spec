@@ -12,10 +12,17 @@ if sys.platform.startswith('linux'):
         if os.path.isdir(p):
             extra_paths.append(p)
 
+# Bundle unrar binary if available (built by CI for Windows/macOS)
+bundled_binaries = []
+if sys.platform == 'win32' and os.path.exists('bundled_unrar.exe'):
+    bundled_binaries.append(('bundled_unrar.exe', '.'))
+elif os.path.exists('bundled_unrar'):
+    bundled_binaries.append(('bundled_unrar', '.'))
+
 a = Analysis(
     ['flash_firmware_gui.py'],
     pathex=extra_paths,
-    binaries=[],
+    binaries=bundled_binaries,
     datas=[
         ('radios.json', '.'),
         ('icon_128.png', '.'),
