@@ -38,7 +38,7 @@ def _load_state():
 
 def _save_state(state):
     """Write state atomically (temp file + rename)."""
-    os.makedirs(STATE_DIR, exist_ok=True)
+    os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=STATE_DIR, suffix=".json")
     try:
         with os.fdopen(fd, "w") as f:
@@ -131,10 +131,11 @@ RADTEL_DOWNLOAD_URL = "https://www.radtels.com/pages/software-download"
 # Radtel scraper: radio_id -> regex to find firmware archive URLs on the page
 _RADTEL_SCRAPE_PATTERNS = {
     "rt-470": re.compile(
-        r'(https://cdn\.shopify[^\s"?]+RT-?470[^\s"?]*\.rar)', re.IGNORECASE
+        r'(https://cdn\.shopify(?:cdn)?\.(?:com|net)/s/files/[^\s"?]+RT-?470[^\s"?]*\.rar)',
+        re.IGNORECASE,
     ),
     "rt-490": re.compile(
-        r'(https://cdn\.shopify[^\s"?]+(?:rt.?490|Firmware_Version)[^\s"?]*\.(?:zip|rar))',
+        r'(https://cdn\.shopify(?:cdn)?\.(?:com|net)/s/files/[^\s"?]+(?:rt.?490|Firmware_Version)[^\s"?]*\.(?:zip|rar))',
         re.IGNORECASE,
     ),
 }

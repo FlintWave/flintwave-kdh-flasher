@@ -361,12 +361,17 @@ class FlasherFrame(wx.Frame):
 
         url, _ = self._get_firmware_url_and_version(radio)
 
+        # Get expected SHA-256 from manifest if available
+        manifest_info = fm.get_radio_firmware_info(radio["id"], self.manifest)
+        expected_sha256 = manifest_info.get("firmware_sha256") if manifest_info else None
+
         self.log.Clear()
         self.progress.SetValue(0)
         self.set_buttons(False)
-        threading.Thread(target=self._download_thread, args=(radio, url), daemon=True).start()
+        threading.Thread(target=self._download_thread,
+                         args=(radio, url, expected_sha256), daemon=True).start()
 
-    def _download_thread(self, radio, url=None):
+    def _download_thread(self, radio, url=None, expected_sha256=None):
         try:
             self.log_msg(f"Downloading firmware for {radio['name']}...")
             self.log_msg(f"URL: {url or radio.get('firmware_url', 'N/A')}")
@@ -380,6 +385,7 @@ class FlasherFrame(wx.Frame):
             kdhx_path, _ = dl.download_and_extract(
                 radio["id"], progress_callback=on_progress,
                 url_override=url_override,
+                expected_sha256=expected_sha256,
             )
 
             self.set_progress(100)

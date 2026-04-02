@@ -19,7 +19,7 @@ import requests
 
 
 def _configure_unrar():
-    """Point rarfile at the bundled unrar binary if available."""
+    """Point rarfile at the bundled unrar/unar binary if available."""
     try:
         import rarfile
     except ImportError:
@@ -33,11 +33,16 @@ def _configure_unrar():
 
     if sys.platform == 'win32':
         bundled = os.path.join(base, 'bundled_unrar.exe')
-    else:
+        if os.path.exists(bundled):
+            rarfile.UNRAR_TOOL = bundled
+    elif sys.platform == 'darwin':
+        # macOS bundles unar (The Unarchiver) — rarfile uses ALT_TOOL for it
         bundled = os.path.join(base, 'bundled_unrar')
-
-    if os.path.exists(bundled):
-        rarfile.UNRAR_TOOL = bundled
+        if os.path.exists(bundled):
+            rarfile.ALT_TOOL = bundled
+    else:
+        # Linux — unrar is a package dependency
+        pass
 
 
 _configure_unrar()
@@ -81,6 +86,8 @@ def validate_url(url):
     parsed = urlparse(url)
     if parsed.scheme != "https":
         raise ValueError(f"Only HTTPS URLs allowed, got: {parsed.scheme}")
+    if "@" in (parsed.netloc or ""):
+        raise ValueError("URLs with userinfo (@) are not allowed")
     if parsed.hostname not in ALLOWED_DOMAINS:
         raise ValueError(
             f"Domain '{parsed.hostname}' not in allowed list: {sorted(ALLOWED_DOMAINS)}"
@@ -97,7 +104,7 @@ def download_firmware_bundle(url, progress_callback=None):
     """
     validate_url(url)
 
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    os.makedirs(DOWNLOAD_DIR, mode=0o700, exist_ok=True)
 
     # Derive filename from URL
     parsed = urlparse(url)
@@ -113,8 +120,14 @@ def download_firmware_bundle(url, progress_callback=None):
         headers={"User-Agent": USER_AGENT},
         stream=True,
         timeout=30,
+        allow_redirects=True,
     )
     resp.raise_for_status()
+
+    # Validate final URL after redirects — a compromised CDN could
+    # redirect to an attacker-controlled server
+    if resp.url != url:
+        validate_url(resp.url)
 
     total = int(resp.headers.get("content-length", 0))
     downloaded = 0
@@ -198,10 +211,12 @@ def _extract_kdhx_from_rar(rar_path, pattern="*.kdhx"):
     return extracted
 
 
-def download_and_extract(radio_id, progress_callback=None, url_override=None):
+def download_and_extract(radio_id, progress_callback=None, url_override=None,
+                         expected_sha256=None):
     """Download firmware for a radio and extract the .kdhx file.
 
     If url_override is provided, it takes precedence over radios.json.
+    If expected_sha256 is provided, the downloaded archive is verified.
     Returns (kdhx_path, radio_info) or raises on error.
     """
     radio = get_radio_by_id(radio_id)
@@ -217,6 +232,23 @@ def download_and_extract(radio_id, progress_callback=None, url_override=None):
         )
 
     zip_path = download_firmware_bundle(url, progress_callback)
+
+    # Verify archive integrity if a hash is provided
+    if expected_sha256:
+        import hashlib
+        sha256 = hashlib.sha256()
+        with open(zip_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                sha256.update(chunk)
+        actual = sha256.hexdigest()
+        if actual != expected_sha256:
+            os.unlink(zip_path)
+            raise ValueError(
+                f"SHA-256 mismatch!\n"
+                f"  Expected: {expected_sha256}\n"
+                f"  Got:      {actual}\n"
+                f"The downloaded file may be corrupted or tampered with."
+            )
 
     pattern = radio.get("firmware_filename_pattern", "*.kdhx")
     kdhx_files = extract_kdhx(zip_path, pattern)
