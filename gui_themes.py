@@ -1,6 +1,8 @@
 """
 Theme palettes and GTK CSS theming for the KDH flasher GUI.
-Two themes: Latte (light) and Mocha (dark).
+Two themes:
+  - "mocha" (default) — dark
+  - "latte"           — light
 """
 
 import sys
@@ -19,26 +21,31 @@ try:
 except (ImportError, ValueError):
     pass
 
-# Catppuccin palettes: (base, surface0, mantle, text, subtext1, green, link)
+# Catppuccin Mocha (dark): (base, surface0, mantle, text, subtext1, green, link)
+MOCHA_PALETTE = (
+    (30, 30, 46),     # base
+    (49, 50, 68),     # surface0
+    (24, 24, 37),     # mantle (log bg)
+    (205, 214, 244),  # text
+    (186, 194, 222),  # subtext1
+    (166, 227, 161),  # green (log text)
+    (137, 180, 250),  # link
+)
+
+# Catppuccin Latte (light): same tuple shape, palette swapped for light mode.
+LATTE_PALETTE = (
+    (239, 241, 245),  # base
+    (204, 208, 218),  # surface0
+    (230, 233, 239),  # mantle (log bg)
+    (76, 79, 105),    # text
+    (92, 95, 119),    # subtext1
+    (64, 160, 43),    # green (log text)
+    (30, 102, 245),   # link
+)
+
 THEME_PALETTES = {
-    "latte": (
-        (239, 241, 245),  # base
-        (204, 208, 218),  # surface0
-        (230, 233, 239),  # mantle (log bg)
-        (76, 79, 105),    # text
-        (92, 95, 119),    # subtext1
-        (64, 160, 43),    # green (log text)
-        (30, 102, 245),   # link
-    ),
-    "mocha": (
-        (30, 30, 46),     # base
-        (49, 50, 68),     # surface0
-        (24, 24, 37),     # mantle
-        (205, 214, 244),  # text
-        (186, 194, 222),  # subtext1
-        (166, 227, 161),  # green
-        (137, 180, 250),  # link
-    ),
+    "mocha": MOCHA_PALETTE,
+    "latte": LATTE_PALETTE,
 }
 
 
@@ -72,6 +79,9 @@ def _style_widget(widget, palette):
     elif isinstance(widget, wx.ComboBox):
         widget.SetOwnBackgroundColour(surface0)
         widget.SetOwnForegroundColour(text)
+    elif isinstance(widget, wx.ListCtrl):
+        widget.SetOwnBackgroundColour(mantle)
+        widget.SetOwnForegroundColour(text)
     elif isinstance(widget, wx.TextCtrl):
         widget.SetOwnBackgroundColour(mantle)
         widget.SetOwnForegroundColour(text)
@@ -100,14 +110,17 @@ def _style_widget(widget, palette):
             pass
 
 
-def apply_theme(frame, theme):
-    """Apply a named theme to the FlasherFrame and its panel tree."""
-    if theme not in THEME_PALETTES:
-        theme = "latte"
+def apply_theme(frame, theme=None):
+    """Apply a named theme to the FlasherFrame and its panel tree.
 
-    frame.current_theme = theme
-    frame.current_theme_palette = THEME_PALETTES[theme]
+    `theme` may be "mocha" (default, dark) or "latte" (light).
+    Unknown names fall back to mocha so we never crash on a stale prefs file.
+    """
+    if theme not in THEME_PALETTES:
+        theme = "mocha"
     palette = THEME_PALETTES[theme]
+    frame.current_theme = theme
+    frame.current_theme_palette = palette
 
     base, surface0, mantle, text, subtext1, green, link = \
         [wx.Colour(*c) for c in palette]
@@ -122,17 +135,55 @@ def apply_theme(frame, theme):
     if hasattr(frame, "log") and frame.log:
         frame.log.SetOwnBackgroundColour(mantle)
         frame.log.SetOwnForegroundColour(green)
+        frame.log.SetBackgroundColour(mantle)
+        frame.log.SetForegroundColour(green)
+        frame.log.Refresh()
+        # Force a repaint of the entire content range so the new fg color
+        # applies to text already in the buffer (TextCtrl caches per-range).
+        try:
+            attr = wx.TextAttr(green, mantle)
+            end = frame.log.GetLastPosition()
+            frame.log.SetStyle(0, end, attr)
+        except Exception:
+            pass
 
-    if hasattr(frame, "radio_info") and frame.radio_info:
-        frame.radio_info.SetOwnForegroundColour(subtext1)
+    # Status bar and custom title bar both get a slightly darker background
+    # (mantle) so they visually separate from the main panel area.
+    for attr in ("status_bar_panel", "title_bar"):
+        bar = getattr(frame, attr, None)
+        if bar is not None:
+            bar.SetOwnBackgroundColour(mantle)
+            for w in _walk(bar):
+                try:
+                    w.SetOwnBackgroundColour(mantle)
+                    w.SetOwnForegroundColour(subtext1)
+                except Exception:
+                    pass
 
-    if hasattr(frame, "hint_body") and frame.hint_body:
-        frame.hint_body.SetOwnForegroundColour(subtext1)
-        frame.hint_body.SetOwnBackgroundColour(base)
+    # Single thin divider between top columns and the bottom row.
+    line = getattr(frame, "_divider1", None)
+    if line is not None:
+        gray = wx.Colour(128, 128, 128)  # 50% gray
+        try:
+            line.SetBackgroundColour(gray)
+            line.SetForegroundColour(gray)
+        except Exception:
+            pass
 
-    if hasattr(frame, "hint_title") and frame.hint_title:
-        frame.hint_title.SetOwnForegroundColour(text)
-        frame.hint_title.SetOwnBackgroundColour(base)
+    # Instructions TextCtrl (hint_text == hint_title == hint_body) — match
+    # the surrounding panel's base bg so it doesn't look like an input field.
+    if hasattr(frame, "hint_text") and frame.hint_text:
+        frame.hint_text.SetOwnBackgroundColour(base)
+        frame.hint_text.SetOwnForegroundColour(text)
+        frame.hint_text.SetBackgroundColour(base)
+        frame.hint_text.SetForegroundColour(text)
+        try:
+            attr = wx.TextAttr(text, base)
+            end = frame.hint_text.GetLastPosition()
+            frame.hint_text.SetStyle(0, end, attr)
+        except Exception:
+            pass
+        frame.hint_text.Refresh()
 
     if _gtk_available:
         _apply_gtk_css(frame, palette)
@@ -147,9 +198,7 @@ def apply_theme(frame, theme):
 
 def apply_theme_to_dialog(frame, dlg):
     """Recursively apply the parent frame's current theme to a dialog tree."""
-    palette = getattr(frame, "current_theme_palette", None)
-    if not palette:
-        return
+    palette = getattr(frame, "current_theme_palette", None) or MOCHA_PALETTE
 
     base, surface0, mantle, text, subtext1, green, link = \
         [wx.Colour(*c) for c in palette]
@@ -193,20 +242,41 @@ def _apply_gtk_css(frame, palette):
             background-color: {rgb(surface0)};
             color: {rgb(text)};
             border-color: {rgb(mantle)};
+            border-radius: 6px;
+            padding: 4px 10px;
         }}
         button:hover {{
             background-color: {rgb(link)};
             color: {rgb(base)};
+        }}
+        button:disabled, button:disabled:hover {{
+            background-color: {rgb(mantle)};
+            color: {rgb(subtext1)};
+            opacity: 0.45;
+        }}
+        combobox button, scrollbar button {{
+            border-radius: 4px;
+        }}
+        entry {{
+            border-radius: 6px;
         }}
         entry, textview, textview text {{
             background-color: {rgb(mantle)};
             color: {rgb(text)};
         }}
         scrollbar {{
-            background-color: {rgb(base)};
+            background-color: {rgb(mantle)};
+            min-width: 12px;
+            min-height: 12px;
         }}
         scrollbar slider {{
-            background-color: {rgb(surface0)};
+            background-color: {rgb(subtext1)};
+            min-width: 8px;
+            min-height: 24px;
+            border-radius: 6px;
+        }}
+        scrollbar slider:hover {{
+            background-color: {rgb(text)};
         }}
     """
 

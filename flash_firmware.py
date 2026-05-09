@@ -236,9 +236,10 @@ def validate_firmware(firmware: bytes, path: str):
 def probe_port(port: str, timeout: float = 1.5) -> bool:
     """Send CMD_HANDSHAKE to a port and check for a valid bootloader response.
 
-    Returns True if the radio is in bootloader mode and answered correctly,
-    False on timeout, malformed reply, or any error. Used by batch flash to
-    confirm radios are ready before queuing.
+    Returns True if the radio is in bootloader mode and answered correctly.
+    Returns False on timeout, malformed reply, or non-permission error.
+    Re-raises PermissionError (so the caller can surface a dialout-group hint
+    instead of silently marking every port "No response").
     """
     if serial is None:
         return False
@@ -263,7 +264,14 @@ def probe_port(port: str, timeout: float = 1.5) -> bool:
                 return False
             _resp_cmd, resp_args, _resp_data = resp
             return resp_args == ACK
-    except Exception:
+    except PermissionError:
+        raise
+    except Exception as e:
+        # serial.SerialException wraps the underlying OSError; sniff the text
+        # for EACCES so the GUI can show the dialout hint.
+        msg = str(e)
+        if "[Errno 13]" in msg or "Permission denied" in msg:
+            raise PermissionError(msg) from e
         return False
 
 

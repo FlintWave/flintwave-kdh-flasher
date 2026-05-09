@@ -497,17 +497,162 @@ class TestReportGeneration(unittest.TestCase):
 
 
 class TestThemePalettes(unittest.TestCase):
-    """Verify theme palette data is well-formed."""
+    """Verify Mocha (dark) and Latte (light) palettes are well-formed."""
 
-    def test_all_themes_have_7_colors(self):
-        """Each theme palette must have exactly 7 color tuples."""
-        gui_path = os.path.join(os.path.dirname(__file__), "flash_firmware_gui.py")
-        with open(gui_path) as f:
-            content = f.read()
-        # The redesign reduces themes to one light (latte) + one dark (mocha)
-        for theme in ["latte", "mocha"]:
-            self.assertIn(f'"{theme}"', content,
-                          f"Theme {theme} not found in GUI code")
+    def _check_palette_shape(self, palette, name):
+        self.assertEqual(len(palette), 7,
+                         f"{name} palette must have exactly 7 color tuples")
+        for i, color in enumerate(palette):
+            self.assertEqual(len(color), 3, f"{name} color {i} is not RGB")
+            for ch in color:
+                self.assertIsInstance(ch, int)
+                self.assertTrue(0 <= ch <= 255,
+                                f"{name} color {i} channel out of range: {ch}")
+
+    def _import_gui_themes(self):
+        import importlib
+        try:
+            return importlib.import_module("gui_themes")
+        except ImportError:
+            self.skipTest("gui_themes not importable in this environment")
+
+    def test_mocha_palette_shape(self):
+        gt = self._import_gui_themes()
+        self._check_palette_shape(gt.MOCHA_PALETTE, "Mocha")
+
+    def test_latte_palette_shape(self):
+        gt = self._import_gui_themes()
+        self._check_palette_shape(gt.LATTE_PALETTE, "Latte")
+
+    def test_theme_palettes_keys(self):
+        """THEME_PALETTES exposes both 'mocha' and 'latte'."""
+        gt = self._import_gui_themes()
+        self.assertEqual(set(gt.THEME_PALETTES.keys()), {"mocha", "latte"})
+        self.assertEqual(gt.THEME_PALETTES["mocha"], gt.MOCHA_PALETTE)
+        self.assertEqual(gt.THEME_PALETTES["latte"], gt.LATTE_PALETTE)
+
+    def test_palettes_actually_differ(self):
+        """Sanity check — Mocha base must be dark, Latte base must be light."""
+        gt = self._import_gui_themes()
+        mocha_base_brightness = sum(gt.MOCHA_PALETTE[0])
+        latte_base_brightness = sum(gt.LATTE_PALETTE[0])
+        self.assertLess(mocha_base_brightness, latte_base_brightness,
+                        "Mocha base should be darker than Latte base")
+
+
+class TestHintCopy(unittest.TestCase):
+    """Verify the FlasherFrame's HINT_COPY state machine has every state the GUI
+    transitions through. Catches typos and missing entries that would otherwise
+    only surface at runtime."""
+
+    REQUIRED_STATES = {
+        # Idle / pre-action states
+        "no_firmware", "no_handset", "ready_flash", "batch_ready",
+        # In-progress states
+        "downloading", "flashing", "dryrun", "diagnostics",
+        # Terminal states
+        "complete", "dryrun_complete", "diag_complete", "failed",
+    }
+
+    def test_all_required_states_present(self):
+        # Inspect HINT_COPY at the class level so we don't have to instantiate
+        # the wx Frame (which requires a display).
+        import importlib
+        try:
+            gm = importlib.import_module("gui_main")
+        except ImportError:
+            self.skipTest("gui_main not importable in this environment")
+        keys = set(gm.FlasherFrame.HINT_COPY.keys())
+        missing = self.REQUIRED_STATES - keys
+        self.assertFalse(missing, f"Missing HINT_COPY entries: {missing}")
+
+    def test_each_entry_is_title_body_tuple(self):
+        import importlib
+        try:
+            gm = importlib.import_module("gui_main")
+        except ImportError:
+            self.skipTest("gui_main not importable in this environment")
+        for key, value in gm.FlasherFrame.HINT_COPY.items():
+            self.assertEqual(len(value), 2, f"HINT_COPY[{key}] is not (title, body)")
+            title, body = value
+            self.assertIsInstance(title, str)
+            self.assertIsInstance(body, str)
+            self.assertGreater(len(title), 0, f"HINT_COPY[{key}] has empty title")
+            self.assertGreater(len(body), 0, f"HINT_COPY[{key}] has empty body")
+
+    def test_dryrun_complete_does_not_say_power_cycle(self):
+        """Regression: dry run hint must NOT instruct the user to power-cycle
+        the radio (it never touched the radio). That copy belongs to 'complete'."""
+        import importlib
+        try:
+            gm = importlib.import_module("gui_main")
+        except ImportError:
+            self.skipTest("gui_main not importable in this environment")
+        _, body = gm.FlasherFrame.HINT_COPY["dryrun_complete"]
+        self.assertNotIn("Power cycle", body)
+        self.assertNotIn("power cycle", body)
+
+
+class TestHandsetStatusConstants(unittest.TestCase):
+    """Verify all per-handset status strings used by the batch flash flow are
+    defined in gui_main."""
+
+    def test_status_constants_defined(self):
+        import importlib
+        try:
+            gm = importlib.import_module("gui_main")
+        except ImportError:
+            self.skipTest("gui_main not importable in this environment")
+        for name in ("STATUS_UNKNOWN", "STATUS_PROBING", "STATUS_READY",
+                     "STATUS_NO_RESP", "STATUS_FLASHING", "STATUS_DONE",
+                     "STATUS_FAILED", "STATUS_SKIPPED"):
+            self.assertTrue(hasattr(gm, name), f"Missing status constant: {name}")
+            self.assertIsInstance(getattr(gm, name), str)
+
+
+class TestRadioNameDedup(unittest.TestCase):
+    """Match the dedup rule used by both the radio dropdown and
+    _format_radio_info: don't double-stamp the manufacturer when the model name
+    already starts with it."""
+
+    @staticmethod
+    def _full_name(manufacturer, name):
+        # Same one-liner used in both call sites.
+        return name if name.startswith(manufacturer) else f"{manufacturer} {name}".strip()
+
+    def test_name_already_starts_with_manufacturer(self):
+        self.assertEqual(self._full_name("BTECH", "BTECH BF-F8HP Pro"),
+                         "BTECH BF-F8HP Pro")
+
+    def test_name_does_not_start_with_manufacturer(self):
+        self.assertEqual(self._full_name("Baofeng", "UV-25 Plus"),
+                         "Baofeng UV-25 Plus")
+
+    def test_real_radios_do_not_double_up(self):
+        """Run the rule against radios.json so adding a new entry that breaks
+        the rule is caught immediately."""
+        radios_path = os.path.join(os.path.dirname(__file__), "radios.json")
+        with open(radios_path) as f:
+            radios = json.load(f)["radios"]
+        for r in radios:
+            mfr, name = r["manufacturer"], r["name"]
+            full = self._full_name(mfr, name)
+            # The bug we're guarding against is "BTECH BTECH BF-F8HP Pro".
+            self.assertNotIn(f"{mfr} {mfr}", full,
+                             f"Manufacturer '{mfr}' doubled in '{full}'")
+
+
+class TestUpdaterReleasesURL(unittest.TestCase):
+    """Verify get_releases_url returns a usable GitHub releases URL."""
+
+    def test_returns_releases_page_url(self):
+        import updater
+        url = updater.get_releases_url()
+        self.assertIsInstance(url, str)
+        self.assertTrue(url.startswith("https://"),
+                        f"Expected https URL, got: {url}")
+        self.assertIn("github.com", url)
+        self.assertIn("releases", url)
 
 
 class TestFirmwareVersion(unittest.TestCase):

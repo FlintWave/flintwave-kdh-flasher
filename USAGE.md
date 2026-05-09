@@ -67,58 +67,67 @@ py -m pip install pyserial wxPython requests rarfile
 
 ## Flashing Firmware
 
+The window is laid out as three columns — **Firmware → Handset → Flash** — separated by `›` arrows. Each column unlocks once the previous step is complete; a soft green pulse on the arrow signals the next step is available. Below the columns: an **Instructions** panel (left) that updates with per-radio info, and a scrolling **Log** (right).
+
 ### Step 1: Select your radio
 
-Use the **Radio** dropdown at the top of the window. The info line below shows the bootloader key combination, connector type, and latest firmware version (if known) for your model.
+Click the **Firmware** column dropdown (default: *— Select your radio —*) and pick your model. The Instructions panel updates with that radio's bootloader key combination, connector type, tested status, and latest firmware version. Picking a radio enables the **Download** button.
 
 If your radio isn't listed, select **"Other KDH Radio"** — it works with any radio that uses the KDH bootloader. You'll need to browse for a `.kdhx` firmware file manually.
 
 ### Step 2: Get the firmware file
 
 **Option A — Automatic download:**
-Click **"Download vX.XX"** (or "Download Latest") if the button is enabled. The tool downloads the firmware bundle from the manufacturer's website, extracts the `.kdhx` file, and fills in the path automatically. The app checks a remote manifest for the latest known firmware URLs, so this may work even if you haven't updated the app recently.
+Click **"Download v…"**. The tool downloads the firmware bundle from the manufacturer's website, extracts the `.kdhx` file, and fills in the path automatically. The app checks a remote manifest for the latest known firmware URLs, so this may work even if you haven't updated the app recently.
 
 **Option B — Manual download:**
-Visit your radio manufacturer's website, download the firmware bundle (usually a `.zip` or `.rar`), extract it, and click **Browse...** to select the `.kdhx` file. For `.rar` archives, the app can extract them automatically if `unrar` or `7z` is installed.
+Visit your radio manufacturer's website, download the firmware bundle (usually a `.zip` or `.rar`), extract it, and click **Browse…** to pick the `.kdhx` file. For `.rar` archives, the app extracts them automatically if `unrar` or `7z` is installed.
 
-### Step 3: Connect your programming cable
+Once a firmware file is loaded, the **Handset** column unlocks (the first arrow pulses green).
 
-Plug in your programming cable (PC03 or compatible K1 2-pin Kenwood cable), then click **Find Cable...** to detect it. The wizard scans for USB serial devices and auto-highlights known cable chips (FTDI, CH340, Prolific, etc.).
+### Step 3: Pick your handset(s)
 
-**Important cable tips:**
-- Turn the radio's volume to **maximum** before connecting
-- Push the cable connector **firmly** into the radio — it needs more force than you'd expect
-- You may need to **hold pressure on the connector during the entire flash** — the K1 2.5mm ring contact that carries return data is sensitive to movement
-- If you get "no response" errors, try pressing harder or at a slight angle
+Plug in your programming cable. The **Handset** column lists every USB serial port detected and auto-checks anything matching a known cable (PC03 / FTDI / CH340 / Prolific / CP2102). It also probes each port with a bootloader handshake; ports that answer are marked **Ready**.
 
-**Tip:** If your cable isn't listed, unplug it, click Rescan, plug it back in, and click Rescan again. The new entry is your cable.
+- **One handset checked** — the app does a single flash to that port.
+- **Multiple handsets checked** — the app flashes them sequentially in batch mode (great for OEM-style multi-radio runs). Each row's `Status` and `%` columns track per-port progress.
+- **Refresh / Probe** — re-scan ports and re-probe (also fires automatically on plug/unplug).
+- **All / None** — select all detected handsets at once.
 
-### Step 4: Verify with a dry run
+**Cable tips:**
+- Turn the radio's volume to **maximum** before connecting.
+- Push the cable connector **firmly** into the radio — it needs more force than you'd expect.
+- You may need to **hold pressure on the connector during the entire flash** — the K1 2.5mm ring contact that carries return data is sensitive to movement.
+- If you get "no response" errors, try pressing harder or at a slight angle.
 
-Click **Dry Run** to verify the firmware file without touching the radio. This checks:
+Once at least one handset is checked, the **Flash** column unlocks (the second arrow pulses green).
+
+### Step 4: Verify with a dry run (optional)
+
+Click **Dry Run** to validate the firmware file without touching the radio. This checks:
 - File size is within protocol limits
 - ARM vector table has valid stack pointer and reset handler
 - All data packets build correctly with valid CRCs
 - SHA-256 hash is displayed for verification against published hashes
 
-### Step 5: Test serial communication
+### Step 5: Test serial communication (optional)
 
-With the radio in bootloader mode (see below), click **Run Diagnostics** to test whether the tool can communicate with the radio. If you see a response, you're good to flash.
+With the radio in bootloader mode (see below), click **Diagnostics** to test whether the tool can communicate with the (first checked) handset. If you see a response in the log, you're good to flash.
 
 ### Step 6: Flash
 
-1. Put the radio in **bootloader mode**:
+1. Put each radio in **bootloader mode**:
    - Power off the radio completely
-   - Hold the bootloader keys (shown in the info line — e.g., SK1 + SK2 for BF-F8HP Pro)
+   - Hold the bootloader keys (shown in the Instructions panel — e.g., SK1 + SK2 for BF-F8HP Pro)
    - While holding both keys, turn the power/volume knob to power on
    - The screen stays blank and the green Rx LED lights up
    - Do NOT release the keys until the LED is on
 
-2. Click **Flash Firmware**. Read and confirm the warning dialog — it shows your specific radio's instructions.
+2. Click **Flash Firmware**. Read and confirm the warning dialog — it shows your specific radio's instructions, and notes whether you're flashing a single handset or running a batch.
 
-3. Wait for the progress bar to complete. **Do not disconnect the cable or power off the radio during flashing.**
+3. Watch the progress bar complete and the per-handset rows update. **Do not disconnect any cable or power off any radio during flashing.** If a port fails mid-batch you'll be prompted to skip it or stop the run.
 
-4. When complete, power cycle the radio and verify the firmware version via **Menu > Radio Info**.
+4. When complete, power cycle each radio and verify the firmware version via **Menu > Radio Info**.
 
 5. After flashing, you'll be offered the option to submit a test report. This helps us track which radios have been verified.
 
@@ -146,15 +155,14 @@ Version information is parsed from firmware filenames (e.g., `BTECH_V0.53_260116
 
 ## Themes and Accessibility
 
-Use **View > Theme** to switch between:
-- **System Default** — follows your OS theme
-- **Latte** — Catppuccin light theme
-- **Frappé** — Catppuccin medium-dark theme
-- **Macchiato** — Catppuccin dark theme
-- **Mocha** — Catppuccin darkest theme
-- **High Contrast** — black background, yellow/green text
+The app ships with two Catppuccin palettes:
 
-Use **View > Log Font Size** to adjust text size (8pt, 9pt, 11pt, or 14pt).
+- **Mocha** — dark
+- **Latte** — light
+
+On launch the app reads `wx.SystemSettings.GetAppearance()` and starts in the theme that matches your OS color scheme. The bottom-left **☀ / ☾** icon in the status bar toggles between them at any time.
+
+The bottom-left **`Npt`** label cycles UI font size through 9 / 11 / 12 / 14 / 16 pt.
 
 ## Command Line Interface
 
@@ -182,19 +190,23 @@ python3 flash_firmware.py --diag /dev/ttyUSB0
 
 ## Auto-Updates
 
-The app checks GitHub for updates on each launch.
+The app checks GitHub for the latest release on each launch (in the background — no modal dialog).
 
-- **Source installs (git clone):** prompted to update automatically via `git pull`, then the app restarts.
-- **Packaged installs (.deb, .rpm, .exe, .dmg, AppImage):** prompted to open the releases page to download the latest version.
+If a newer version is available, an **Update Available** link appears in the bottom-right of the status bar. Clicking it opens the GitHub releases page in your default browser so you can download the appropriate installer for your platform. The app does not attempt to apply updates in-place.
 
 ## Troubleshooting
 
 ### "No response from radio"
 
 - Make sure the radio is in bootloader mode (blank screen, green LED)
-- Check that the cable is plugged in and detected (use Find Cable)
-- Try unplugging and replugging the cable
-- On Linux, ensure your user is in the `dialout` group
+- Check that the cable is plugged in and showing in the **Handset** column (click **Refresh / Probe** to re-scan)
+- Try unplugging and replugging the cable — the polling loop picks up changes within a couple of seconds
+- On Linux, ensure your user is in the `dialout` group (the app will surface a clear hint in the Log if it hits a permission error)
+
+### "Permission denied" opening /dev/ttyUSB*
+
+- Your Linux user is not in the `dialout` group.
+- Fix it once: `sudo usermod -aG dialout $USER`, then **log out and back in** (a full re-login, not just a new terminal).
 
 ### Radio powers off when sending data
 
@@ -207,7 +219,7 @@ The app checks GitHub for updates on each launch.
 
 ### Themes don't apply to all widgets
 
-- On Linux, GTK CSS is used for native widget theming. Try switching to System Default and back.
+- On Linux, GTK CSS is used for native widget theming. Try toggling the ☀ / ☾ icon in the status bar to force a re-apply.
 - On Windows, some native widgets may not fully support custom colors.
 
 ### Windows: "Python not found" or "pip not found"
