@@ -1,127 +1,22 @@
 """
 Dialog windows for the KDH flasher GUI.
-PortFinderDialog, About dialog, and Test report dialog.
+About dialog and Test report dialog.
+
+Port discovery and batch flash are now built into the main window's
+Handset column; their old wizard dialogs (PortFinderDialog, BatchFlashDialog)
+have been removed.
 """
 
 import os
 import wx
 import wx.adv
-import serial
-import serial.tools.list_ports
 
-from gui_ports import KNOWN_CABLES, FTDI_VID_PID
 from gui_themes import apply_theme_to_dialog
-
-
-class PortFinderDialog(wx.Dialog):
-    """Port finder wizard that scans for serial devices."""
-
-    def __init__(self, parent):
-        super().__init__(parent, title="Find Programming Cable", size=(520, 370))
-        self.SetMinSize((520, 370))
-        self.selected_port = None
-
-        sizer = wx.BoxSizer(wx.VERTICAL)
-
-        sizer.Add(wx.StaticText(self, label="Detected serial devices:"),
-                  0, wx.LEFT | wx.TOP, 10)
-        sizer.AddSpacer(5)
-
-        self.port_list = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
-        self.port_list.InsertColumn(0, "Port", width=120)
-        self.port_list.InsertColumn(1, "Cable / Chip", width=160)
-        self.port_list.InsertColumn(2, "Serial #", width=100)
-        self.port_list.InsertColumn(3, "USB ID", width=90)
-        self.port_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self.on_select)
-        self.port_list.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.on_double_click)
-        sizer.Add(self.port_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-
-        sizer.AddSpacer(5)
-
-        self.status_text = wx.StaticText(self, label="")
-        sizer.Add(self.status_text, 0, wx.LEFT | wx.RIGHT, 10)
-
-        sizer.AddSpacer(5)
-
-        # Tip
-        tip = wx.StaticText(self, label=(
-            "Tip: If your cable isn't listed, unplug it, click Rescan, plug it back\n"
-            "in, then click Rescan again. The new entry is your cable."
-        ))
-        tip.SetForegroundColour(wx.Colour(100, 100, 100))
-        sizer.Add(tip, 0, wx.LEFT | wx.RIGHT, 10)
-
-        sizer.AddSpacer(10)
-
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        rescan_btn = wx.Button(self, label="Rescan")
-        rescan_btn.Bind(wx.EVT_BUTTON, self.on_rescan)
-        btn_sizer.Add(rescan_btn, 0, wx.RIGHT, 10)
-        self.select_btn = wx.Button(self, wx.ID_OK, label="Use Selected")
-        self.select_btn.Enable(False)
-        btn_sizer.Add(self.select_btn, 0, wx.RIGHT, 10)
-        cancel_btn = wx.Button(self, wx.ID_CANCEL, label="Cancel")
-        btn_sizer.Add(cancel_btn, 0)
-        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
-
-        self.SetSizer(sizer)
-        self.scan_ports()
-        self.Centre()
-
-    def scan_ports(self):
-        self.port_list.DeleteAllItems()
-        self.ports = []
-        auto_select = -1
-
-        for p in serial.tools.list_ports.comports():
-            vid_pid = (p.vid, p.pid) if p.vid and p.pid else None
-            cable = KNOWN_CABLES.get(vid_pid, "")
-            usb_id = f"{p.vid:04X}:{p.pid:04X}" if p.vid and p.pid else ""
-            sn = (p.serial_number or "")[:8]  # truncate for privacy
-
-            idx = self.port_list.InsertItem(self.port_list.GetItemCount(), p.device)
-            self.port_list.SetItem(idx, 1, cable or p.description or "")
-            self.port_list.SetItem(idx, 2, sn[:4] + "..." if len(sn) > 4 else sn)
-            self.port_list.SetItem(idx, 3, usb_id)
-            self.ports.append(p.device)
-
-            if vid_pid == FTDI_VID_PID:
-                auto_select = idx
-                self.port_list.SetItemBackgroundColour(idx, wx.Colour(220, 255, 220))
-
-        if auto_select >= 0:
-            self.port_list.Select(auto_select)
-            self.port_list.Focus(auto_select)
-            self.status_text.SetLabel("PC03 cable detected (highlighted in green)")
-            self.status_text.SetForegroundColour(wx.Colour(0, 128, 0))
-        elif self.ports:
-            self.status_text.SetLabel(f"{len(self.ports)} port(s) found")
-            self.status_text.SetForegroundColour(wx.Colour(0, 0, 0))
-        else:
-            self.status_text.SetLabel("No serial ports detected. Is the cable plugged in?")
-            self.status_text.SetForegroundColour(wx.Colour(200, 0, 0))
-
-    def on_rescan(self, event):
-        self.select_btn.Enable(False)
-        self.selected_port = None
-        self.scan_ports()
-
-    def on_select(self, event):
-        idx = event.GetIndex()
-        if 0 <= idx < len(self.ports):
-            self.selected_port = self.ports[idx]
-            self.select_btn.Enable(True)
-
-    def on_double_click(self, event):
-        idx = event.GetIndex()
-        if 0 <= idx < len(self.ports):
-            self.selected_port = self.ports[idx]
-            self.EndModal(wx.ID_OK)
 
 
 def show_about_dialog(frame):
     """Show the About dialog with version, links, and license."""
-    VERSION = "26.04.2"
+    VERSION = "26.05.1"
 
     dlg = wx.Dialog(frame, title="About", size=(420, 440),
                     style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -158,7 +53,6 @@ def show_about_dialog(frame):
     about_sizer.AddSpacer(15)
 
     copy_text = wx.StaticText(about_panel, label="(c) 2026 FlintWave Radio Tools")
-    copy_text.SetForegroundColour(wx.Colour(120, 120, 120))
     about_sizer.Add(copy_text, 0, wx.ALIGN_CENTER)
     about_sizer.AddSpacer(5)
 
@@ -213,14 +107,14 @@ def show_about_dialog(frame):
     dlg_sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
     dlg.SetSizer(dlg_sizer)
 
-    # Apply current theme to dialog
-    apply_theme_to_dialog(frame, dlg, {
-        "panels": [dlg, notebook, about_panel, license_panel],
-        "about_children": about_panel.GetChildren(),
-        "copy_text": copy_text,
-        "license_text": license_text,
-        "close_btn": close_btn,
-    })
+    # Apply current theme to dialog (recursive walk handles all widgets)
+    apply_theme_to_dialog(frame, dlg)
+
+    # Subtle copyright color via the palette's subtext1
+    palette = getattr(frame, "current_theme_palette", None)
+    if palette:
+        copy_text.SetOwnForegroundColour(wx.Colour(*palette[4]))
+        license_text.SetOwnForegroundColour(wx.Colour(*palette[5]))  # green for that terminal feel
 
     # Apply current font size
     ui_font = wx.Font(frame.font_size, wx.FONTFAMILY_DEFAULT,
@@ -294,7 +188,6 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
     hint = wx.StaticText(dlg, label="You can also email reports to flintwave@tuta.com")
     hint.SetFont(wx.Font(9, wx.FONTFAMILY_DEFAULT,
                           wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
-    hint.SetForegroundColour(wx.Colour(120, 120, 120))
     sizer.Add(hint, 0, wx.ALIGN_CENTER)
 
     sizer.AddSpacer(10)
@@ -323,6 +216,13 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
     sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.BOTTOM, 15)
 
     dlg.SetSizer(sizer)
+
+    # Apply parent theme to all widgets in the dialog
+    apply_theme_to_dialog(frame, dlg)
+    palette = getattr(frame, "current_theme_palette", None)
+    if palette:
+        hint.SetOwnForegroundColour(wx.Colour(*palette[4]))  # subtext1
+
     dlg.Centre()
     dlg.ShowModal()
     dlg.Destroy()

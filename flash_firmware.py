@@ -233,6 +233,106 @@ def validate_firmware(firmware: bytes, path: str):
     print(f"SHA-256: {sha256}")
 
 
+def probe_port(port: str, timeout: float = 1.5) -> bool:
+    """Send CMD_HANDSHAKE to a port and check for a valid bootloader response.
+
+    Returns True if the radio is in bootloader mode and answered correctly.
+    Returns False on timeout, malformed reply, or non-permission error.
+    Re-raises PermissionError (so the caller can surface a dialout-group hint
+    instead of silently marking every port "No response").
+    """
+    if serial is None:
+        return False
+    try:
+        with serial.Serial(
+            port=port, baudrate=115200, bytesize=8,
+            parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+            timeout=timeout, write_timeout=timeout
+        ) as ser:
+            ser.dtr = True
+            ser.rts = True
+            time.sleep(0.1)
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+
+            packet = build_packet(CMD_HANDSHAKE, 0, b"BOOTLOADER")
+            ser.write(packet)
+            ser.flush()
+
+            resp = read_response_polling(ser, timeout_s=timeout)
+            if resp is None:
+                return False
+            _resp_cmd, resp_args, _resp_data = resp
+            return resp_args == ACK
+    except PermissionError:
+        raise
+    except Exception as e:
+        # serial.SerialException wraps the underlying OSError; sniff the text
+        # for EACCES so the GUI can show the dialout hint.
+        msg = str(e)
+        if "[Errno 13]" in msg or "Permission denied" in msg:
+            raise PermissionError(msg) from e
+        return False
+
+
+def flash_to_port(port: str, firmware: bytes,
+                  log_cb=None, progress_cb=None) -> None:
+    """Flash already-loaded firmware bytes to a single radio on `port`.
+
+    Reusable across the single-flash and batch-flash paths. Raises on any
+    unrecoverable error; the caller is responsible for catching and reporting.
+
+    log_cb(str)  — optional callable invoked for each step / progress line
+    progress_cb(float) — optional callable invoked with percent (0..100)
+    """
+    def _log(msg):
+        if log_cb:
+            log_cb(msg)
+
+    def _prog(pct):
+        if progress_cb:
+            progress_cb(pct)
+
+    if serial is None:
+        raise RuntimeError("pyserial not installed; cannot open serial ports")
+
+    total_chunks = math.ceil(len(firmware) / 1024)
+
+    with serial.Serial(
+        port=port, baudrate=115200, bytesize=8,
+        parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+        timeout=2.0, write_timeout=2.0
+    ) as ser:
+        ser.dtr = True
+        ser.rts = True
+        time.sleep(0.1)
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+
+        _log("[1/3] Bootloader handshake...")
+        send_command(ser, CMD_HANDSHAKE, 0, b"BOOTLOADER")
+        _log("  OK")
+
+        _log(f"[2/3] Sending firmware ({total_chunks} chunks)...")
+        send_command(ser, CMD_UPDATE_DATA_PACKAGES, 0, bytes([total_chunks]))
+
+        for i in range(total_chunks):
+            offset = i * 1024
+            chunk = firmware[offset:offset + 1024]
+            if len(chunk) < 1024:
+                chunk = chunk + b'\x00' * (1024 - len(chunk))
+            send_command(ser, CMD_UPDATE, i & 0xFF, chunk)
+            time.sleep(0.02)
+            pct = ((i + 1) / total_chunks) * 100
+            _prog(pct)
+            if (i + 1) % 10 == 0 or i == total_chunks - 1:
+                _log(f"  {pct:.0f}% ({i + 1}/{total_chunks})")
+
+        _log("[3/3] Finalizing...")
+        send_command(ser, CMD_UPDATE_END, 0)
+    _log("  OK")
+
+
 def flash_firmware(port: str, firmware_path: str):
     fw_size = os.path.getsize(firmware_path)
     if fw_size > MAX_FIRMWARE_BYTES:

@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*']
 
+# Least-privilege default for every job. The `release` job overrides this
+# locally with `contents: write` so it can publish the GitHub Release.
+permissions:
+  contents: read
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
