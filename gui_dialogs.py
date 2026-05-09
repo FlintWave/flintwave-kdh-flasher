@@ -20,6 +20,7 @@ class PortFinderDialog(wx.Dialog):
         super().__init__(parent, title="Find Programming Cable", size=(520, 370))
         self.SetMinSize((520, 370))
         self.selected_port = None
+        self._parent_frame = parent
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -44,12 +45,11 @@ class PortFinderDialog(wx.Dialog):
         sizer.AddSpacer(5)
 
         # Tip
-        tip = wx.StaticText(self, label=(
+        self.tip = wx.StaticText(self, label=(
             "Tip: If your cable isn't listed, unplug it, click Rescan, plug it back\n"
             "in, then click Rescan again. The new entry is your cable."
         ))
-        tip.SetForegroundColour(wx.Colour(100, 100, 100))
-        sizer.Add(tip, 0, wx.LEFT | wx.RIGHT, 10)
+        sizer.Add(self.tip, 0, wx.LEFT | wx.RIGHT, 10)
 
         sizer.AddSpacer(10)
 
@@ -67,6 +67,35 @@ class PortFinderDialog(wx.Dialog):
         self.SetSizer(sizer)
         self.scan_ports()
         self.Centre()
+
+        # Apply parent's theme palette to all widgets
+        apply_theme_to_dialog(self._parent_frame, self)
+        # Soften the tip color using the theme palette
+        palette = getattr(self._parent_frame, "current_theme_palette", None)
+        if palette:
+            self.tip.SetOwnForegroundColour(wx.Colour(*palette[4]))  # subtext1
+            self._restyle_status()
+
+    def _palette(self):
+        return getattr(self._parent_frame, "current_theme_palette", None)
+
+    def _restyle_status(self):
+        """Apply theme-aware accent colors on status_text and the auto-row highlight."""
+        palette = self._palette()
+        if not palette:
+            return
+        green = wx.Colour(*palette[5])
+        text = wx.Colour(*palette[3])
+        subtext1 = wx.Colour(*palette[4])
+        # status_text color depends on which message is showing
+        label = self.status_text.GetLabel()
+        if "detected" in label.lower():
+            self.status_text.SetForegroundColour(green)
+        elif "no serial" in label.lower():
+            # Reuse subtext1 (less alarming red) for the "no ports" message in dark mode
+            self.status_text.SetForegroundColour(subtext1)
+        else:
+            self.status_text.SetForegroundColour(text)
 
     def scan_ports(self):
         self.port_list.DeleteAllItems()
@@ -87,19 +116,29 @@ class PortFinderDialog(wx.Dialog):
 
             if vid_pid == FTDI_VID_PID:
                 auto_select = idx
-                self.port_list.SetItemBackgroundColour(idx, wx.Colour(220, 255, 220))
+                palette = getattr(self, "_parent_frame", None)
+                palette = getattr(palette, "current_theme_palette", None) if palette else None
+                if palette:
+                    # Use the theme's surface0 tint so the highlight blends with the dark/light bg
+                    self.port_list.SetItemBackgroundColour(idx, wx.Colour(*palette[1]))
+                else:
+                    self.port_list.SetItemBackgroundColour(idx, wx.Colour(220, 255, 220))
 
+        palette = self._palette()
         if auto_select >= 0:
             self.port_list.Select(auto_select)
             self.port_list.Focus(auto_select)
-            self.status_text.SetLabel("PC03 cable detected (highlighted in green)")
-            self.status_text.SetForegroundColour(wx.Colour(0, 128, 0))
+            self.status_text.SetLabel("PC03 cable detected (highlighted)")
+            self.status_text.SetForegroundColour(
+                wx.Colour(*palette[5]) if palette else wx.Colour(0, 128, 0))
         elif self.ports:
             self.status_text.SetLabel(f"{len(self.ports)} port(s) found")
-            self.status_text.SetForegroundColour(wx.Colour(0, 0, 0))
+            self.status_text.SetForegroundColour(
+                wx.Colour(*palette[3]) if palette else wx.Colour(0, 0, 0))
         else:
             self.status_text.SetLabel("No serial ports detected. Is the cable plugged in?")
-            self.status_text.SetForegroundColour(wx.Colour(200, 0, 0))
+            self.status_text.SetForegroundColour(
+                wx.Colour(*palette[4]) if palette else wx.Colour(200, 0, 0))
 
     def on_rescan(self, event):
         self.select_btn.Enable(False)
@@ -158,7 +197,6 @@ def show_about_dialog(frame):
     about_sizer.AddSpacer(15)
 
     copy_text = wx.StaticText(about_panel, label="(c) 2026 FlintWave Radio Tools")
-    copy_text.SetForegroundColour(wx.Colour(120, 120, 120))
     about_sizer.Add(copy_text, 0, wx.ALIGN_CENTER)
     about_sizer.AddSpacer(5)
 
@@ -213,14 +251,14 @@ def show_about_dialog(frame):
     dlg_sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
     dlg.SetSizer(dlg_sizer)
 
-    # Apply current theme to dialog
-    apply_theme_to_dialog(frame, dlg, {
-        "panels": [dlg, notebook, about_panel, license_panel],
-        "about_children": about_panel.GetChildren(),
-        "copy_text": copy_text,
-        "license_text": license_text,
-        "close_btn": close_btn,
-    })
+    # Apply current theme to dialog (recursive walk handles all widgets)
+    apply_theme_to_dialog(frame, dlg)
+
+    # Subtle copyright color via the palette's subtext1
+    palette = getattr(frame, "current_theme_palette", None)
+    if palette:
+        copy_text.SetOwnForegroundColour(wx.Colour(*palette[4]))
+        license_text.SetOwnForegroundColour(wx.Colour(*palette[5]))  # green for that terminal feel
 
     # Apply current font size
     ui_font = wx.Font(frame.font_size, wx.FONTFAMILY_DEFAULT,
@@ -294,7 +332,6 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
     hint = wx.StaticText(dlg, label="You can also email reports to flintwave@tuta.com")
     hint.SetFont(wx.Font(9, wx.FONTFAMILY_DEFAULT,
                           wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
-    hint.SetForegroundColour(wx.Colour(120, 120, 120))
     sizer.Add(hint, 0, wx.ALIGN_CENTER)
 
     sizer.AddSpacer(10)
@@ -323,6 +360,13 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
     sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.BOTTOM, 15)
 
     dlg.SetSizer(sizer)
+
+    # Apply parent theme to all widgets in the dialog
+    apply_theme_to_dialog(frame, dlg)
+    palette = getattr(frame, "current_theme_palette", None)
+    if palette:
+        hint.SetOwnForegroundColour(wx.Colour(*palette[4]))  # subtext1
+
     dlg.Centre()
     dlg.ShowModal()
     dlg.Destroy()

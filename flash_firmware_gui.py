@@ -19,7 +19,7 @@ from gui_main import main, FlasherFrame  # noqa: F401
 VERSION = "26.04.2"
 
 # Theme names available in the application (used by gui_themes.py):
-#   "latte", "frappe", "macchiato", "mocha", "high_contrast"
+#   "latte" (light), "mocha" (dark)
 
 if __name__ == "__main__":
     main()

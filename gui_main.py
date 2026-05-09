@@ -24,184 +24,239 @@ from gui_themes import apply_theme, THEME_PALETTES
 
 VERSION = "26.04.2"
 
+FONT_SIZES = [8, 9, 11, 14]
+
 
 class FlasherFrame(wx.Frame):
     def __init__(self):
-        super().__init__(None, title="KDH Bootloader Firmware Flasher", size=(560, 650))
-        self.SetMinSize((560, 500))
+        super().__init__(None, title="KDH Bootloader Firmware Flasher", size=(900, 720))
+        self.SetMinSize((820, 620))
 
         self.font_size = 9
-        self.current_theme = "system"
+        self.current_theme = "latte"
         self.current_theme_palette = None
+        self._busy = False
+        self._terminal_state = None  # set to "complete"/"failed" by threads
 
         # Window icon
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon_128.png")
         if os.path.exists(icon_path):
             self.SetIcon(wx.Icon(icon_path))
 
-        # Menu bar
-        menubar = wx.MenuBar()
-        view_menu = wx.Menu()
-
-        font_menu = wx.Menu()
-        self.font_small = font_menu.AppendRadioItem(wx.ID_ANY, "Small (8pt)")
-        self.font_medium = font_menu.AppendRadioItem(wx.ID_ANY, "Medium (9pt)")
-        self.font_large = font_menu.AppendRadioItem(wx.ID_ANY, "Large (11pt)")
-        self.font_xlarge = font_menu.AppendRadioItem(wx.ID_ANY, "Extra Large (14pt)")
-        self.font_medium.Check(True)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_font_size(8), self.font_small)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_font_size(9), self.font_medium)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_font_size(11), self.font_large)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_font_size(14), self.font_xlarge)
-        view_menu.AppendSubMenu(font_menu, "Log Font Size")
-
-        theme_menu = wx.Menu()
-        self.theme_system = theme_menu.AppendRadioItem(wx.ID_ANY, "System Default")
-        self.theme_latte = theme_menu.AppendRadioItem(wx.ID_ANY, "Latte (Light)")
-        self.theme_frappe = theme_menu.AppendRadioItem(wx.ID_ANY, "Frapp\u00e9")
-        self.theme_macchiato = theme_menu.AppendRadioItem(wx.ID_ANY, "Macchiato")
-        self.theme_mocha = theme_menu.AppendRadioItem(wx.ID_ANY, "Mocha (Dark)")
-        self.theme_hc = theme_menu.AppendRadioItem(wx.ID_ANY, "High Contrast")
-        self.theme_system.Check(True)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_theme("system"), self.theme_system)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_theme("latte"), self.theme_latte)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_theme("frappe"), self.theme_frappe)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_theme("macchiato"), self.theme_macchiato)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_theme("mocha"), self.theme_mocha)
-        self.Bind(wx.EVT_MENU, lambda e: self._set_theme("high_contrast"), self.theme_hc)
-        view_menu.AppendSubMenu(theme_menu, "Theme")
-
-        menubar.Append(view_menu, "View")
-
-        help_menu = wx.Menu()
-        usage_item = help_menu.Append(wx.ID_ANY, "Usage Guide")
-        self.Bind(wx.EVT_MENU, self.on_usage_guide, usage_item)
-        github_item = help_menu.Append(wx.ID_ANY, "GitHub Repository")
-        self.Bind(wx.EVT_MENU, self.on_github, github_item)
-        help_menu.AppendSeparator()
-        about_item = help_menu.Append(wx.ID_ABOUT, "About")
-        self.Bind(wx.EVT_MENU, self.on_about, about_item)
-        menubar.Append(help_menu, "Help")
-
-        self.SetMenuBar(menubar)
-
         panel = wx.Panel(self)
         self.panel = panel
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        root_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        # Radio model selector
-        radio_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        radio_sizer.Add(wx.StaticText(panel, label="Radio:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
+        # ---- Top row: three columns separated by ">" arrows ----
+        top_row = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Manifest state (must be set before _update_radio_info)
+        self.manifest = None
         self.radios = dl.load_radios()
+
+        col_firmware = self._build_firmware_column(panel)
+        col_cable = self._build_cable_column(panel)
+        col_flash = self._build_flash_column(panel)
+
+        arrow_font = wx.Font(20, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        self.arrow1 = wx.StaticText(panel, label="›")  # single right-pointing angle
+        self.arrow1.SetFont(arrow_font)
+        self.arrow2 = wx.StaticText(panel, label="›")
+        self.arrow2.SetFont(arrow_font)
+
+        top_row.Add(col_firmware, 1, wx.EXPAND | wx.ALL, 8)
+        top_row.Add(self.arrow1, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 4)
+        top_row.Add(col_cable, 1, wx.EXPAND | wx.ALL, 8)
+        top_row.Add(self.arrow2, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 4)
+        top_row.Add(col_flash, 1, wx.EXPAND | wx.ALL, 8)
+
+        root_sizer.Add(top_row, 0, wx.EXPAND)
+
+        # ---- Middle row: hints panel + log ----
+        middle_row = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.hints_panel = wx.Panel(panel)
+        hints_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.hint_title = wx.StaticText(self.hints_panel, label="")
+        self.hint_title.SetFont(wx.Font(11, wx.FONTFAMILY_DEFAULT,
+                                        wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
+        hints_sizer.Add(self.hint_title, 0, wx.ALL, 10)
+        self.hint_body = wx.StaticText(self.hints_panel, label="")
+        hints_sizer.Add(self.hint_body, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        self.hints_panel.SetSizer(hints_sizer)
+        self.hints_panel.Bind(wx.EVT_SIZE, self._on_hints_size)
+
+        self.log = wx.TextCtrl(panel,
+                               style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
+        self.log.SetFont(wx.Font(self.font_size, wx.FONTFAMILY_TELETYPE,
+                                 wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
+
+        middle_row.Add(self.hints_panel, 35, wx.EXPAND | wx.LEFT | wx.BOTTOM, 8)
+        middle_row.Add(self.log, 65, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        root_sizer.Add(middle_row, 1, wx.EXPAND)
+
+        # ---- Bottom: status bar with icon-style toggle buttons ----
+        self.status_bar_panel = self._build_status_bar(panel)
+        root_sizer.Add(self.status_bar_panel, 0, wx.EXPAND)
+
+        panel.SetSizer(root_sizer)
+        self.Centre()
+
+        # Bind change events that update hint state
+        self.file_path.Bind(wx.EVT_TEXT, self._on_state_change)
+        self.port_combo.Bind(wx.EVT_COMBOBOX, self._on_state_change)
+
+        # Initial population
+        self._update_radio_info()
+        self._auto_detect_port()
+        self._set_hint(self._compute_hint_state())
+
+        # Check for updates and fetch manifest in background
+        threading.Thread(target=self._check_update, daemon=True).start()
+        threading.Thread(target=self._fetch_manifest, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # Layout builders
+    # ------------------------------------------------------------------
+
+    def _build_firmware_column(self, parent):
+        box = wx.StaticBox(parent, label="Firmware")
+        sizer = wx.StaticBoxSizer(box, wx.VERTICAL)
+
         radio_names = [
             r['name'] if r['name'].startswith(r['manufacturer'])
             else f"{r['manufacturer']} {r['name']}"
             for r in self.radios
         ]
-        self.radio_combo = wx.ComboBox(panel, choices=radio_names,
+        self.radio_combo = wx.ComboBox(box, choices=radio_names,
                                        style=wx.CB_DROPDOWN | wx.CB_READONLY)
         if radio_names:
             self.radio_combo.SetSelection(0)
         self.radio_combo.Bind(wx.EVT_COMBOBOX, self.on_radio_changed)
-        radio_sizer.Add(self.radio_combo, 1, wx.EXPAND | wx.RIGHT, 5)
-        self.download_btn = wx.Button(panel, label="Download Latest")
+        sizer.Add(self.radio_combo, 0, wx.EXPAND | wx.ALL, 6)
+
+        self.radio_info = wx.StaticText(box, label="")
+        sizer.Add(self.radio_info, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+
+        self.download_btn = wx.Button(box, label="Download Latest")
         self.download_btn.Bind(wx.EVT_BUTTON, self.on_download)
-        radio_sizer.Add(self.download_btn, 0)
-        sizer.Add(radio_sizer, 0, wx.EXPAND | wx.ALL, 10)
+        sizer.Add(self.download_btn, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
-        # Manifest state (must be set before _update_radio_info)
-        self.manifest = None
-
-        # Radio info
-        self.radio_info = wx.StaticText(panel, label="")
-        self.radio_info.SetForegroundColour(wx.Colour(80, 80, 80))
-        self.radio_info.Wrap(self.GetMinSize().GetWidth() - 30)
-        sizer.Add(self.radio_info, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-        self._update_radio_info()
-
-        # Firmware file
-        file_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        file_sizer.Add(wx.StaticText(panel, label="Firmware:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.file_path = wx.TextCtrl(panel)
-        file_sizer.Add(self.file_path, 1, wx.EXPAND | wx.RIGHT, 5)
-        browse_btn = wx.Button(panel, label="Browse...")
+        file_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.file_path = wx.TextCtrl(box)
+        file_row.Add(self.file_path, 1, wx.EXPAND | wx.RIGHT, 4)
+        browse_btn = wx.Button(box, label="Browse…")
         browse_btn.Bind(wx.EVT_BUTTON, self.on_browse)
-        file_sizer.Add(browse_btn, 0)
-        sizer.Add(file_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        file_row.Add(browse_btn, 0)
+        sizer.Add(file_row, 0, wx.EXPAND | wx.ALL, 6)
 
-        sizer.AddSpacer(5)
+        # Re-wrap radio_info on column resize
+        box.Bind(wx.EVT_SIZE, lambda e: (self._wrap_radio_info(box), e.Skip()))
+        return sizer
 
-        # COM port
-        port_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        port_sizer.Add(wx.StaticText(panel, label="Port:"), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 5)
-        self.port_combo = wx.ComboBox(panel, style=wx.CB_DROPDOWN | wx.CB_READONLY)
-        port_sizer.Add(self.port_combo, 1, wx.EXPAND | wx.RIGHT, 5)
-        find_btn = wx.Button(panel, label="Find Cable...")
+    def _build_cable_column(self, parent):
+        box = wx.StaticBox(parent, label="Cable")
+        sizer = wx.StaticBoxSizer(box, wx.VERTICAL)
+
+        self.port_combo = wx.ComboBox(box, style=wx.CB_DROPDOWN | wx.CB_READONLY)
+        sizer.Add(self.port_combo, 0, wx.EXPAND | wx.ALL, 6)
+
+        find_btn = wx.Button(box, label="Find Cable…")
         find_btn.Bind(wx.EVT_BUTTON, self.on_find_cable)
-        port_sizer.Add(find_btn, 0)
-        sizer.Add(port_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+        sizer.Add(find_btn, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
-        sizer.AddSpacer(10)
+        sizer.AddStretchSpacer(1)
+        return sizer
 
-        # Progress bar
-        self.progress = wx.Gauge(panel, range=100)
-        sizer.Add(self.progress, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+    def _build_flash_column(self, parent):
+        box = wx.StaticBox(parent, label="Flash")
+        sizer = wx.StaticBoxSizer(box, wx.VERTICAL)
 
-        sizer.AddSpacer(5)
-
-        # Status log
-        self.log = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.HSCROLL)
-        self.log.SetFont(wx.Font(9, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
-        sizer.Add(self.log, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
-
-        sizer.AddSpacer(10)
-
-        # Buttons
-        btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.dryrun_btn = wx.Button(panel, label="Dry Run")
-        self.dryrun_btn.Bind(wx.EVT_BUTTON, self.on_dry_run)
-        btn_sizer.Add(self.dryrun_btn, 0, wx.RIGHT, 10)
-        self.diag_btn = wx.Button(panel, label="Run Diagnostics")
-        self.diag_btn.Bind(wx.EVT_BUTTON, self.on_diag)
-        btn_sizer.Add(self.diag_btn, 0, wx.RIGHT, 10)
-        self.flash_btn = wx.Button(panel, label="Flash Firmware")
+        self.flash_btn = wx.Button(box, label="Flash Firmware")
+        flash_font = wx.Font(12, wx.FONTFAMILY_DEFAULT,
+                             wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        self.flash_btn.SetFont(flash_font)
         self.flash_btn.Bind(wx.EVT_BUTTON, self.on_flash)
-        btn_sizer.Add(self.flash_btn, 0)
-        sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
+        sizer.Add(self.flash_btn, 0, wx.EXPAND | wx.ALL, 6)
 
-        panel.SetSizer(sizer)
-        self.Centre()
+        self.progress = wx.Gauge(box, range=100)
+        sizer.Add(self.progress, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
 
-        # Show getting started guide
-        self.log.SetValue(
-            "Getting Started:\n"
-            "\n"
-            "1. Select your radio model from the dropdown above\n"
-            "2. Get the firmware file:\n"
-            "   - Click 'Download Latest' if available, or\n"
-            "   - Click 'Browse...' to select a .kdhx file you've downloaded\n"
-            "3. Plug in your programming cable (PC03 or compatible K1 cable)\n"
-            "4. Click 'Find Cable...' to detect your cable\n"
-            "5. Click 'Dry Run' to verify the firmware file\n"
-            "6. Put the radio in bootloader mode:\n"
-            "   - Turn off the radio completely\n"
-            "   - Hold the bootloader keys (shown in the info line above)\n"
-            "   - While holding, turn the power/volume knob to turn on\n"
-            "   - The screen stays blank and the green Rx LED lights up\n"
-            "   - Do NOT release the keys until the LED is on\n"
-            "7. Click 'Flash Firmware' and wait for it to complete\n"
-            "8. Power cycle the radio and check Menu > Radio Info\n"
-            "\n"
-            "IMPORTANT: Do not unplug the cable or turn off the radio\n"
-            "during the flash process.\n"
-        )
+        sizer.AddSpacer(4)
 
-        # Auto-detect cable on startup
-        self._auto_detect_port()
+        sec_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.dryrun_btn = wx.Button(box, label="Dry Run")
+        self.dryrun_btn.Bind(wx.EVT_BUTTON, self.on_dry_run)
+        sec_row.Add(self.dryrun_btn, 1, wx.RIGHT, 4)
+        self.diag_btn = wx.Button(box, label="Diagnostics")
+        self.diag_btn.Bind(wx.EVT_BUTTON, self.on_diag)
+        sec_row.Add(self.diag_btn, 1)
+        sizer.Add(sec_row, 0, wx.EXPAND | wx.ALL, 6)
 
-        # Check for updates and fetch manifest in background
-        threading.Thread(target=self._check_update, daemon=True).start()
-        threading.Thread(target=self._fetch_manifest, daemon=True).start()
+        sizer.AddStretchSpacer(1)
+        return sizer
+
+    def _build_status_bar(self, parent):
+        bar = wx.Panel(parent)
+        bar_sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        def make_btn(label, tooltip, handler):
+            b = wx.Button(bar, label=label, style=wx.BORDER_NONE)
+            b.SetToolTip(tooltip)
+            b.Bind(wx.EVT_BUTTON, lambda e: handler())
+            return b
+
+        # Theme toggle: glyph reflects the theme you'd switch TO.
+        # Currently latte (light) → show moon (click to go dark).
+        self.theme_btn = make_btn("☾", "Toggle dark / light theme", self._toggle_theme)
+        self.theme_btn.SetMinSize((40, 28))
+
+        self.font_btn = make_btn(f"{self.font_size} pt", "Cycle log font size", self._cycle_font)
+        self.font_btn.SetMinSize((52, 28))
+
+        usage_btn = make_btn("?", "Open Usage Guide", lambda: self.on_usage_guide(None))
+        usage_btn.SetMinSize((36, 28))
+
+        github_btn = make_btn("GH", "Open GitHub repository", lambda: self.on_github(None))
+        github_btn.SetMinSize((40, 28))
+
+        about_btn = make_btn("ⓘ", "About", lambda: self.on_about(None))
+        about_btn.SetMinSize((36, 28))
+
+        bar_sizer.Add(self.theme_btn, 0, wx.ALL, 4)
+        bar_sizer.Add(self.font_btn, 0, wx.TOP | wx.BOTTOM, 4)
+        bar_sizer.AddStretchSpacer(1)
+        bar_sizer.Add(usage_btn, 0, wx.ALL, 4)
+        bar_sizer.Add(github_btn, 0, wx.TOP | wx.BOTTOM, 4)
+        bar_sizer.Add(about_btn, 0, wx.ALL, 4)
+
+        bar.SetSizer(bar_sizer)
+        return bar
+
+    # ------------------------------------------------------------------
+    # Wrap helpers
+    # ------------------------------------------------------------------
+
+    def _wrap_radio_info(self, box):
+        try:
+            w = box.GetClientSize().GetWidth() - 24
+            if w > 50:
+                self.radio_info.Wrap(w)
+        except Exception:
+            pass
+
+    def _on_hints_size(self, event):
+        try:
+            w = self.hints_panel.GetClientSize().GetWidth() - 20
+            if w > 50:
+                self.hint_body.Wrap(w)
+        except Exception:
+            pass
+        event.Skip()
+
+    # ------------------------------------------------------------------
+    # Auto-detect / device handling
+    # ------------------------------------------------------------------
 
     def _auto_detect_port(self):
         ports = list_serial_ports()
@@ -216,21 +271,178 @@ class FlasherFrame(wx.Frame):
         elif port_devices:
             self.port_combo.SetSelection(0)
 
+        self._set_hint(self._compute_hint_state())
+
+    # ------------------------------------------------------------------
+    # Theme + font controls
+    # ------------------------------------------------------------------
+
+    def _set_theme(self, theme):
+        apply_theme(self, theme)
+        self._update_theme_glyph()
+
+    def _toggle_theme(self):
+        new_theme = "mocha" if self.current_theme == "latte" else "latte"
+        apply_theme(self, new_theme)
+        self._update_theme_glyph()
+
+    def _update_theme_glyph(self):
+        # Glyph shows the destination theme: moon = "go to dark", sun = "go to light".
+        self.theme_btn.SetLabel("☀" if self.current_theme == "mocha" else "☾")
+
     def _set_font_size(self, size):
         self.font_size = size
         mono = wx.Font(size, wx.FONTFAMILY_TELETYPE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
         ui = wx.Font(size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-        self.log.SetFont(mono)
-        for child in self.panel.GetChildren():
-            if isinstance(child, wx.TextCtrl):
-                child.SetFont(mono)
-            elif not isinstance(child, wx.adv.HyperlinkCtrl):
-                child.SetFont(ui)
+        ui_bold = wx.Font(size, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+        flash_font = wx.Font(size + 3, wx.FONTFAMILY_DEFAULT,
+                             wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+
+        # Recursive walk so deeply nested controls (column boxes, hints, status bar)
+        # all pick up the font change
+        def walk(w):
+            yield w
+            try:
+                for c in w.GetChildren():
+                    yield from walk(c)
+            except Exception:
+                return
+
+        for w in walk(self.panel):
+            if w is self.log:
+                w.SetFont(mono)
+            elif w is self.flash_btn:
+                w.SetFont(flash_font)
+            elif w is self.hint_title:
+                w.SetFont(ui_bold)
+            elif isinstance(w, wx.adv.HyperlinkCtrl):
+                continue
+            elif isinstance(w, wx.TextCtrl):
+                w.SetFont(mono)
+            else:
+                try:
+                    w.SetFont(ui)
+                except Exception:
+                    pass
+
+        self._on_hints_size_force()
         self.panel.Layout()
         self.panel.Refresh()
 
-    def _set_theme(self, theme):
-        apply_theme(self, theme)
+    def _on_hints_size_force(self):
+        try:
+            w = self.hints_panel.GetClientSize().GetWidth() - 20
+            if w > 50:
+                self.hint_body.Wrap(w)
+        except Exception:
+            pass
+
+    def _cycle_font(self):
+        try:
+            idx = FONT_SIZES.index(self.font_size)
+        except ValueError:
+            idx = -1
+        new_size = FONT_SIZES[(idx + 1) % len(FONT_SIZES)]
+        self._set_font_size(new_size)
+        self.font_btn.SetLabel(f"{new_size} pt")
+
+    # ------------------------------------------------------------------
+    # Hint state machine
+    # ------------------------------------------------------------------
+
+    HINT_COPY = {
+        "no_firmware": (
+            "Step 1 — Get firmware",
+            "Choose a radio model in the Firmware column, then click "
+            "“Download Latest” if available, or “Browse…” "
+            "to pick a .kdhx file you already downloaded."
+        ),
+        "no_cable": (
+            "Step 2 — Connect the cable",
+            "Plug in your programming cable (PC03 or compatible K1 cable), then "
+            "click “Find Cable…” to detect it. The auto-detected "
+            "PC03 entry will be highlighted."
+        ),
+        "ready_dryrun": (
+            "Step 3 — Verify the firmware",
+            "Click “Dry Run” to validate the firmware file and confirm "
+            "the packets build without serial communication. Optionally click "
+            "“Diagnostics” to test the cable."
+        ),
+        "ready_flash": (
+            "Step 4 — Flash",
+            "Put the radio in bootloader mode:\n"
+            "  1. Power the radio off completely\n"
+            "  2. Hold the bootloader keys (shown in the radio info)\n"
+            "  3. While holding, turn the power knob to turn on\n"
+            "  4. Screen stays blank, green Rx LED lights up\n"
+            "  5. Do NOT release the keys until the LED is on\n\n"
+            "Then click “Flash Firmware”. Do not unplug the cable or "
+            "turn off the radio during the flash."
+        ),
+        "downloading": (
+            "Downloading firmware…",
+            "Fetching the latest firmware. The progress bar tracks the download. "
+            "Once finished, the file will be filled in automatically."
+        ),
+        "flashing": (
+            "Flashing in progress…",
+            "Streaming firmware to the radio. Do NOT unplug the cable, power off "
+            "the radio, or close this window until the operation completes."
+        ),
+        "dryrun": (
+            "Dry run in progress…",
+            "Validating the firmware file and verifying packet CRCs. "
+            "No serial communication is happening."
+        ),
+        "diagnostics": (
+            "Diagnostics in progress…",
+            "Sending a handshake to the cable to confirm connectivity. "
+            "If the radio responds, flashing should work."
+        ),
+        "complete": (
+            "Done!",
+            "Power cycle the radio and check Menu › Radio Info to confirm "
+            "the new version. See the log on the right for full details."
+        ),
+        "failed": (
+            "Operation failed",
+            "The last operation did not complete successfully. Read the log on "
+            "the right for the error message. The radio may need to be power "
+            "cycled and put back in bootloader mode before trying again."
+        ),
+    }
+
+    def _set_hint(self, state):
+        if state not in self.HINT_COPY:
+            return
+        title, body = self.HINT_COPY[state]
+        self.hint_title.SetLabel(title)
+        self.hint_body.SetLabel(body)
+        self._on_hints_size_force()
+        self.hints_panel.Layout()
+
+    def _compute_hint_state(self):
+        if self._terminal_state in ("complete", "failed"):
+            return self._terminal_state
+        if self._busy:
+            return self._busy_state if hasattr(self, "_busy_state") else "flashing"
+        if not self.file_path.GetValue():
+            return "no_firmware"
+        if not self.port_combo.GetValue():
+            return "no_cable"
+        return "ready_flash"
+
+    def _on_state_change(self, event):
+        # User-initiated change clears any sticky terminal state
+        self._terminal_state = None
+        self._set_hint(self._compute_hint_state())
+        if event:
+            event.Skip()
+
+    # ------------------------------------------------------------------
+    # Menu / status bar action handlers (preserved)
+    # ------------------------------------------------------------------
 
     def on_usage_guide(self, event):
         guide_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "USAGE.md")
@@ -244,6 +456,10 @@ class FlasherFrame(wx.Frame):
 
     def on_about(self, event):
         show_about_dialog(self)
+
+    # ------------------------------------------------------------------
+    # Background tasks
+    # ------------------------------------------------------------------
 
     def _fetch_manifest(self):
         try:
@@ -332,7 +548,11 @@ class FlasherFrame(wx.Frame):
                 info += f"\n{notes}"
 
             self.radio_info.SetLabel(info)
-            self.radio_info.Wrap(self.panel.GetSize().GetWidth() - 30)
+            try:
+                box = self.radio_info.GetParent()
+                self._wrap_radio_info(box)
+            except Exception:
+                pass
             self.panel.Layout()
 
             has_url = bool(url)
@@ -343,6 +563,8 @@ class FlasherFrame(wx.Frame):
                 self.download_btn.SetLabel(f"Download v{version}")
             else:
                 self.download_btn.SetLabel("Download Latest")
+
+        self._set_hint(self._compute_hint_state())
 
     def on_radio_changed(self, event):
         self._update_radio_info()
@@ -372,7 +594,11 @@ class FlasherFrame(wx.Frame):
 
         self.log.Clear()
         self.progress.SetValue(0)
+        self._busy = True
+        self._busy_state = "downloading"
+        self._terminal_state = None
         self.set_buttons(False)
+        self._set_hint("downloading")
         threading.Thread(target=self._download_thread,
                          args=(radio, url, expected_sha256), daemon=True).start()
 
@@ -399,6 +625,7 @@ class FlasherFrame(wx.Frame):
             self.log_msg("Firmware ready. You can now flash it.")
 
             wx.CallAfter(self.file_path.SetValue, kdhx_path)
+            self._terminal_state = None  # path change will recompute hint
 
         except Exception as e:
             self.log_msg(f"\nERROR: {e}")
@@ -406,7 +633,9 @@ class FlasherFrame(wx.Frame):
                 page = radio.get("firmware_page", "")
                 if page:
                     self.log_msg(f"Visit: {page}")
+            self._terminal_state = "failed"
         finally:
+            self._busy = False
             self.set_buttons(True)
 
     def on_find_cable(self, event):
@@ -421,6 +650,8 @@ class FlasherFrame(wx.Frame):
             else:
                 self.port_combo.SetValue(port)
             self.log.AppendText(f"Selected: {port}\n")
+            self._terminal_state = None
+            self._set_hint(self._compute_hint_state())
         dlg.Destroy()
 
     def on_browse(self, event):
@@ -430,6 +661,8 @@ class FlasherFrame(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             self.file_path.SetValue(dlg.GetPath())
         dlg.Destroy()
+        self._terminal_state = None
+        self._set_hint(self._compute_hint_state())
 
     def log_msg(self, msg):
         wx.CallAfter(self.log.AppendText, msg + "\n")
@@ -444,6 +677,8 @@ class FlasherFrame(wx.Frame):
         wx.CallAfter(self.download_btn.Enable, enabled)
         if enabled:
             wx.CallAfter(self._update_radio_info)
+            # Recompute hint AFTER the thread has set _terminal_state
+            wx.CallAfter(lambda: self._set_hint(self._compute_hint_state()))
 
     def on_flash(self, event):
         port = self.port_combo.GetValue()
@@ -515,7 +750,11 @@ class FlasherFrame(wx.Frame):
 
         self.log.Clear()
         self.progress.SetValue(0)
+        self._busy = True
+        self._busy_state = "flashing"
+        self._terminal_state = None
         self.set_buttons(False)
+        self._set_hint("flashing")
         threading.Thread(target=self._flash_thread, args=(port, firmware_path), daemon=True).start()
 
     def _flash_thread(self, port, firmware_path):
@@ -597,14 +836,17 @@ class FlasherFrame(wx.Frame):
                     elif cmp < 0:
                         self.log_msg(f"Note: v{latest_ver} is available (you flashed v{file_version}).")
 
+            self._terminal_state = "complete"
             wx.CallAfter(self._offer_test_report, radio_name, firmware_path, True, "")
 
         except Exception as e:
             error_msg = str(e)
             self.log_msg(f"\nERROR: {error_msg}")
             self.log_msg("Radio may need to be power cycled and put back in bootloader mode.")
+            self._terminal_state = "failed"
             wx.CallAfter(self._offer_test_report, radio_name, firmware_path, False, error_msg)
         finally:
+            self._busy = False
             self.set_buttons(True)
 
     def _offer_test_report(self, radio_name, firmware_path, success, error_msg):
@@ -658,7 +900,11 @@ class FlasherFrame(wx.Frame):
 
         self.log.Clear()
         self.progress.SetValue(0)
+        self._busy = True
+        self._busy_state = "dryrun"
+        self._terminal_state = None
         self.set_buttons(False)
+        self._set_hint("dryrun")
         threading.Thread(target=self._dryrun_thread, args=(firmware_path,), daemon=True).start()
 
     def _dryrun_thread(self, firmware_path):
@@ -673,6 +919,7 @@ class FlasherFrame(wx.Frame):
             fw_size = os.path.getsize(firmware_path)
             if fw_size > fw.MAX_FIRMWARE_BYTES:
                 self.log_msg(f"FAIL: File too large ({fw_size} bytes, max {fw.MAX_FIRMWARE_BYTES})")
+                self._terminal_state = "failed"
                 return
             with open(firmware_path, "rb") as f:
                 firmware = f.read()
@@ -682,9 +929,11 @@ class FlasherFrame(wx.Frame):
 
             if fw_size < fw.MIN_FIRMWARE_BYTES:
                 self.log_msg(f"FAIL: File too small ({fw_size} bytes)")
+                self._terminal_state = "failed"
                 return
             if total_chunks > fw.MAX_CHUNKS:
                 self.log_msg(f"FAIL: Too many chunks ({total_chunks}, max {fw.MAX_CHUNKS})")
+                self._terminal_state = "failed"
                 return
 
             sha256 = hashlib.sha256(firmware).hexdigest()
@@ -703,6 +952,7 @@ class FlasherFrame(wx.Frame):
             if not ok_sp or not ok_reset:
                 self.log_msg("")
                 self.log_msg("FAIL: Invalid ARM vector table")
+                self._terminal_state = "failed"
                 return
 
             self.log_msg("")
@@ -716,6 +966,7 @@ class FlasherFrame(wx.Frame):
                 pkt_crc = (p[-3] << 8) | p[-2]
                 if fw.crc16_ccitt(payload) != pkt_crc:
                     self.log_msg(f"FAIL: CRC self-check failed on chunk {i}")
+                    self._terminal_state = "failed"
                     return
                 self.set_progress(10 + (i + 1) / total_chunks * 90)
 
@@ -723,10 +974,13 @@ class FlasherFrame(wx.Frame):
             self.log_msg("")
             self.log_msg("DRY RUN PASSED — firmware file is valid and ready to flash")
             self.set_progress(100)
+            self._terminal_state = "complete"
 
         except Exception as e:
             self.log_msg(f"\nERROR: {e}")
+            self._terminal_state = "failed"
         finally:
+            self._busy = False
             self.set_buttons(True)
 
     def on_diag(self, event):
@@ -738,7 +992,11 @@ class FlasherFrame(wx.Frame):
 
         self.log.Clear()
         self.progress.SetValue(0)
+        self._busy = True
+        self._busy_state = "diagnostics"
+        self._terminal_state = None
         self.set_buttons(False)
+        self._set_hint("diagnostics")
         threading.Thread(target=self._diag_thread, args=(port,), daemon=True).start()
 
     def _diag_thread(self, port):
@@ -776,17 +1034,21 @@ class FlasherFrame(wx.Frame):
                     self.log_msg(f"  RX ({avail} bytes): {data.hex()}")
                     self.log_msg("")
                     self.log_msg("Radio is responding! Flash should work.")
+                    self._terminal_state = "complete"
                 else:
                     self.log_msg("  RX: no data")
                     self.log_msg("")
                     self.log_msg("Radio did not respond.")
                     self.log_msg("Check: cable, bootloader mode, serial port.")
+                    self._terminal_state = "failed"
 
             self.set_progress(100)
 
         except Exception as e:
             self.log_msg(f"\nERROR: {e}")
+            self._terminal_state = "failed"
         finally:
+            self._busy = False
             self.set_buttons(True)
 
 
@@ -794,6 +1056,8 @@ def main():
     app = wx.App()
     frame = FlasherFrame()
     frame.Show()
+    apply_theme(frame, "latte")
+    frame._update_theme_glyph()
     app.MainLoop()
 
 

@@ -501,13 +501,11 @@ class TestThemePalettes(unittest.TestCase):
 
     def test_all_themes_have_7_colors(self):
         """Each theme palette must have exactly 7 color tuples."""
-        # Import the themes dict by reading the source
-        # We test the structure matches what _set_theme expects
         gui_path = os.path.join(os.path.dirname(__file__), "flash_firmware_gui.py")
         with open(gui_path) as f:
             content = f.read()
-        # Just verify the theme names exist in code
-        for theme in ["latte", "frappe", "macchiato", "mocha", "high_contrast"]:
+        # The redesign reduces themes to one light (latte) + one dark (mocha)
+        for theme in ["latte", "mocha"]:
             self.assertIn(f'"{theme}"', content,
                           f"Theme {theme} not found in GUI code")
 
