@@ -19,7 +19,12 @@ import updater
 import serial
 
 from gui_ports import list_serial_ports, find_programming_cable
-from gui_dialogs import PortFinderDialog, show_about_dialog, show_test_report_dialog
+from gui_dialogs import (
+    PortFinderDialog,
+    BatchFlashDialog,
+    show_about_dialog,
+    show_test_report_dialog,
+)
 from gui_themes import apply_theme, THEME_PALETTES
 
 VERSION = "26.04.2"
@@ -164,6 +169,12 @@ class FlasherFrame(wx.Frame):
         find_btn = wx.Button(box, label="Find Cable…")
         find_btn.Bind(wx.EVT_BUTTON, self.on_find_cable)
         sizer.Add(find_btn, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+
+        self.batch_btn = wx.Button(box, label="Batch Flash…")
+        self.batch_btn.SetToolTip(
+            "Flash the same firmware to multiple connected radios in sequence.")
+        self.batch_btn.Bind(wx.EVT_BUTTON, self.on_batch_flash)
+        sizer.Add(self.batch_btn, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
         sizer.AddStretchSpacer(1)
         return sizer
@@ -638,6 +649,20 @@ class FlasherFrame(wx.Frame):
             self._busy = False
             self.set_buttons(True)
 
+    def on_batch_flash(self, event):
+        firmware_path = self.file_path.GetValue()
+        if not firmware_path or not os.path.exists(firmware_path):
+            wx.MessageBox(
+                "Select a firmware file first (Browse… or Download Latest in "
+                "the Firmware column). Batch Flash uses the same firmware for "
+                "every selected radio.",
+                "No firmware", wx.OK | wx.ICON_INFORMATION)
+            return
+        radio = self._get_selected_radio()
+        dlg = BatchFlashDialog(self, firmware_path, radio)
+        dlg.ShowModal()
+        dlg.Destroy()
+
     def on_find_cable(self, event):
         dlg = PortFinderDialog(self)
         if dlg.ShowModal() == wx.ID_OK and dlg.selected_port:
@@ -675,6 +700,7 @@ class FlasherFrame(wx.Frame):
         wx.CallAfter(self.dryrun_btn.Enable, enabled)
         wx.CallAfter(self.diag_btn.Enable, enabled)
         wx.CallAfter(self.download_btn.Enable, enabled)
+        wx.CallAfter(self.batch_btn.Enable, enabled)
         if enabled:
             wx.CallAfter(self._update_radio_info)
             # Recompute hint AFTER the thread has set _terminal_state
