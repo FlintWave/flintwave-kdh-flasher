@@ -16,7 +16,7 @@ from gui_themes import apply_theme_to_dialog
 
 def show_about_dialog(frame):
     """Show the About dialog with version, links, and license."""
-    VERSION = "26.05.1"
+    VERSION = "26.05.2"
 
     dlg = wx.Dialog(frame, title="About", size=(420, 440),
                     style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)

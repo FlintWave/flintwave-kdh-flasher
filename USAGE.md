@@ -87,11 +87,11 @@ Once a firmware file is loaded, the **Handset** column unlocks (the first arrow 
 
 ### Step 3: Pick your handset(s)
 
-Plug in your programming cable. The **Handset** column lists every USB serial port detected and auto-checks anything matching a known cable (PC03 / FTDI / CH340 / Prolific / CP2102). It also probes each port with a bootloader handshake; ports that answer are marked **Ready**.
+Plug in your programming cable. The **Handset** column lists every USB serial port detected. The first time the column unlocks (after Steps 1 + 2), the app probes each port with a bootloader handshake — ports that answer are marked **Ready** and known cables (PC03 / FTDI / CH340 / Prolific / CP2102) are auto-checked. Before the column unlocks the list stays passive (no serial I/O), and hot-plugging a cable while still gated only updates the list view — no automatic probing.
 
 - **One handset checked** — the app does a single flash to that port.
 - **Multiple handsets checked** — the app flashes them sequentially in batch mode (great for OEM-style multi-radio runs). Each row's `Status` and `%` columns track per-port progress.
-- **Refresh / Probe** — re-scan ports and re-probe (also fires automatically on plug/unplug).
+- **Refresh / Probe** — re-scan ports and re-probe on demand. Plug/unplug events refresh the list automatically but don't re-probe; click this when you want fresh handshake results.
 - **All / None** — select all detected handsets at once.
 
 **Cable tips:**

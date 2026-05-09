@@ -26,7 +26,7 @@ from gui_dialogs import (
 )
 from gui_themes import apply_theme, THEME_PALETTES, MOCHA_PALETTE
 
-VERSION = "26.05.1"
+VERSION = "26.05.2"
 
 FONT_SIZES = [9, 11, 12, 14, 16]
 
@@ -185,9 +185,13 @@ class FlasherFrame(wx.Frame):
         # Bind change events that update hint state
         self.file_path.Bind(wx.EVT_TEXT, self._on_state_change)
 
-        # Initial population
+        # Initial population. Don't probe or auto-check anything yet — the
+        # Handset column is gated until a radio + firmware are chosen, and
+        # we don't want to touch serial ports the user hasn't unlocked.
+        # The first probe is fired from _update_workflow_gating the moment
+        # the firmware gate flips on.
         self._update_radio_info()
-        self._refresh_handset_ports(probe=True)
+        self._refresh_handset_ports(probe=False, preserve_checks=True)
         self._set_hint(self._compute_hint_state())
         # Initial gating state (locks Handset + Flash columns until firmware
         # is chosen). Done synchronously so the locked state is visible the
@@ -757,6 +761,12 @@ class FlasherFrame(wx.Frame):
             gate_before = self._arrow_unlocked.get(id(arrow), False)
             if gate_now and not gate_before:
                 self._pulse_arrow(arrow)
+                # When the Handset column unlocks (firmware gate flips on),
+                # kick off the first probe of the connected ports. Until
+                # this point we deliberately leave the list passive so we
+                # never touch serial devices the user hasn't unlocked yet.
+                if arrow is self.arrow1:
+                    self._refresh_handset_ports(probe=True)
             self._arrow_unlocked[id(arrow)] = gate_now
 
     def _pulse_arrow(self, arrow, cycles=3):

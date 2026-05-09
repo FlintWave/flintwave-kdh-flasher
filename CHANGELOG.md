@@ -1,5 +1,11 @@
 # Changelog
 
+## v26.05.2 — 2026-05-09
+
+### Changed
+
+- **Deferred initial port probing.** At launch the Handset list now stays passive — no `CMD_HANDSHAKE` traffic and no auto-checking of PC03 cables until the user has picked a radio and a firmware file. The first probe fires the moment the Handset column unlocks (at the same time `arrow1` pulses green). Hot-plug detection still runs in the background but only refreshes the list view; it never touches serial devices on its own. Avoids surprising the user with serial I/O on devices they haven't authorized the app to talk to yet.
+
 ## v26.05.1 — 2026-05-09
 
 ### Major rework of the GUI
