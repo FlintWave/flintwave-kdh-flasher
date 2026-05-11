@@ -16,7 +16,7 @@ from gui_themes import apply_theme_to_dialog
 
 def show_about_dialog(frame):
     """Show the About dialog with version, links, and license."""
-    VERSION = "26.05.2"
+    VERSION = "26.05.3"
 
     dlg = wx.Dialog(frame, title="About", size=(420, 440),
                     style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -62,10 +62,10 @@ def show_about_dialog(frame):
     about_sizer.Add(gh_link, 0, wx.ALIGN_CENTER)
     about_sizer.AddSpacer(2)
 
-    cb_link = wx.adv.HyperlinkCtrl(about_panel,
-        label="Codeberg: flintwaveradio/flintwave-kdh-flasher",
-        url="https://codeberg.org/flintwaveradio/flintwave-kdh-flasher")
-    about_sizer.Add(cb_link, 0, wx.ALIGN_CENTER)
+    license_link = wx.adv.HyperlinkCtrl(about_panel,
+        label="Licensed under GNU GPL v3.0",
+        url="https://www.gnu.org/licenses/gpl-3.0.html")
+    about_sizer.Add(license_link, 0, wx.ALIGN_CENTER)
 
     about_panel.SetSizer(about_sizer)
     notebook.AddPage(about_panel, "About")
@@ -78,23 +78,21 @@ def show_about_dialog(frame):
     license_text.SetFont(wx.Font(9, wx.FONTFAMILY_TELETYPE,
                                  wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
     license_text.SetValue(
-        "MIT License\n\n"
-        "Copyright (c) 2026 FlintWave Radio Tools\n\n"
-        "Permission is hereby granted, free of charge, to any person obtaining a copy "
-        "of this software and associated documentation files (the \"Software\"), to deal "
-        "in the Software without restriction, including without limitation the rights "
-        "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell "
-        "copies of the Software, and to permit persons to whom the Software is "
-        "furnished to do so, subject to the following conditions:\n\n"
-        "The above copyright notice and this permission notice shall be included in all "
-        "copies or substantial portions of the Software.\n\n"
-        "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR "
-        "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, "
-        "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE "
-        "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER "
-        "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, "
-        "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE "
-        "SOFTWARE."
+        "FlintWave KDH Flasher\n"
+        "Copyright (C) 2026 FlintWave Radio Tools\n\n"
+        "This program is free software: you can redistribute it and/or modify "
+        "it under the terms of the GNU General Public License as published by "
+        "the Free Software Foundation, either version 3 of the License, or "
+        "(at your option) any later version.\n\n"
+        "This program is distributed in the hope that it will be useful, "
+        "but WITHOUT ANY WARRANTY; without even the implied warranty of "
+        "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the "
+        "GNU General Public License for more details.\n\n"
+        "You should have received a copy of the GNU General Public License "
+        "along with this program.  If not, see "
+        "<https://www.gnu.org/licenses/>.\n\n"
+        "The full GPL v3.0 license text ships with the source distribution "
+        "in the LICENSE file at the root of the repository."
     )
     license_sizer.Add(license_text, 1, wx.EXPAND | wx.ALL, 10)
     license_panel.SetSizer(license_sizer)

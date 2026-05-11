@@ -61,7 +61,7 @@ jobs:
             --description "Cross-platform firmware flasher for KDH bootloader radios" \
             --maintainer "FlintWave Radio Tools <flintwave@tuta.com>" \
             --url "https://github.com/FlintWave/flintwave-kdh-flasher" \
-            --license MIT \
+            --license GPL-3.0 \
             --category utils \
             --depends libgtk-3-0 \
             --depends unrar \
@@ -77,7 +77,7 @@ jobs:
             --description "Cross-platform firmware flasher for KDH bootloader radios" \
             --maintainer "FlintWave Radio Tools <flintwave@tuta.com>" \
             --url "https://github.com/FlintWave/flintwave-kdh-flasher" \
-            --license MIT \
+            --license GPL-3.0 \
             --category Utilities \
             --depends gtk3 \
             --depends unrar \

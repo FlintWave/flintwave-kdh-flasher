@@ -1,5 +1,15 @@
 # Changelog
 
+## v26.05.3 — 2026-05-10
+
+### Licensing
+
+- **Relicensed from MIT to GNU GPL v3.0.** All code in this repository is now distributed under the terms of the GNU General Public License, version 3 — see [LICENSE](LICENSE) for the full text. The About dialog's License tab and the README license section have been updated to reflect the new terms, and the `.deb` / `.rpm` package metadata now declares `GPL-3.0`. Any future redistribution or derivative work must comply with the GPL's copyleft terms.
+
+### Removed
+
+- **Codeberg mirror.** The Codeberg link in the About dialog and the two Codeberg URLs in `updater.py`'s `EXPECTED_ORIGINS` set have been removed. GitHub is now the sole authoritative source for the project. The mirror repository at `codeberg.org/flintwaveradio/flintwave-kdh-flasher` is being retired.
+
 ## v26.05.2 — 2026-05-09
 
 ### Changed

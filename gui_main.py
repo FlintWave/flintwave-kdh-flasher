@@ -26,7 +26,7 @@ from gui_dialogs import (
 )
 from gui_themes import apply_theme, THEME_PALETTES, MOCHA_PALETTE
 
-VERSION = "26.05.2"
+VERSION = "26.05.3"
 
 FONT_SIZES = [9, 11, 12, 14, 16]
 

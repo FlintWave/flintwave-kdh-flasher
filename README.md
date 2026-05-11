@@ -19,8 +19,8 @@ Download from [GitHub Releases](https://github.com/FlintWave/flintwave-kdh-flash
 
 | OS | Download | Install |
 |----|----------|---------|
-| Linux (Debian/Ubuntu/Pop!_OS/Mint) | [flintwave-kdh-flasher_amd64.deb](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-kdh-flasher_26.05.2_amd64.deb) | `sudo dpkg -i *.deb` |
-| Linux (Fedora/RHEL/openSUSE) | [flintwave-kdh-flasher.x86_64.rpm](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-kdh-flasher-v26.05.2-1.x86_64.rpm) | `sudo rpm -i *.rpm` |
+| Linux (Debian/Ubuntu/Pop!_OS/Mint) | [flintwave-kdh-flasher_amd64.deb](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-kdh-flasher_26.05.3_amd64.deb) | `sudo dpkg -i *.deb` |
+| Linux (Fedora/RHEL/openSUSE) | [flintwave-kdh-flasher.x86_64.rpm](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-kdh-flasher-v26.05.3-1.x86_64.rpm) | `sudo rpm -i *.rpm` |
 | Windows | [FlintWave-KDH-Flasher-Setup.exe](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-KDH-Flasher-Setup.exe) | Run the installer |
 | macOS | [FlintWave-KDH-Flasher.dmg](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-KDH-Flasher.dmg) | Drag to Applications |
 
@@ -171,4 +171,6 @@ CRC-16/CCITT (poly 0x1021, init 0x0000) over cmd+seed+len+data.
 
 ## License
 
-MIT
+GNU General Public License v3.0 — see [LICENSE](LICENSE) for the full text.
+
+This is a copyleft license: you are free to use, modify, and redistribute this software, but any derivative work you distribute must also be released under the GPL v3.0 (or a later compatible version) and must include source code.

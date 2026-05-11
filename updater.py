@@ -19,8 +19,6 @@ EXPECTED_ORIGINS = {
     "https://github.com/FlintWave/flintwave-kdh-flasher.git",
     "https://github.com/FlintWave/flintwave-kdh-flasher",
     "git@github.com:FlintWave/flintwave-kdh-flasher.git",
-    "git@codeberg.org:flintwaveradio/flintwave-kdh-flasher.git",
-    "https://codeberg.org/flintwaveradio/flintwave-kdh-flasher.git",
 }
 API_URL = "https://api.github.com/repos/FlintWave/flintwave-kdh-flasher/releases/latest"
 
