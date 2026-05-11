@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for FlintWave KDH Flasher
+# PyInstaller spec for FlintWave Flash
 # Build with: pyinstaller build.spec
 
 import sys
@@ -28,12 +28,16 @@ a = Analysis(
         ('icon_128.png', '.'),
         ('USAGE.md', '.'),
         ('LICENSE', '.'),
+        # Bundle the canonical English catalog. Other locales are fetched on
+        # demand from the GitHub repo and cached under ~/.flintwave-flash/.
+        ('translations/en.json', 'translations'),
     ],
     hiddenimports=[
         'flash_firmware',
         'firmware_download',
         'firmware_manifest',
         'firmware_version',
+        'i18n',
         'rarfile',
         'updater',
         'gui_main',
@@ -62,7 +66,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='FlintWave-KDH-Flasher',
+    name='FlintWave-Flash',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -74,7 +78,7 @@ exe = EXE(
 if sys.platform == 'darwin':
     app = BUNDLE(
         exe,
-        name='FlintWave KDH Flasher.app',
+        name='FlintWave Flash.app',
         icon=None,
-        bundle_identifier='com.flintwave.kdh-flasher',
+        bundle_identifier='com.flintwave.flash',
     )

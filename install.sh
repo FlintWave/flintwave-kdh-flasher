@@ -1,14 +1,14 @@
 #!/bin/bash
-# FlintWave KDH Flasher — Linux/macOS installer
+# FlintWave Flash — Linux/macOS installer
 # curl -sL https://raw.githubusercontent.com/FlintWave/flintwave-kdh-flasher/master/install.sh | bash
 
 set -e
 
 REPO="https://github.com/FlintWave/flintwave-kdh-flasher.git"
-INSTALL_DIR="$HOME/.local/share/flintwave-kdh-flasher"
+INSTALL_DIR="$HOME/.local/share/flintwave-flash"
 
 echo "==================================="
-echo "  FlintWave KDH Flasher Installer"
+echo "  FlintWave Flash Installer"
 echo "==================================="
 echo
 
@@ -95,14 +95,14 @@ if [ "$(uname)" = "Linux" ]; then
     mkdir -p "$HOME/.local/share/applications"
     mkdir -p "$HOME/.local/share/icons/hicolor/128x128/apps"
 
-    cat > "$HOME/.local/share/applications/flintwave-kdh-flasher.desktop" << EOF
+    cat > "$HOME/.local/share/applications/flintwave-flash.desktop" << EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=FlintWave KDH Flasher
+Name=FlintWave Flash
 GenericName=Radio Firmware Flasher
 Comment=Flash firmware to BTECH, Baofeng, and other KDH bootloader radios
-Icon=flintwave-kdh-flasher
+Icon=flintwave-flash
 Exec=$PYTHON $INSTALL_DIR/flash_firmware_gui.py
 Terminal=false
 Categories=Utility;HamRadio
@@ -112,7 +112,7 @@ EOF
 
     if [ -f "$INSTALL_DIR/icon_128.png" ]; then
         cp "$INSTALL_DIR/icon_128.png" \
-           "$HOME/.local/share/icons/hicolor/128x128/apps/flintwave-kdh-flasher.png"
+           "$HOME/.local/share/icons/hicolor/128x128/apps/flintwave-flash.png"
     fi
 
     update-desktop-database "$HOME/.local/share/applications/" 2>/dev/null || true
@@ -127,6 +127,6 @@ echo
 echo "Run the GUI:  $PYTHON $INSTALL_DIR/flash_firmware_gui.py"
 echo "Run the CLI:  $PYTHON $INSTALL_DIR/flash_firmware.py --help"
 if [ "$(uname)" = "Linux" ]; then
-    echo "App launcher: search for 'FlintWave' or 'KDH'"
+    echo "App launcher: search for 'FlintWave Flash'"
 fi
 echo

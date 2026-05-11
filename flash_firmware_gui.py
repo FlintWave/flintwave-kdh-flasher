@@ -16,7 +16,7 @@ from gui_main import main, FlasherFrame  # noqa: F401
 # Canonical version — kept here so tests and build tooling can find it
 # by reading this file.  gui_main.py and gui_dialogs.py import their own
 # copy; keep them in sync when bumping.
-VERSION = "26.05.3"
+VERSION = "26.05.4"
 
 # Single theme: "frappe" — defined in gui_themes.FRAPPE_PALETTE.
 

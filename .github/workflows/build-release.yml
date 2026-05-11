@@ -33,30 +33,30 @@ jobs:
       - name: Build AppImage
         run: |
           mkdir -p AppDir/usr/bin AppDir/usr/share/icons/hicolor/128x128/apps AppDir/usr/share/applications
-          cp dist/FlintWave-KDH-Flasher AppDir/usr/bin/
-          cp icon_128.png AppDir/usr/share/icons/hicolor/128x128/apps/flintwave-kdh-flasher.png
-          cp icon_128.png AppDir/flintwave-kdh-flasher.png
-          cat > AppDir/flintwave-kdh-flasher.desktop << 'DESKTOP'
+          cp dist/FlintWave-Flash AppDir/usr/bin/
+          cp icon_128.png AppDir/usr/share/icons/hicolor/128x128/apps/flintwave-flash.png
+          cp icon_128.png AppDir/flintwave-flash.png
+          cat > AppDir/flintwave-flash.desktop << 'DESKTOP'
           [Desktop Entry]
           Type=Application
-          Name=FlintWave KDH Flasher
+          Name=FlintWave Flash
           GenericName=Radio Firmware Flasher
           Comment=Flash firmware to KDH bootloader radios
-          Exec=FlintWave-KDH-Flasher
-          Icon=flintwave-kdh-flasher
+          Exec=FlintWave-Flash
+          Icon=flintwave-flash
           Categories=Utility;HamRadio;
           Keywords=Hamradio;Firmware;Flasher;Baofeng;BTECH;Radio;
           DESKTOP
-          cp AppDir/flintwave-kdh-flasher.desktop AppDir/usr/share/applications/
-          ln -sf usr/bin/FlintWave-KDH-Flasher AppDir/AppRun
+          cp AppDir/flintwave-flash.desktop AppDir/usr/share/applications/
+          ln -sf usr/bin/FlintWave-Flash AppDir/AppRun
           curl -sL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
           chmod +x appimagetool
-          ARCH=x86_64 ./appimagetool AppDir FlintWave-KDH-Flasher-x86_64.AppImage
+          ARCH=x86_64 ./appimagetool AppDir FlintWave-Flash-x86_64.AppImage
 
       - name: Build .deb
         run: |
           fpm -s dir -t deb \
-            --name flintwave-kdh-flasher \
+            --name flintwave-flash \
             --version "${{ github.ref_name }}" \
             --description "Cross-platform firmware flasher for KDH bootloader radios" \
             --maintainer "FlintWave Radio Tools <flintwave@tuta.com>" \
@@ -65,14 +65,14 @@ jobs:
             --category utils \
             --depends libgtk-3-0 \
             --depends unrar \
-            dist/FlintWave-KDH-Flasher=/usr/bin/FlintWave-KDH-Flasher \
-            AppDir/flintwave-kdh-flasher.desktop=/usr/share/applications/flintwave-kdh-flasher.desktop \
-            icon_128.png=/usr/share/icons/hicolor/128x128/apps/flintwave-kdh-flasher.png
+            dist/FlintWave-Flash=/usr/bin/FlintWave-Flash \
+            AppDir/flintwave-flash.desktop=/usr/share/applications/flintwave-flash.desktop \
+            icon_128.png=/usr/share/icons/hicolor/128x128/apps/flintwave-flash.png
 
       - name: Build .rpm
         run: |
           fpm -s dir -t rpm \
-            --name flintwave-kdh-flasher \
+            --name flintwave-flash \
             --version "${{ github.ref_name }}" \
             --description "Cross-platform firmware flasher for KDH bootloader radios" \
             --maintainer "FlintWave Radio Tools <flintwave@tuta.com>" \
@@ -81,16 +81,16 @@ jobs:
             --category Utilities \
             --depends gtk3 \
             --depends unrar \
-            dist/FlintWave-KDH-Flasher=/usr/bin/FlintWave-KDH-Flasher \
-            AppDir/flintwave-kdh-flasher.desktop=/usr/share/applications/flintwave-kdh-flasher.desktop \
-            icon_128.png=/usr/share/icons/hicolor/128x128/apps/flintwave-kdh-flasher.png
+            dist/FlintWave-Flash=/usr/bin/FlintWave-Flash \
+            AppDir/flintwave-flash.desktop=/usr/share/applications/flintwave-flash.desktop \
+            icon_128.png=/usr/share/icons/hicolor/128x128/apps/flintwave-flash.png
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-packages
           path: |
-            FlintWave-KDH-Flasher-x86_64.AppImage
+            FlintWave-Flash-x86_64.AppImage
             *.deb
             *.rpm
 
@@ -123,28 +123,28 @@ jobs:
         run: |
           cat > installer.iss << 'ISS'
           [Setup]
-          AppName=FlintWave KDH Flasher
+          AppName=FlintWave Flash
           AppVersion=${{ github.ref_name }}
           AppPublisher=FlintWave Radio Tools
           AppPublisherURL=https://github.com/FlintWave/flintwave-kdh-flasher
-          DefaultDirName={autopf}\FlintWave KDH Flasher
-          DefaultGroupName=FlintWave KDH Flasher
+          DefaultDirName={autopf}\FlintWave Flash
+          DefaultGroupName=FlintWave Flash
           OutputDir=.
-          OutputBaseFilename=FlintWave-KDH-Flasher-Setup
+          OutputBaseFilename=FlintWave-Flash-Setup
           Compression=lzma
           SolidCompression=yes
           SetupIconFile=icon.ico
 
           [Files]
-          Source: "dist\FlintWave-KDH-Flasher.exe"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "dist\FlintWave-Flash.exe"; DestDir: "{app}"; Flags: ignoreversion
 
           [Icons]
-          Name: "{group}\FlintWave KDH Flasher"; Filename: "{app}\FlintWave-KDH-Flasher.exe"
-          Name: "{group}\Uninstall FlintWave KDH Flasher"; Filename: "{uninstallexe}"
-          Name: "{commondesktop}\FlintWave KDH Flasher"; Filename: "{app}\FlintWave-KDH-Flasher.exe"
+          Name: "{group}\FlintWave Flash"; Filename: "{app}\FlintWave-Flash.exe"
+          Name: "{group}\Uninstall FlintWave Flash"; Filename: "{uninstallexe}"
+          Name: "{commondesktop}\FlintWave Flash"; Filename: "{app}\FlintWave-Flash.exe"
 
           [Run]
-          Filename: "{app}\FlintWave-KDH-Flasher.exe"; Description: "Launch FlintWave KDH Flasher"; Flags: nowait postinstall skipifsilent
+          Filename: "{app}\FlintWave-Flash.exe"; Description: "Launch FlintWave Flash"; Flags: nowait postinstall skipifsilent
           ISS
 
       - name: Build installer
@@ -155,8 +155,8 @@ jobs:
         with:
           name: windows-packages
           path: |
-            dist/FlintWave-KDH-Flasher.exe
-            FlintWave-KDH-Flasher-Setup.exe
+            dist/FlintWave-Flash.exe
+            FlintWave-Flash-Setup.exe
 
   build-macos:
     runs-on: macos-latest
@@ -181,13 +181,13 @@ jobs:
       - name: Build DMG
         run: |
           create-dmg \
-            --volname "FlintWave KDH Flasher" \
+            --volname "FlintWave Flash" \
             --window-size 500 300 \
             --icon-size 80 \
-            --icon "FlintWave KDH Flasher.app" 150 150 \
+            --icon "FlintWave Flash.app" 150 150 \
             --app-drop-link 350 150 \
-            "FlintWave-KDH-Flasher.dmg" \
-            "dist/FlintWave KDH Flasher.app" \
+            "FlintWave-Flash.dmg" \
+            "dist/FlintWave Flash.app" \
           || true
 
       - name: Upload macOS artifacts
@@ -195,7 +195,7 @@ jobs:
         with:
           name: macos-packages
           path: |
-            FlintWave-KDH-Flasher.dmg
+            FlintWave-Flash.dmg
             dist/
 
   release:
@@ -217,12 +217,12 @@ jobs:
         run: |
           ASSETS=""
           for f in \
-            linux-packages/FlintWave-KDH-Flasher-x86_64.AppImage \
+            linux-packages/FlintWave-Flash-x86_64.AppImage \
             linux-packages/*.deb \
             linux-packages/*.rpm \
-            windows-packages/FlintWave-KDH-Flasher-Setup.exe \
-            windows-packages/dist/FlintWave-KDH-Flasher.exe \
-            macos-packages/FlintWave-KDH-Flasher.dmg \
+            windows-packages/FlintWave-Flash-Setup.exe \
+            windows-packages/dist/FlintWave-Flash.exe \
+            macos-packages/FlintWave-Flash.dmg \
           ; do
             [ -f "$f" ] && ASSETS="$ASSETS $f"
           done

@@ -1,5 +1,5 @@
 """
-Dialog windows for the KDH flasher GUI.
+Dialog windows for FlintWave Flash.
 About dialog and Test report dialog.
 
 Port discovery and batch flash are now built into the main window's
@@ -12,18 +12,31 @@ import wx
 import wx.adv
 
 from gui_themes import apply_theme_to_dialog
+from i18n import t, is_rtl
+
+
+def _apply_direction(window):
+    """Mirror the dialog's layout direction with the active language."""
+    try:
+        window.SetLayoutDirection(
+            wx.Layout_RightToLeft if is_rtl() else wx.Layout_LeftToRight
+        )
+    except Exception:
+        pass
 
 
 def show_about_dialog(frame):
     """Show the About dialog with version, links, and license."""
-    VERSION = "26.05.3"
+    VERSION = "26.05.4"
 
-    dlg = wx.Dialog(frame, title="About", size=(420, 440),
+    dlg = wx.Dialog(frame, title=t("dialog.about.title"), size=(420, 440),
                     style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     dlg.SetMinSize((420, 440))
     dlg.SetMaxSize((420, 560))
+    _apply_direction(dlg)
 
     notebook = wx.Notebook(dlg)
+    _apply_direction(notebook)
 
     # About page
     about_panel = wx.Panel(notebook)
@@ -37,38 +50,38 @@ def show_about_dialog(frame):
                         0, wx.ALIGN_CENTER)
         about_sizer.AddSpacer(10)
 
-    title = wx.StaticText(about_panel, label="KDH Bootloader Firmware Flasher")
+    title = wx.StaticText(about_panel, label=t("app.title"))
     title.SetFont(wx.Font(14, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD))
     about_sizer.Add(title, 0, wx.ALIGN_CENTER)
 
-    ver = wx.StaticText(about_panel, label=f"Version {VERSION}")
+    ver = wx.StaticText(about_panel,
+                        label=t("dialog.about.version").format(version=VERSION))
     about_sizer.Add(ver, 0, wx.ALIGN_CENTER | wx.TOP, 5)
     about_sizer.AddSpacer(10)
 
     desc = wx.StaticText(about_panel,
-        label="Flash .kdhx firmware to BTECH, Baofeng, Radtel,\n"
-              "and other KDH bootloader radios from any OS.",
+        label=t("app.about_blurb"),
         style=wx.ALIGN_CENTRE_HORIZONTAL)
     about_sizer.Add(desc, 0, wx.ALIGN_CENTER)
     about_sizer.AddSpacer(15)
 
-    copy_text = wx.StaticText(about_panel, label="(c) 2026 FlintWave Radio Tools")
+    copy_text = wx.StaticText(about_panel, label=t("app.copyright"))
     about_sizer.Add(copy_text, 0, wx.ALIGN_CENTER)
     about_sizer.AddSpacer(5)
 
     gh_link = wx.adv.HyperlinkCtrl(about_panel,
-        label="GitHub: FlintWave/flintwave-kdh-flasher",
+        label=t("dialog.about.github_link"),
         url="https://github.com/FlintWave/flintwave-kdh-flasher")
     about_sizer.Add(gh_link, 0, wx.ALIGN_CENTER)
     about_sizer.AddSpacer(2)
 
     license_link = wx.adv.HyperlinkCtrl(about_panel,
-        label="Licensed under GNU GPL v3.0",
+        label=t("dialog.about.license_link"),
         url="https://www.gnu.org/licenses/gpl-3.0.html")
     about_sizer.Add(license_link, 0, wx.ALIGN_CENTER)
 
     about_panel.SetSizer(about_sizer)
-    notebook.AddPage(about_panel, "About")
+    notebook.AddPage(about_panel, t("dialog.about.tab_about"))
 
     # License page
     license_panel = wx.Panel(notebook)
@@ -77,30 +90,14 @@ def show_about_dialog(frame):
         style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_WORDWRAP)
     license_text.SetFont(wx.Font(9, wx.FONTFAMILY_TELETYPE,
                                  wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
-    license_text.SetValue(
-        "FlintWave KDH Flasher\n"
-        "Copyright (C) 2026 FlintWave Radio Tools\n\n"
-        "This program is free software: you can redistribute it and/or modify "
-        "it under the terms of the GNU General Public License as published by "
-        "the Free Software Foundation, either version 3 of the License, or "
-        "(at your option) any later version.\n\n"
-        "This program is distributed in the hope that it will be useful, "
-        "but WITHOUT ANY WARRANTY; without even the implied warranty of "
-        "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the "
-        "GNU General Public License for more details.\n\n"
-        "You should have received a copy of the GNU General Public License "
-        "along with this program.  If not, see "
-        "<https://www.gnu.org/licenses/>.\n\n"
-        "The full GPL v3.0 license text ships with the source distribution "
-        "in the LICENSE file at the root of the repository."
-    )
+    license_text.SetValue(t("dialog.about.license_text"))
     license_sizer.Add(license_text, 1, wx.EXPAND | wx.ALL, 10)
     license_panel.SetSizer(license_sizer)
-    notebook.AddPage(license_panel, "License")
+    notebook.AddPage(license_panel, t("dialog.about.tab_license"))
 
     dlg_sizer = wx.BoxSizer(wx.VERTICAL)
     dlg_sizer.Add(notebook, 1, wx.EXPAND | wx.ALL, 5)
-    close_btn = wx.Button(dlg, wx.ID_CLOSE, "Close")
+    close_btn = wx.Button(dlg, wx.ID_CLOSE, t("button.close"))
     close_btn.Bind(wx.EVT_BUTTON, lambda e: dlg.EndModal(wx.ID_CLOSE))
     dlg_sizer.Add(close_btn, 0, wx.ALIGN_CENTER | wx.BOTTOM, 10)
     dlg.SetSizer(dlg_sizer)
@@ -136,29 +133,31 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
     import platform
     import urllib.parse
 
-    status = "SUCCESS" if success else "FAILED"
+    status = t("dialog.report.result_success") if success else t("dialog.report.result_failure")
     fw_file = os.path.basename(firmware_path) if firmware_path else "unknown"
 
     report_body = (
-        f"Radio: {radio_name}\n"
-        f"Firmware: {fw_file}\n"
-        f"Result: {status}\n"
-        f"OS: {platform.system()} {platform.release()}\n"
-        f"Python: {platform.python_version()}\n"
+        t("dialog.report.body_radio").format(radio=radio_name)
+        + t("dialog.report.body_firmware").format(firmware=fw_file)
+        + t("dialog.report.body_result").format(status=status)
+        + t("dialog.report.body_os").format(
+            os=f"{platform.system()} {platform.release()}")
+        + t("dialog.report.body_python").format(python=platform.python_version())
     )
     if error_msg:
-        report_body += f"Error: {error_msg}\n"
-    report_body += "\nAdditional notes:\n\n"
+        report_body += t("dialog.report.body_error").format(error=error_msg)
+    report_body += t("dialog.report.body_notes")
     if log_content:
         # Truncate log to last 2000 chars to keep URL manageable
         truncated = log_content[-2000:] if len(log_content) > 2000 else log_content
-        report_body += f"--- Log ---\n{truncated}\n"
+        report_body += t("dialog.report.body_log_header") + truncated + "\n"
 
-    title = f"Test Report: {radio_name} — {status}"
+    subject = t("dialog.report.subject").format(radio=radio_name, status=status)
 
-    dlg = wx.Dialog(frame, title="Submit Test Report", size=(520, 500))
+    dlg = wx.Dialog(frame, title=t("dialog.report.title"), size=(520, 500))
     dlg.SetMinSize((480, 400))
     dlg.SetMaxSize((600, 600))
+    _apply_direction(dlg)
     sizer = wx.BoxSizer(wx.VERTICAL)
 
     ui_font = wx.Font(11, wx.FONTFAMILY_DEFAULT,
@@ -166,10 +165,7 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
     mono_font = wx.Font(10, wx.FONTFAMILY_TELETYPE,
                         wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
 
-    if success:
-        msg = "Flash completed successfully!\nWould you like to submit a test report?"
-    else:
-        msg = "Flash failed.\nWould you like to submit a report to help us debug?"
+    msg = t("dialog.report.success") if success else t("dialog.report.failure")
 
     msg_text = wx.StaticText(dlg, label=msg)
     msg_text.SetFont(ui_font)
@@ -183,7 +179,7 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
 
     sizer.AddSpacer(10)
 
-    hint = wx.StaticText(dlg, label="You can also email reports to flintwave@tuta.com")
+    hint = wx.StaticText(dlg, label=t("dialog.report.email_hint"))
     hint.SetFont(wx.Font(9, wx.FONTFAMILY_DEFAULT,
                           wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
     sizer.Add(hint, 0, wx.ALIGN_CENTER)
@@ -192,13 +188,13 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
 
     btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-    submit_btn = wx.Button(dlg, label="Submit")
+    submit_btn = wx.Button(dlg, label=t("button.submit"))
     submit_btn.SetFont(ui_font)
     submit_btn.Bind(wx.EVT_BUTTON, lambda e: (
         wx.LaunchDefaultBrowser(
             "https://github.com/FlintWave/flintwave-kdh-flasher/issues/new?"
             + urllib.parse.urlencode({
-                "title": title,
+                "title": subject,
                 "body": preview.GetValue(),
                 "labels": "test-report"
             })
@@ -207,7 +203,7 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
     ))
     btn_sizer.Add(submit_btn, 0, wx.RIGHT, 8)
 
-    skip_btn = wx.Button(dlg, wx.ID_CANCEL, label="Skip")
+    skip_btn = wx.Button(dlg, wx.ID_CANCEL, label=t("button.skip"))
     skip_btn.SetFont(ui_font)
     btn_sizer.Add(skip_btn, 0)
 
