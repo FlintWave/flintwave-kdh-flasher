@@ -99,16 +99,18 @@ Radio definitions live in `radios.json`. Firmware URLs are also tracked in `firm
 
 - **GUI and CLI** interfaces
 - **Multilingual UI** — English, 中文 (Simplified Chinese), Français, Deutsch, Italiano, Español, العربية (with RTL layout), Русский. English ships bundled in the binary; other languages download on demand from this repo and are cached locally
-- **Radio selector** with per-model bootloader instructions
+- **Three-column workflow** — BalenaEtcher-style Firmware → Handset → Flash layout with workflow gating; each column unlocks as you complete the previous step
+- **Radio selector** with per-model bootloader instructions, connector type, tested status, and freeform notes from `radios.json`
 - **Firmware download** from manufacturer websites with version tracking
 - **Remote firmware manifest** — new firmware URLs published without app updates
 - **Version comparison** — warns before flashing same or older firmware
-- **Port finder wizard** with auto-detection of FTDI PC03 cables
+- **Inline handset list** — multi-select USB serial ports with `CMD_HANDSHAKE` probing; PC03 / FTDI / CH340 / Prolific / CP2102 cables auto-detected, hot-plug auto-refresh
+- **Batch flash** — check multiple handsets and flash them sequentially with per-port status and progress
 - **Dry run mode** — verify firmware files without touching the radio
 - **Serial diagnostics** — test cable and radio communication
-- **Catppuccin themes** — Latte, Frappe, Macchiato, Mocha, High Contrast
-- **Adjustable font sizes** for accessibility
-- **Auto-update** from GitHub on launch
+- **Catppuccin themes** — Mocha (dark) and Latte (light), with a one-click ☀ / ☾ toggle in the status bar; the initial theme follows the OS color scheme
+- **Adjustable font sizes** for accessibility (9 / 11 / 12 / 14 / 16 pt)
+- **Update notifications** — background check on launch surfaces an "Update Available" link in the status bar when a newer release ships; clicking it opens the releases page (no in-app auto-apply)
 - **Test report submission** after flashing
 - Cross-platform: Linux, macOS, Windows
 
