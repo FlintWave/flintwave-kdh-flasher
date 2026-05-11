@@ -8,10 +8,10 @@ Download the latest release from the [Releases page](https://github.com/FlintWav
 
 | OS | File | Install |
 |----|------|---------|
-| Debian/Ubuntu/Pop!_OS/Mint | `.deb` | `sudo dpkg -i flintwave-kdh-flasher_*.deb` |
-| Fedora/RHEL/openSUSE | `.rpm` | `sudo rpm -i flintwave-kdh-flasher-*.rpm` |
-| Windows | `FlintWave-KDH-Flasher-Setup.exe` | Run the installer |
-| macOS | `FlintWave-KDH-Flasher.dmg` | Open and drag to Applications |
+| Debian/Ubuntu/Pop!_OS/Mint | `.deb` | `sudo dpkg -i flintwave-flash_*.deb` |
+| Fedora/RHEL/openSUSE | `.rpm` | `sudo rpm -i flintwave-flash-*.rpm` |
+| Windows | `FlintWave-Flash-Setup.exe` | Run the installer |
+| macOS | `FlintWave-Flash.dmg` | Open and drag to Applications |
 
 After installing, search for "FlintWave" in your app launcher, Start Menu, or Applications folder.
 
@@ -20,7 +20,7 @@ After installing, search for "FlintWave" in your app launcher, Start Menu, or Ap
 | OS | File | How to run |
 |----|------|-----------|
 | Linux | `.AppImage` | `chmod +x *.AppImage` and double-click |
-| Windows | `FlintWave-KDH-Flasher.exe` | Double-click to run |
+| Windows | `FlintWave-Flash.exe` | Double-click to run |
 
 ### Install from source
 
@@ -152,6 +152,14 @@ Version information is parsed from firmware filenames (e.g., `BTECH_V0.53_260116
 | Others | Check your radio's manual or `radios.json` |
 
 **Important:** The side keys are the small buttons above and below the large PTT button. Do not hold PTT itself.
+
+## Language
+
+A language dropdown in the title bar lets you switch the UI between English, Simplified Chinese (中文), French (Français), German (Deutsch), Italian (Italiano), Spanish (Español), Arabic (العربية), and Russian (Русский). Arabic switches the entire layout to right-to-left automatically.
+
+English ships bundled in the binary. The first time you pick another language the app downloads the catalog from this repo and caches it under `~/.flintwave-flash/translations/<code>.json`; subsequent launches load from the cache without a network call. Your last-used language is remembered between sessions. If the download fails (offline, etc.) the dropdown reverts and a brief notice is logged.
+
+The non-English catalogs are machine-translated starting points (`_meta.reviewed: false` in each file) and welcome community review PRs.
 
 ## Themes and Accessibility
 

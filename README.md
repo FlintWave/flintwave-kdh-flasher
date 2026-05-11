@@ -1,11 +1,11 @@
-# FlintWave KDH Flasher
+# FlintWave Flash
 
 A cross-platform tool for flashing `.kdhx` firmware to radios that use the KDH bootloader — BTECH, Baofeng, Radtel, and others. Works on Linux, macOS, and Windows.
 
 Maintained by [FlintWave Radio Tools](https://github.com/FlintWave). Contact: flintwave@tuta.com
 
-![FlintWave KDH Flasher — Dark Theme](screenshots/screenshot-dark.png)
-![FlintWave KDH Flasher — Light Theme](screenshots/screenshot-light.png)
+![FlintWave Flash — Dark Theme](screenshots/screenshot-dark.png)
+![FlintWave Flash — Light Theme](screenshots/screenshot-light.png)
 
 ## Status
 
@@ -19,17 +19,17 @@ Download from [GitHub Releases](https://github.com/FlintWave/flintwave-kdh-flash
 
 | OS | Download | Install |
 |----|----------|---------|
-| Linux (Debian/Ubuntu/Pop!_OS/Mint) | [flintwave-kdh-flasher_amd64.deb](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-kdh-flasher_26.05.3_amd64.deb) | `sudo dpkg -i *.deb` |
-| Linux (Fedora/RHEL/openSUSE) | [flintwave-kdh-flasher.x86_64.rpm](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-kdh-flasher-v26.05.3-1.x86_64.rpm) | `sudo rpm -i *.rpm` |
-| Windows | [FlintWave-KDH-Flasher-Setup.exe](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-KDH-Flasher-Setup.exe) | Run the installer |
-| macOS | [FlintWave-KDH-Flasher.dmg](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-KDH-Flasher.dmg) | Drag to Applications |
+| Linux (Debian/Ubuntu/Pop!_OS/Mint) | [flintwave-flash_amd64.deb](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-flash_26.05.3_amd64.deb) | `sudo dpkg -i *.deb` |
+| Linux (Fedora/RHEL/openSUSE) | [flintwave-flash.x86_64.rpm](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-flash-v26.05.3-1.x86_64.rpm) | `sudo rpm -i *.rpm` |
+| Windows | [FlintWave-Flash-Setup.exe](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-Flash-Setup.exe) | Run the installer |
+| macOS | [FlintWave-Flash.dmg](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-Flash.dmg) | Drag to Applications |
 
 ### Portable (no install)
 
 | OS | Download | How to run |
 |----|----------|-----------|
-| Linux | [FlintWave-KDH-Flasher.AppImage](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-KDH-Flasher-x86_64.AppImage) | `chmod +x` and double-click |
-| Windows | [FlintWave-KDH-Flasher.exe](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-KDH-Flasher.exe) | Double-click to run |
+| Linux | [FlintWave-Flash.AppImage](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-Flash-x86_64.AppImage) | `chmod +x` and double-click |
+| Windows | [FlintWave-Flash.exe](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-Flash.exe) | Double-click to run |
 
 ### Install from source
 
@@ -98,6 +98,7 @@ Radio definitions live in `radios.json`. Firmware URLs are also tracked in `firm
 ## Features
 
 - **GUI and CLI** interfaces
+- **Multilingual UI** — English, 中文 (Simplified Chinese), Français, Deutsch, Italiano, Español, العربية (with RTL layout), Русский. English ships bundled in the binary; other languages download on demand from this repo and are cached locally
 - **Radio selector** with per-model bootloader instructions
 - **Firmware download** from manufacturer websites with version tracking
 - **Remote firmware manifest** — new firmware URLs published without app updates
@@ -110,6 +111,23 @@ Radio definitions live in `radios.json`. Firmware URLs are also tracked in `firm
 - **Auto-update** from GitHub on launch
 - **Test report submission** after flashing
 - Cross-platform: Linux, macOS, Windows
+
+## Languages
+
+Pick a language from the dropdown in the title bar. Available locales:
+
+| Code  | Native name |
+|-------|------------|
+| en    | English (bundled) |
+| zh-CN | 中文 |
+| fr    | Français |
+| de    | Deutsch |
+| it    | Italiano |
+| es    | Español |
+| ar    | العربية (RTL layout) |
+| ru    | Русский |
+
+Translation files live in `translations/<code>.json`. When you pick a non-English language for the first time the app downloads that file from the GitHub repo and caches it under `~/.flintwave-flash/translations/`; subsequent runs load the cached copy. The non-English catalogs are initial machine-translated stubs (`_meta.reviewed: false`) — community review PRs welcome.
 
 ## CLI Usage
 

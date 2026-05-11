@@ -19,12 +19,31 @@ MANIFEST_URL = (
     "https://raw.githubusercontent.com/FlintWave/flintwave-kdh-flasher"
     "/master/firmware_manifest.json"
 )
-USER_AGENT = "flintwave-kdh-flasher/1.0 (https://github.com/FlintWave/flintwave-kdh-flasher)"
+USER_AGENT = "flintwave-flash/1.0 (https://github.com/FlintWave/flintwave-kdh-flasher)"
 
-STATE_DIR = os.path.join(os.path.expanduser("~"), ".flintwave-kdh-flasher")
+STATE_DIR = os.path.join(os.path.expanduser("~"), ".flintwave-flash")
 STATE_FILE = os.path.join(STATE_DIR, "state.json")
+_LEGACY_STATE_DIR = os.path.join(os.path.expanduser("~"), ".flintwave-kdh-flasher")
 
 MANIFEST_CACHE_TTL = 300  # 5 minutes
+
+
+def _migrate_state_dir():
+    """One-shot rename of the pre-rebrand user-data dir.
+
+    If the legacy ~/.flintwave-kdh-flasher exists and the new
+    ~/.flintwave-flash does not, rename it so cached manifest data and
+    last-flashed records survive the rebrand. Silent on failure — the rest of
+    the module recreates the dir as needed via _save_state.
+    """
+    try:
+        if os.path.isdir(_LEGACY_STATE_DIR) and not os.path.exists(STATE_DIR):
+            os.rename(_LEGACY_STATE_DIR, STATE_DIR)
+    except OSError:
+        pass
+
+
+_migrate_state_dir()
 
 
 def _load_state():
@@ -236,3 +255,17 @@ def get_last_flashed(radio_id):
     """
     state = _load_state()
     return state.get("last_flashed", {}).get(radio_id)
+
+
+def get_language(default="en"):
+    """Return the persisted UI language code, or the default if none stored."""
+    state = _load_state()
+    code = state.get("language")
+    return code if isinstance(code, str) and code else default
+
+
+def set_language(code):
+    """Persist the user's UI language choice."""
+    state = _load_state()
+    state["language"] = code
+    _save_state(state)

@@ -17,6 +17,11 @@ from urllib.parse import urlparse
 
 import requests
 
+# Imported for its side effect: _migrate_state_dir() runs at import time and
+# renames the legacy ~/.flintwave-kdh-flasher dir to ~/.flintwave-flash before
+# DOWNLOAD_DIR is referenced.
+import firmware_manifest  # noqa: F401
+
 
 def _configure_unrar():
     """Point rarfile at the bundled unrar/unar binary if available."""
@@ -63,9 +68,9 @@ ALLOWED_DOMAINS = {
 }
 
 RADIOS_FILE = os.path.join(os.path.dirname(__file__), "radios.json")
-DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), ".flintwave-kdh-flasher", "firmware")
+DOWNLOAD_DIR = os.path.join(os.path.expanduser("~"), ".flintwave-flash", "firmware")
 
-USER_AGENT = "flintwave-kdh-flasher/1.0 (https://github.com/FlintWave/flintwave-kdh-flasher)"
+USER_AGENT = "flintwave-flash/1.0 (https://github.com/FlintWave/flintwave-kdh-flasher)"
 
 
 def load_radios():

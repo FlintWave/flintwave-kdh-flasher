@@ -541,9 +541,10 @@ class TestThemePalettes(unittest.TestCase):
 
 
 class TestHintCopy(unittest.TestCase):
-    """Verify the FlasherFrame's HINT_COPY state machine has every state the GUI
-    transitions through. Catches typos and missing entries that would otherwise
-    only surface at runtime."""
+    """Verify the FlasherFrame's hint state machine has every state the GUI
+    transitions through, and that each state resolves to a non-empty
+    (title, body) pair through the active translation catalog. Catches typos
+    and missing keys that would otherwise only surface at runtime."""
 
     REQUIRED_STATES = {
         # Idle / pre-action states
@@ -555,47 +556,69 @@ class TestHintCopy(unittest.TestCase):
     }
 
     def test_all_required_states_present(self):
-        # Inspect HINT_COPY at the class level so we don't have to instantiate
+        # Inspect HINT_STATES at the class level so we don't have to instantiate
         # the wx Frame (which requires a display).
         import importlib
         try:
             gm = importlib.import_module("gui_main")
         except ImportError:
             self.skipTest("gui_main not importable in this environment")
-        keys = set(gm.FlasherFrame.HINT_COPY.keys())
+        keys = set(gm.FlasherFrame.HINT_STATES)
         missing = self.REQUIRED_STATES - keys
-        self.assertFalse(missing, f"Missing HINT_COPY entries: {missing}")
+        self.assertFalse(missing, f"Missing HINT_STATES entries: {missing}")
 
-    def test_each_entry_is_title_body_tuple(self):
+    def test_each_state_resolves_through_i18n(self):
+        """For every declared state, ensure the i18n catalog has matching
+        hint.<state>.title and hint.<state>.body keys that resolve to
+        non-empty strings."""
         import importlib
         try:
             gm = importlib.import_module("gui_main")
+            i18n = importlib.import_module("i18n")
         except ImportError:
-            self.skipTest("gui_main not importable in this environment")
-        for key, value in gm.FlasherFrame.HINT_COPY.items():
-            self.assertEqual(len(value), 2, f"HINT_COPY[{key}] is not (title, body)")
-            title, body = value
-            self.assertIsInstance(title, str)
-            self.assertIsInstance(body, str)
-            self.assertGreater(len(title), 0, f"HINT_COPY[{key}] has empty title")
-            self.assertGreater(len(body), 0, f"HINT_COPY[{key}] has empty body")
+            self.skipTest("gui_main / i18n not importable in this environment")
+        i18n.load_bundled_en()
+        for state in gm.FlasherFrame.HINT_STATES:
+            title = i18n.t(f"hint.{state}.title")
+            body = i18n.t(f"hint.{state}.body")
+            # If the raw key is returned, the catalog entry is missing.
+            self.assertNotEqual(title, f"hint.{state}.title",
+                                f"missing translation for hint.{state}.title")
+            self.assertNotEqual(body, f"hint.{state}.body",
+                                f"missing translation for hint.{state}.body")
+            self.assertGreater(len(title), 0)
+            self.assertGreater(len(body), 0)
 
     def test_dryrun_complete_does_not_say_power_cycle(self):
         """Regression: dry run hint must NOT instruct the user to power-cycle
         the radio (it never touched the radio). That copy belongs to 'complete'."""
         import importlib
         try:
-            gm = importlib.import_module("gui_main")
+            i18n = importlib.import_module("i18n")
         except ImportError:
-            self.skipTest("gui_main not importable in this environment")
-        _, body = gm.FlasherFrame.HINT_COPY["dryrun_complete"]
+            self.skipTest("i18n not importable in this environment")
+        i18n.load_bundled_en()
+        body = i18n.t("hint.dryrun_complete.body")
         self.assertNotIn("Power cycle", body)
         self.assertNotIn("power cycle", body)
 
 
 class TestHandsetStatusConstants(unittest.TestCase):
     """Verify all per-handset status strings used by the batch flash flow are
-    defined in gui_main."""
+    defined in gui_main. After the i18n migration these constants are
+    translation keys (e.g. "status.ready") rather than English literals;
+    the rendering layer translates them at write-time."""
+
+    EXPECTED_KEYS = {
+        "STATUS_UNKNOWN": "status.unknown",
+        "STATUS_PROBING": "status.probing",
+        "STATUS_READY": "status.ready",
+        "STATUS_NO_RESP": "status.no_response",
+        "STATUS_FLASHING": "status.flashing",
+        "STATUS_DONE": "status.done",
+        "STATUS_FAILED": "status.failed",
+        "STATUS_SKIPPED": "status.skipped",
+    }
 
     def test_status_constants_defined(self):
         import importlib
@@ -603,11 +626,23 @@ class TestHandsetStatusConstants(unittest.TestCase):
             gm = importlib.import_module("gui_main")
         except ImportError:
             self.skipTest("gui_main not importable in this environment")
-        for name in ("STATUS_UNKNOWN", "STATUS_PROBING", "STATUS_READY",
-                     "STATUS_NO_RESP", "STATUS_FLASHING", "STATUS_DONE",
-                     "STATUS_FAILED", "STATUS_SKIPPED"):
+        for name, expected_key in self.EXPECTED_KEYS.items():
             self.assertTrue(hasattr(gm, name), f"Missing status constant: {name}")
-            self.assertIsInstance(getattr(gm, name), str)
+            self.assertEqual(getattr(gm, name), expected_key,
+                             f"{name} should be the i18n key '{expected_key}'")
+
+    def test_status_keys_resolve(self):
+        """Every status key resolves to a non-empty English string."""
+        import importlib
+        try:
+            i18n = importlib.import_module("i18n")
+        except ImportError:
+            self.skipTest("i18n not importable in this environment")
+        i18n.load_bundled_en()
+        for key in self.EXPECTED_KEYS.values():
+            value = i18n.t(key)
+            self.assertNotEqual(value, key, f"missing translation for {key}")
+            self.assertGreater(len(value), 0)
 
 
 class TestRadioNameDedup(unittest.TestCase):
