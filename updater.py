@@ -44,13 +44,14 @@ def get_local_version():
         pass
     # Fallback: read from source file (git installs)
     try:
-        gui_path = os.path.join(REPO_DIR, "flash_firmware_gui.py")
-        if os.path.exists(gui_path):
-            with open(gui_path) as f:
-                for line in f:
-                    m = re.match(r'^VERSION\s*=\s*"([^"]+)"', line)
-                    if m:
-                        return m.group(1)
+        for gui_file in ("gui_main.py", "flash_firmware_gui.py"):
+            gui_path = os.path.join(REPO_DIR, gui_file)
+            if os.path.exists(gui_path):
+                with open(gui_path) as f:
+                    for line in f:
+                        m = re.match(r'^VERSION\s*=\s*"([^"]+)"', line)
+                        if m:
+                            return m.group(1)
     except Exception:
         pass
     return None
