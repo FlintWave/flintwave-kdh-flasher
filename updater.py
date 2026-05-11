@@ -44,13 +44,14 @@ def get_local_version():
         pass
     # Fallback: read from source file (git installs)
     try:
-        gui_path = os.path.join(REPO_DIR, "flash_firmware_gui.py")
-        if os.path.exists(gui_path):
-            with open(gui_path) as f:
-                for line in f:
-                    m = re.match(r'^VERSION\s*=\s*"([^"]+)"', line)
-                    if m:
-                        return m.group(1)
+        for gui_file in ("gui_main.py", "flash_firmware_gui.py"):
+            gui_path = os.path.join(REPO_DIR, gui_file)
+            if os.path.exists(gui_path):
+                with open(gui_path) as f:
+                    for line in f:
+                        m = re.match(r'^VERSION\s*=\s*"([^"]+)"', line)
+                        if m:
+                            return m.group(1)
     except Exception:
         pass
     return None
@@ -137,6 +138,35 @@ def _verify_origin():
     return False
 
 
+def _get_update_branch():
+    """Determine which branch to pull for updates."""
+    try:
+        result = subprocess.run(
+            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            ref = result.stdout.strip()
+            if ref.startswith("refs/remotes/origin/"):
+                return ref.rsplit("/", 1)[-1]
+    except Exception:
+        pass
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=REPO_DIR, capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            branch = result.stdout.strip()
+            if branch and branch != "HEAD":
+                return branch
+    except Exception:
+        pass
+
+    return None
+
+
 def apply_update():
     """Pull latest from origin (git installs only).
 
@@ -148,9 +178,13 @@ def apply_update():
     if not _verify_origin():
         return False, "Remote origin does not match expected repository. Update manually."
 
+    branch = _get_update_branch()
+    if not branch:
+        return False, "Could not determine update branch for origin. Update manually."
+
     try:
         result = subprocess.run(
-            ["git", "pull", "--ff-only", "origin", "master"],
+            ["git", "pull", "--ff-only", "origin", branch],
             cwd=REPO_DIR, capture_output=True, text=True, timeout=30
         )
         if result.returncode == 0:
