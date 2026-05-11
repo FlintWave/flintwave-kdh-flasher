@@ -19,8 +19,8 @@ Download from [GitHub Releases](https://github.com/FlintWave/flintwave-kdh-flash
 
 | OS | Download | Install |
 |----|----------|---------|
-| Linux (Debian/Ubuntu/Pop!_OS/Mint) | [flintwave-flash_amd64.deb](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-flash_26.05.3_amd64.deb) | `sudo dpkg -i *.deb` |
-| Linux (Fedora/RHEL/openSUSE) | [flintwave-flash.x86_64.rpm](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-flash-v26.05.3-1.x86_64.rpm) | `sudo rpm -i *.rpm` |
+| Linux (Debian/Ubuntu/Pop!_OS/Mint) | [flintwave-flash_amd64.deb](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-flash_26.05.4_amd64.deb) | `sudo dpkg -i *.deb` |
+| Linux (Fedora/RHEL/openSUSE) | [flintwave-flash.x86_64.rpm](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/flintwave-flash-v26.05.4-1.x86_64.rpm) | `sudo rpm -i *.rpm` |
 | Windows | [FlintWave-Flash-Setup.exe](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-Flash-Setup.exe) | Run the installer |
 | macOS | [FlintWave-Flash.dmg](https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest/download/FlintWave-Flash.dmg) | Drag to Applications |
 

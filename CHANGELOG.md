@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v26.05.4 — 2026-05-11
 
 ### Rebrand
 
@@ -13,6 +13,11 @@
 - **Language dropdown in the title bar** offers English, 中文 (Simplified Chinese), Français, Deutsch, Italiano, Español, العربية (with full right-to-left layout mirroring via `wx.Layout_RightToLeft`), and Русский. Native-script labels.
 - **English bundled, others downloaded on demand** from `translations/<code>.json` in this repo and cached under `~/.flintwave-flash/translations/`. Selection persists in `state.json` between sessions and applies live without restart via a register/apply table that re-renders every label, tooltip, status string, hint, and dialog. Missing keys fall back to English; missing English falls back to the raw key (visible bug, no crash).
 - **RTL support is end-to-end**: `SetLayoutDirection` is applied to the frame, every column panel, the title and status bars, the handset `wx.ListCtrl` (with column-header alignment re-applied through a dedicated helper), and the log `wx.TextCtrl`. A `Refresh()`/`Update()` follows the direction change so Windows doesn't keep stale paint state. Forward-compatible for Hebrew/Persian/Urdu via `i18n.RTL_LANGUAGES`.
+
+### Fixed
+
+- **"Update Available" status-bar link no longer truncates.** The `wx.adv.HyperlinkCtrl` was added to its sizer while hidden, which cached a 0-width slot and clipped the label on `Show()`. The link now re-pins its min size to its best size on show and on every language change so longer translations (e.g. "Mise à jour disponible") render in full.
+- **Auto-update branch detection.** `updater.apply_update()` no longer hardcodes `master` — it asks `git symbolic-ref refs/remotes/origin/HEAD` for the upstream branch and falls back to the current branch. Forks and renamed default branches now work. Also fixes `updater.get_local_version()` to look for `VERSION =` in `gui_main.py` first (the post-restructure canonical location) before falling back to `flash_firmware_gui.py`.
 
 ## v26.05.3 — 2026-05-10
 

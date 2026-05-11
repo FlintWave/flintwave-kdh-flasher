@@ -28,7 +28,7 @@ from gui_dialogs import (
 )
 from gui_themes import apply_theme, THEME_PALETTES, MOCHA_PALETTE
 
-VERSION = "26.05.3"
+VERSION = "26.05.4"
 
 FONT_SIZES = [9, 11, 12, 14, 16]
 
@@ -397,6 +397,15 @@ class FlasherFrame(wx.Frame):
         # Hint panel re-renders with the new language.
         try:
             self._set_hint(self._compute_hint_state())
+        except Exception:
+            pass
+
+        # If the update_link is already visible, re-pin its min size so the
+        # newly-translated label isn't clipped by the cached sizer slot.
+        try:
+            if hasattr(self, "update_link") and self.update_link.IsShown():
+                self.update_link.SetMinSize(self.update_link.GetBestSize())
+                self.status_bar_panel.Layout()
         except Exception:
             pass
 
@@ -1322,10 +1331,21 @@ class FlasherFrame(wx.Frame):
                 t("statusbar.update_tooltip").format(
                     local=VERSION, remote=remote_info)
             )
-            self.update_link.Show()
-            self.status_bar_panel.Layout()
+            self._show_update_link()
         except Exception:
             pass
+
+    def _show_update_link(self):
+        # The link was added to the sizer while hidden, which caches a 0-width
+        # slot and clips the label on Show(). Re-pin the min size to the
+        # current best size so longer translations (e.g. "Mise à jour disponible")
+        # render in full.
+        self.update_link.Show()
+        try:
+            self.update_link.SetMinSize(self.update_link.GetBestSize())
+        except Exception:
+            pass
+        self.status_bar_panel.Layout()
 
     def _get_selected_radio(self):
         # Combo entry 0 is the "— Select your radio —" placeholder. Real
