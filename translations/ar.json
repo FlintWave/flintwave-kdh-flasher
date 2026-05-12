@@ -4,25 +4,21 @@
     "language_label": "العربية",
     "reviewed": false,
     "source": "machine",
-    "direction": "rtl"
+    "direction": "rtl",
+    "machine_translations_added": 39
   },
-
   "app.title": "FlintWave Flash",
   "app.about_blurb": "برمجة ملفات .kdhx على أجهزة BTECH وBaofeng وRadtel\nوغيرها من أجهزة الراديو ذات بوت-لودر KDH، من أي نظام تشغيل.",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
-
   "titlebar.minimize_tooltip": "تصغير",
   "titlebar.close_tooltip": "إغلاق",
   "titlebar.language_tooltip": "تغيير اللغة",
-
   "column.firmware": "البرنامج الثابت",
   "column.handset": "الجهاز",
   "column.flash": "البرمجة",
   "column.instructions": "التعليمات",
   "column.log": "السجل",
-
   "radio.placeholder": "— اختر جهاز الراديو —",
-
   "button.download_latest": "تنزيل أحدث إصدار",
   "button.download_versioned": "تنزيل v{version}",
   "button.no_direct_url": "لا يوجد رابط مباشر",
@@ -36,7 +32,6 @@
   "button.close": "إغلاق",
   "button.submit": "إرسال",
   "button.skip": "تخطي",
-
   "tooltip.refresh": "إعادة فحص المنافذ التسلسلية وفحص كل منها للبحث عن جهاز في وضع البوت-لودر.",
   "tooltip.select_all": "تحديد كل جهاز تم اكتشافه.",
   "tooltip.select_none": "إلغاء تحديد جميع الأجهزة.",
@@ -44,13 +39,11 @@
   "tooltip.theme_toggle": "تبديل المظهر الفاتح / الداكن",
   "tooltip.usage": "فتح دليل الاستخدام",
   "tooltip.about": "عن هذا التطبيق",
-
   "handset.col_port": "المنفذ",
   "handset.col_cable": "الكابل / الشريحة",
   "handset.col_status": "الحالة",
   "handset.col_percent": "%",
   "handset.summary": "{selected} محدد / {total} مكتشف",
-
   "status.unknown": "غير معروف",
   "status.probing": "جاري الفحص…",
   "status.ready": "جاهز",
@@ -59,15 +52,12 @@
   "status.done": "تم",
   "status.failed": "فشل",
   "status.skipped": "تم التخطي",
-
   "statusbar.usage": "الاستخدام",
   "statusbar.about": "حول",
   "statusbar.update_available": "تحديث متوفر",
   "statusbar.update_tooltip": "الإصدار الحالي v{local} (الأحدث المتوفر: {remote}).\nانقر لفتح صفحة الإصدارات في المتصفح.",
-
   "lang.downloading": "جاري تنزيل ترجمة {language}…",
   "lang.download_failed": "تعذر تنزيل ترجمة {language}. تم الإبقاء على اللغة السابقة.",
-
   "dialog.about.title": "حول",
   "dialog.about.version": "الإصدار {version}",
   "dialog.about.github_link": "GitHub: FlintWave/flintwave-kdh-flasher",
@@ -75,7 +65,6 @@
   "dialog.about.tab_about": "حول",
   "dialog.about.tab_license": "الترخيص",
   "dialog.about.license_text": "FlintWave Flash\nحقوق النشر (C) 2026 FlintWave Radio Tools\n\nهذا البرنامج برنامج حر: يمكنك إعادة توزيعه و/أو تعديله بموجب شروط رخصة جنو العمومية كما نشرتها مؤسسة البرمجيات الحرة، الإصدار الثالث، أو (وفقًا لاختيارك) أي إصدار لاحق.\n\nيُوزَّع هذا البرنامج على أمل أن يكون مفيدًا، لكن دون أي ضمان؛ بما في ذلك دون ضمان ضمني للقابلية للبيع أو الملاءمة لغرض معين. راجع رخصة جنو العمومية للمزيد من التفاصيل.\n\nمن المفترض أنك تلقيت نسخة من رخصة جنو العمومية مع هذا البرنامج. إن لم تكن قد فعلت، فانظر <https://www.gnu.org/licenses/>.\n\nالنص الكامل لرخصة GPL v3.0 موجود مع الكود المصدري في ملف LICENSE في جذر المستودع.",
-
   "dialog.report.title": "إرسال تقرير اختبار",
   "dialog.report.success": "اكتملت البرمجة بنجاح!\nهل ترغب في إرسال تقرير اختبار؟",
   "dialog.report.failure": "فشلت البرمجة.\nهل ترغب في إرسال تقرير لمساعدتنا في التصحيح؟",
@@ -91,41 +80,32 @@
   "dialog.report.body_error": "خطأ: {error}\n",
   "dialog.report.body_notes": "\nملاحظات إضافية:\n\n",
   "dialog.report.body_log_header": "--- السجل ---\n",
-
   "dialog.error_title": "خطأ",
   "dialog.error_select_firmware": "اختر ملف برنامج ثابت.",
   "dialog.error_select_firmware_first": "اختر ملف برنامج ثابت أولاً.",
   "dialog.error_no_handset_title": "لم يتم اختيار أي جهاز",
   "dialog.error_no_handset_flash": "حدد جهازًا واحدًا على الأقل في عمود الجهاز.\nانقر على \"تحديث / فحص\" إذا لم يكن الكابل ضمن القائمة.",
   "dialog.error_no_handset_diag": "حدد جهازًا واحدًا على الأقل في عمود الجهاز لتشغيل التشخيص عليه.\nانقر على \"تحديث / فحص\" لإعادة الفحص.",
-
   "dialog.untested_title": "جهاز غير مختبَر",
   "dialog.untested_body": "{radio} لم يتم اختباره مع هذه الأداة.\n\nيُفترض أن البروتوكول متوافق، لكن برمجة برنامج ثابت\nغير مختبَر قد يعطّل الجهاز.\n\nهل تريد التنزيل على أي حال؟",
   "dialog.untested_warning": "ملاحظة: {radio} لم يتم اختباره مع هذه الأداة.\nيُفترض أن البروتوكول متوافق، لكن تابع بحذر.\n\n",
-
   "dialog.same_version_title": "نفس الإصدار",
   "dialog.same_version_body": "لقد قمت بالفعل ببرمجة v{version} على هذا الجهاز.\n\nبرمجة نفس الإصدار مرة أخرى؟",
   "dialog.older_version_title": "إصدار أقدم",
   "dialog.older_version_body": "هذا البرنامج الثابت (v{file_version}) أقدم من\nآخر إصدار تمت برمجته (v{last_version}).\n\nبرمجة إصدار أقدم؟",
-
   "dialog.confirm_title": "تأكيد",
   "dialog.confirm_single": "{warning}تأكد من أن {radio} على {port} في وضع البوت-لودر:\n\n1. أوقف تشغيل الجهاز\n2. استمر بالضغط على {keys}\n3. أدر مفتاح الطاقة لتشغيل الجهاز\n4. تبقى الشاشة فارغة ويضيء المؤشر الأخضر\n\nلا تفصل الجهاز أو الكابل أثناء التحديث!\n\nهل أنت جاهز للبرمجة؟",
   "dialog.confirm_batch_title": "تأكيد البرمجة الدفعية",
   "dialog.confirm_batch_body": "{warning}برمجة {count} أجهزة بالتسلسل:\n  {ports}\n\nيجب أن يكون كل {radio} في وضع البوت-لودر:\n  • أوقف التشغيل، استمر بالضغط على {keys}، ثم أدر مفتاح الطاقة\n  • تبقى الشاشة فارغة ويضيء مؤشر Rx الأخضر\n\nلا تفصل أي كابل أثناء الدفعة!\n\nهل أنت جاهز للبدء؟",
-
   "dialog.batch_failure_title": "فشل البرمجة الدفعية",
   "dialog.batch_failure_body": "فشلت برمجة {port}:\n\n{error}\n\nهل تريد المتابعة مع الجهاز المحدد التالي؟",
-
   "dialog.cleanup_title": "تنظيف التنزيلات",
   "dialog.cleanup_body": "ملفات البرنامج الثابت التي تم تنزيلها تستخدم {size_mb:.1f} ميغابايت:\n{path}\n\nهل تريد حذفها لتحرير المساحة؟\n(يمكنك إعادة تنزيلها لاحقًا في أي وقت)",
-
   "filedlg.select_firmware": "اختر ملف برنامج ثابت",
   "filedlg.wildcard": "ملفات البرنامج الثابت (*.kdhx)|*.kdhx|كل الملفات (*)|*",
-
   "fallback.radio_name": "جهازك",
   "fallback.bootloader_keys": "مفاتيح البوت-لودر (راجع دليل جهازك)",
   "fallback.radio_unknown": "غير معروف",
-
   "info.radio_label": "الجهاز: {name}",
   "info.bootloader_keys": "مفاتيح البوت-لودر: {keys}",
   "info.connector": "الموصل: {connector}",
@@ -133,7 +113,6 @@
   "info.untested": "لم يُختبر مع هذه الأداة",
   "info.latest_firmware": "أحدث برنامج ثابت: v{version}",
   "info.selected_radio_header": "— الجهاز المحدد —",
-
   "log.downloading_for": "جاري تنزيل البرنامج الثابت لـ {radio}...",
   "log.url": "الرابط: {url}",
   "log.firmware_extracted": "تم استخراج البرنامج الثابت: {path}",
@@ -193,7 +172,6 @@
   "log.dialout_fix_intro": "أصلحها مرة واحدة ولن ترى هذه الرسالة مجددًا:",
   "log.dialout_fix_cmd": "  sudo usermod -aG dialout $USER",
   "log.dialout_relogin": "ثم سجّل الخروج وعد إلى الدخول (إعادة دخول كاملة، وليس مجرد فتح نافذة طرفية جديدة).",
-
   "hint.no_firmware.title": "الخطوة 1 — الحصول على البرنامج الثابت",
   "hint.no_firmware.body": "اختر طراز جهاز الراديو في عمود البرنامج الثابت، ثم انقر على «تنزيل أحدث إصدار» إن كان متاحًا، أو «استعراض…» لاختيار ملف .kdhx قمت بتنزيله مسبقًا.",
   "hint.no_handset.title": "الخطوة 2 — وصِّل جهازًا",
@@ -219,5 +197,47 @@
   "hint.diag_complete.title": "نجح التشخيص",
   "hint.diag_complete.body": "استجاب الجهاز المحدد لمصافحة البوت-لودر — يعمل الكابل والمنفذ وإعداد وضع البوت-لودر. يمكنك المتابعة إلى البرمجة.",
   "hint.failed.title": "فشلت العملية",
-  "hint.failed.body": "لم تكتمل العملية الأخيرة بنجاح. اقرأ السجل على اليمين لرسالة الخطأ. قد تحتاج إلى إعادة تشغيل الجهاز ووضعه في وضع البوت-لودر مرة أخرى قبل المحاولة."
+  "hint.failed.body": "لم تكتمل العملية الأخيرة بنجاح. اقرأ السجل على اليمين لرسالة الخطأ. قد تحتاج إلى إعادة تشغيل الجهاز ووضعه في وضع البوت-لودر مرة أخرى قبل المحاولة.",
+  "radio.bf-f8hp-pro.bootloader_keys": "اضغط على زري SK1 و SK2 (الزران العلوي والسفلي، وليس زر PTT). ارفع مستوى الصوت إلى أقصى حد. اضغط بقوة على موصل الكابل في جهاز الراديو واستمر في الضغط عليه طوال فترة التحديث.",
+  "radio.bf-f8hp-pro.connector": "مقبس كينوود ذو 2 سن",
+  "radio.bf-f8hp-pro.notes": "تم التأكد من عمله على برنامج V0.53. قد يحتاج موصل K1 إلى ضغط ثابت للحفاظ على اتصال البيانات على الحلقة ذات قطر 2.5 مم. حافظ على ضغط ثابت على قابس الكابل طوال عملية التحديث.",
+  "radio.uv-25-pro.bootloader_keys": "SK2 + SK3 (زران أسفل زر التحدث)",
+  "radio.uv-25-pro.connector": "مقبس كينوود ذو 2 سن",
+  "radio.uv-25-pro.notes": "يستخدم نفس برنامج تحميل KDH. البرامج الثابتة متاحة على موقع baofengradio.com. لا تستخدمه إذا لم يكن جهاز UV-25 الخاص بك يحتوي على GPS، فقد يتسبب ذلك في حدوث خلل في الراديو.",
+  "radio.rt-470.bootloader_keys": "غير معروف — يرجى الرجوع إلى الدليل.",
+  "radio.rt-470.connector": "مقبس كينوود ذو 2 سن",
+  "radio.rt-470.notes": "يستخدم WLT2000 CPS. محمل الإقلاع KDH مع برنامج ثابت بتنسيق .kdhx. هذا الرابط مخصص للوحة الدوائر المطبوعة الجديدة (V2.12A، نطاق كامل). تستخدم لوحة الدوائر المطبوعة القديمة (10 واط) برنامجًا ثابتًا مختلفًا - راجع radtels.com.",
+  "radio.rt-490.bootloader_keys": "غير معروف — يرجى الرجوع إلى الدليل.",
+  "radio.rt-490.connector": "مقبس كينوود ذو 2 سن",
+  "radio.rt-490.notes": "تشارك JJCC لوحة الدوائر المطبوعة JC-8629. برنامج الإقلاع KDH. هذا الرابط مخصص للوحة الدوائر المطبوعة القديمة (الإصدار 1.03). تتوفر إصدارات أحدث من لوحة الدوائر المطبوعة مع إمكانية تعديل اسم القناة على موقع radtels.com.",
+  "radio.socotran-jc8629.bootloader_keys": "اضغط باستمرار على زر PTT أثناء تشغيل الجهاز (عندما يضيء مؤشر LED باللون الأخضر، فهذا يعني أن الجهاز في وضع محمل الإقلاع).",
+  "radio.socotran-jc8629.connector": "مقبس كينوود ذو 2 سن",
+  "radio.socotran-jc8629.notes": "نفس لوحة الدوائر المطبوعة (PCB) المستخدمة في جهاز Radtel RT-490 (JC-8629/8630). من المعروف أن برنامج Radtel RT-490 (ملف .kdhx) يعمل — قم بتنزيله من صفحة Radtel أو استخدم التنزيل التلقائي من صفحة RT-490، ثم عد إلى هنا لتحديث البرنامج. المصدر: يوضح تقرير CHIRP رقم 9665 أن جميع النسخ الثمانية مسجلة في فئة برنامج تشغيل واحدة.",
+  "radio.socotran-fb8629.bootloader_keys": "اضغط باستمرار على زر PTT أثناء تشغيل الجهاز (عندما يضيء مؤشر LED باللون الأخضر، فهذا يعني أن الجهاز في وضع محمل الإقلاع).",
+  "radio.socotran-fb8629.connector": "مقبس كينوود ذو 2 سن",
+  "radio.socotran-fb8629.notes": "نفس لوحة الدوائر المطبوعة (PCB) المستخدمة في جهاز Radtel RT-490 (JC-8629/8630) - مسجلة كاسم مستعار منفصل في برنامج CHIRP. برنامج Radtel RT-490 .kdhx يعمل بشكل صحيح. المصدر: مشكلة رقم 9665 في برنامج CHIRP.",
+  "radio.jianpai-8800plus.bootloader_keys": "اضغط باستمرار على زر PTT أثناء تشغيل الجهاز (عندما يضيء مؤشر LED باللون الأخضر، فهذا يعني أن الجهاز في وضع محمل الإقلاع).",
+  "radio.jianpai-8800plus.connector": "مقبس كينوود ذو 2 سن",
+  "radio.jianpai-8800plus.notes": "نفس لوحة الدوائر المطبوعة (PCB) المستخدمة في جهاز Radtel RT-490، وهي JC-8629/8630. في بعض الأحيان، يتم وضع علامة \"8629\" عليها من قبل البائعين، ولكن برنامج CHIRP يتعرف عليها على أنها \"Jianpai 8800 Plus\". استخدم برنامج Radtel RT-490 ذو الامتداد .kdhx. المصدر: مشكلة رقم 9665 في برنامج CHIRP.",
+  "radio.boristone-8rs.bootloader_keys": "اضغط باستمرار على زر PTT أثناء تشغيل الجهاز (عندما يضيء مؤشر LED باللون الأخضر، فهذا يعني أن الجهاز في وضع \"bootloader\"). إذا لم تكن متأكدًا، فارجع إلى تعليمات JJCC JC-8629.",
+  "radio.boristone-8rs.connector": "مقبس كينوود ذو 2 سن",
+  "radio.boristone-8rs.notes": "نفس لوحة الدوائر المطبوعة (PCB) المستخدمة في جهاز Radtel RT-490، وهي JC-8629/8630. ملف CHIRP المرفق 'Boristone_8RS_EN.img' له نفس حجم ملف صورة MMLradio، مما يؤكد أنهما يستخدمان نفس البرامج الثابتة. استخدم ملف البرامج الثابتة .kdhx الخاص بجهاز Radtel RT-490. المصدر: المشكلة رقم 9665 في CHIRP.",
+  "radio.abbree-ar-869.bootloader_keys": "اضغط باستمرار على زر PTT أثناء تشغيل الجهاز (عندما يضيء مؤشر LED باللون الأخضر، فهذا يعني أن الجهاز في وضع محمل الإقلاع).",
+  "radio.abbree-ar-869.connector": "مقبس كينوود ذو 2 سن",
+  "radio.abbree-ar-869.notes": "نفس لوحة الدوائر المطبوعة (PCB) المستخدمة في جهاز Radtel RT-490، وهي JC-8629/8630. لا يسرد فهرس تنزيل Abbree جهاز AR-869 بشكل منفصل؛ استخدم برنامج Radtel RT-490 ذو الامتداد .kdhx. المصدر: المشكلة رقم 9665 في برنامج CHIRP.",
+  "radio.hamgeek-hg-590.bootloader_keys": "اضغط باستمرار على زر PTT أثناء تشغيل الجهاز (عندما يضيء مؤشر LED باللون الأخضر، فهذا يعني أن الجهاز في وضع \"bootloader\"). إذا لم تكن متأكدًا، فارجع إلى تعليمات JJCC JC-8629.",
+  "radio.hamgeek-hg-590.connector": "مقبس كينوود ذو 2 سن",
+  "radio.hamgeek-hg-590.notes": "نفس لوحة الدوائر المطبوعة (PCB) المستخدمة في جهاز Radtel RT-490، وهي JC-8629/8630. لا يسرد فهرس برامج HamGeek جهاز HG-590 بشكل منفصل؛ استخدم برنامج Radtel RT-490 ذو الامتداد .kdhx. المصدر: المشكلة رقم 9665 في برنامج CHIRP.",
+  "radio.mmlradio-8629.bootloader_keys": "اضغط باستمرار على زر PTT أثناء تشغيل الجهاز (عندما يضيء مؤشر LED باللون الأخضر، فهذا يعني أن الجهاز في وضع محمل الإقلاع).",
+  "radio.mmlradio-8629.connector": "مقبس كينوود ذو 2 سن",
+  "radio.mmlradio-8629.notes": "شركة Math Mark / MMLradio هي الشركة المصنعة الأصلية (OEM) التي تصمم وتنتج لوحة الدوائر المطبوعة (PCB) JC-8629/8630، والتي تُباع تحت أسماء تجارية أخرى. استخدم برنامج Radtel RT-490 .kdhx. المصدر: مشكلة رقم 9665 في برنامج CHIRP.",
+  "radio.generic.bootloader_keys": "تحقق من دليل الراديو الخاص بك لمعرفة تركيبة مفاتيح تشغيل وضع الاسترداد.",
+  "radio.generic.connector": "مقبس كينوود ذو 2 سن",
+  "radio.generic.notes": "خيار عام لأي جهاز راديو يستخدم برنامج KDH للإقلاع. تصفح ملف برنامج ثابت بامتداد .kdhx قمت بتنزيله من الشركة المصنعة. تستخدم العديد من أجهزة الراديو المستندة إلى تصميمات KeDiHeng (Abbree و Hamgeek و Socotran و JJCC وما إلى ذلك) برنامج الإقلاع هذا.",
+  "radio.rt-950-pro.bootloader_keys": "اضغط باستمرار على كلا الزرين الجانبيين (الجانب 1 + الجانب 2) أثناء تشغيل الجهاز. ستعرض شاشة LCD كلمة \"تحديث\" عندما يكون برنامج الإقلاع قيد التشغيل.",
+  "radio.rt-950-pro.connector": "مقبس كينوود ذو 2 سن",
+  "radio.rt-950-pro.notes": "وحدة التحكم الدقيقة AT32F403A مع حاوية برامج ثابتة بتنسيق .BTF. يتم إرسال ملف BTF إلى جهاز الراديو كما هو — يقوم محمل الإقلاع الموجود على جهاز الراديو بفك تشفيره باستخدام مفتاح XOR المكون من 16 بايت والمضمن في إزاحة الملف 0x400. يقوم البائع بتوزيع البرامج الثابتة عبر مجموعة مالكي RT-950 Pro على فيسبوك؛ ويقوم المجتمع بإنشاء نسخ احتياطية على https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware. لم يتم اختباره على الأجهزة الفعلية — يطلب المجتمع تأكيدًا قبل الاعتماد عليه في عملية التحديث الإنتاجي.",
+  "tooltip.language": "تغيير لغة الواجهة",
+  "dialog.language.title": "اختر اللغة.",
+  "dialog.language.prompt": "اختر لغة الواجهة. سيتم تنزيل الكتالوجات غير الإنجليزية في المرة الأولى التي تحددها."
 }

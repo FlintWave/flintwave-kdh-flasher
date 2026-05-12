@@ -245,6 +245,18 @@ def t(key: str) -> str:
     return val
 
 
+def t_radio_field(radio_id: str, field: str, fallback: str) -> str:
+    # Per-radio strings (bootloader_keys, connector, notes) live as English in
+    # radios.json so a contributor adding a new radio only edits one file.
+    # Translations are keyed `radio.<id>.<field>` in translations/*.json; we
+    # fall back to the radios.json English value when no override exists.
+    key = f"radio.{radio_id}.{field}"
+    val = _catalog.get(key)
+    if val is None:
+        val = _en_catalog.get(key)
+    return fallback if val is None else val
+
+
 def is_rtl(code: str | None = None) -> bool:
     """True if the given language code uses right-to-left layout."""
     if code is None:

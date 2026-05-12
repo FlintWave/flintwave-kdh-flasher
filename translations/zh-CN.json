@@ -3,25 +3,21 @@
     "language": "zh-CN",
     "language_label": "中文",
     "reviewed": false,
-    "source": "machine"
+    "source": "machine",
+    "machine_translations_added": 39
   },
-
   "app.title": "FlintWave Flash",
   "app.about_blurb": "在任何操作系统上为 BTECH、Baofeng、Radtel\n等使用 KDH bootloader 的电台刷写 .kdhx 固件。",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
-
   "titlebar.minimize_tooltip": "最小化",
   "titlebar.close_tooltip": "关闭",
   "titlebar.language_tooltip": "切换语言",
-
   "column.firmware": "固件",
   "column.handset": "手台",
   "column.flash": "刷写",
   "column.instructions": "操作说明",
   "column.log": "日志",
-
   "radio.placeholder": "— 选择您的电台 —",
-
   "button.download_latest": "下载最新版本",
   "button.download_versioned": "下载 v{version}",
   "button.no_direct_url": "无直接下载链接",
@@ -35,7 +31,6 @@
   "button.close": "关闭",
   "button.submit": "提交",
   "button.skip": "跳过",
-
   "tooltip.refresh": "重新扫描串口并探测每个端口上是否有处于 bootloader 模式的电台。",
   "tooltip.select_all": "勾选所有检测到的手台。",
   "tooltip.select_none": "取消勾选所有手台。",
@@ -43,13 +38,11 @@
   "tooltip.theme_toggle": "切换浅色 / 深色主题",
   "tooltip.usage": "打开使用指南",
   "tooltip.about": "关于本应用",
-
   "handset.col_port": "端口",
   "handset.col_cable": "线材 / 芯片",
   "handset.col_status": "状态",
   "handset.col_percent": "%",
   "handset.summary": "已选 {selected} / 已检测 {total}",
-
   "status.unknown": "未知",
   "status.probing": "探测中…",
   "status.ready": "就绪",
@@ -58,15 +51,12 @@
   "status.done": "完成",
   "status.failed": "失败",
   "status.skipped": "已跳过",
-
   "statusbar.usage": "使用指南",
   "statusbar.about": "关于",
   "statusbar.update_available": "有可用更新",
   "statusbar.update_tooltip": "当前版本 v{local}(最新版本:{remote})。\n点击在浏览器中打开发布页面。",
-
   "lang.downloading": "正在下载 {language} 翻译…",
   "lang.download_failed": "无法下载 {language} 翻译。已保留上一种语言。",
-
   "dialog.about.title": "关于",
   "dialog.about.version": "版本 {version}",
   "dialog.about.github_link": "GitHub:FlintWave/flintwave-kdh-flasher",
@@ -74,7 +64,6 @@
   "dialog.about.tab_about": "关于",
   "dialog.about.tab_license": "许可证",
   "dialog.about.license_text": "FlintWave Flash\n版权所有 (C) 2026 FlintWave Radio Tools\n\n本程序是自由软件:您可以根据自由软件基金会发布的 GNU 通用公共许可证(GPL)版本 3,或(由您选择)任何更高版本的条款重新分发或修改它。\n\n本程序的分发是希望它有用,但不提供任何担保;甚至不包含适销性或特定用途适用性的暗示担保。详情请参阅 GNU 通用公共许可证。\n\n您应该已经收到了一份本程序的 GNU 通用公共许可证副本。如果没有,请参阅 <https://www.gnu.org/licenses/>。\n\n完整的 GPL v3.0 许可证文本随源代码一同发布,位于仓库根目录的 LICENSE 文件中。",
-
   "dialog.report.title": "提交测试报告",
   "dialog.report.success": "刷写已成功完成!\n是否提交测试报告?",
   "dialog.report.failure": "刷写失败。\n是否提交报告以帮助我们调试?",
@@ -90,41 +79,32 @@
   "dialog.report.body_error": "错误:{error}\n",
   "dialog.report.body_notes": "\n附加说明:\n\n",
   "dialog.report.body_log_header": "--- 日志 ---\n",
-
   "dialog.error_title": "错误",
   "dialog.error_select_firmware": "请选择固件文件。",
   "dialog.error_select_firmware_first": "请先选择固件文件。",
   "dialog.error_no_handset_title": "未选择手台",
   "dialog.error_no_handset_flash": "请在“手台”一列中至少勾选一个手台。\n如果未列出您的线材,请点击“刷新 / 探测”。",
   "dialog.error_no_handset_diag": "请在“手台”一列中至少勾选一个手台以对其运行诊断。\n点击“刷新 / 探测”可重新扫描。",
-
   "dialog.untested_title": "未经测试的电台",
   "dialog.untested_body": "{radio} 尚未通过本工具测试。\n\n协议应该是兼容的,但刷写未经测试的\n固件可能会导致电台变砖。\n\n仍要下载吗?",
   "dialog.untested_warning": "注意:{radio} 尚未通过本工具测试。\n协议应该是兼容的,请谨慎操作。\n\n",
-
   "dialog.same_version_title": "版本相同",
   "dialog.same_version_body": "您已经为该电台刷写过 v{version}。\n\n是否再次刷写相同版本?",
   "dialog.older_version_title": "较旧版本",
   "dialog.older_version_body": "此固件(v{file_version})比上次刷写的版本\n(v{last_version})更旧。\n\n是否刷写较旧版本?",
-
   "dialog.confirm_title": "确认",
   "dialog.confirm_single": "{warning}请确认 {port} 上的 {radio} 处于 bootloader 模式:\n\n1. 关闭电台电源\n2. 按住 {keys}\n3. 旋转电源旋钮开机\n4. 屏幕保持空白,绿色指示灯亮起\n\n更新过程中不要拔出电台或线材!\n\n是否开始刷写?",
   "dialog.confirm_batch_title": "确认批量刷写",
   "dialog.confirm_batch_body": "{warning}将依次刷写 {count} 台手台:\n  {ports}\n\n每台 {radio} 都必须处于 bootloader 模式:\n  • 关机,按住 {keys},然后旋转电源旋钮开机\n  • 屏幕保持空白,绿色 Rx 指示灯亮起\n\n批量过程中不要拔出任何线材!\n\n是否开始?",
-
   "dialog.batch_failure_title": "批量刷写失败",
   "dialog.batch_failure_body": "刷写 {port} 失败:\n\n{error}\n\n是否继续下一个选中的手台?",
-
   "dialog.cleanup_title": "清理下载",
   "dialog.cleanup_body": "已下载的固件文件占用 {size_mb:.1f} MB:\n{path}\n\n是否删除以释放空间?\n(您可以随时重新下载)",
-
   "filedlg.select_firmware": "选择固件文件",
   "filedlg.wildcard": "固件文件 (*.kdhx)|*.kdhx|所有文件 (*)|*",
-
   "fallback.radio_name": "您的电台",
   "fallback.bootloader_keys": "进入 bootloader 的按键(请查阅电台说明书)",
   "fallback.radio_unknown": "未知",
-
   "info.radio_label": "电台:{name}",
   "info.bootloader_keys": "Bootloader 按键:{keys}",
   "info.connector": "接口:{connector}",
@@ -132,7 +112,6 @@
   "info.untested": "尚未通过本工具测试",
   "info.latest_firmware": "最新固件:v{version}",
   "info.selected_radio_header": "— 已选择的电台 —",
-
   "log.downloading_for": "正在为 {radio} 下载固件...",
   "log.url": "URL:{url}",
   "log.firmware_extracted": "已解压固件:{path}",
@@ -192,7 +171,6 @@
   "log.dialout_fix_intro": "修复一次就不会再遇到:",
   "log.dialout_fix_cmd": "  sudo usermod -aG dialout $USER",
   "log.dialout_relogin": "然后注销并重新登录(完全重新登录,而不只是新开终端)。",
-
   "hint.no_firmware.title": "第 1 步 — 获取固件",
   "hint.no_firmware.body": "在“固件”一列中选择电台型号,然后点击“下载最新版本”(如果可用)或“浏览…”选择您已下载的 .kdhx 文件。",
   "hint.no_handset.title": "第 2 步 — 连接手台",
@@ -218,5 +196,47 @@
   "hint.diag_complete.title": "诊断通过",
   "hint.diag_complete.body": "所选手台响应了 bootloader 握手 — 线材、端口和 bootloader 模式都工作正常。您可以继续刷写。",
   "hint.failed.title": "操作失败",
-  "hint.failed.body": "上一次操作未能成功完成。请阅读右侧日志查看错误信息。再次尝试前,可能需要重启电台并重新进入 bootloader 模式。"
+  "hint.failed.body": "上一次操作未能成功完成。请阅读右侧日志查看错误信息。再次尝试前,可能需要重启电台并重新进入 bootloader 模式。",
+  "radio.bf-f8hp-pro.bootloader_keys": "按下 SK1 和 SK2 按钮（顶部和底部的侧面按钮，不是 PTT 按钮）。将音量调至最大。将电缆连接器牢固地插入收音机，并在整个闪烁过程中保持压力。",
+  "radio.bf-f8hp-pro.connector": "K1 Kenwood 2 针",
+  "radio.bf-f8hp-pro.notes": "已确认在 V0.53 固件版本上可以正常工作。K1 连接器可能需要用力按压，以确保 2.5 毫米环形接口的良好接触。在整个刷机过程中，请持续对线缆插头施加压力。",
+  "radio.uv-25-pro.bootloader_keys": "SK2 + SK3（PTT 按钮下方的两个按钮）",
+  "radio.uv-25-pro.connector": "K1 Kenwood 2 针",
+  "radio.uv-25-pro.notes": "使用相同的 KDH 启动加载程序。固件可从 baofengradio.com 获取。如果您的 UV-25 没有 GPS 功能，请勿使用，否则会导致收音机出现故障。",
+  "radio.rt-470.bootloader_keys": "未知——请查阅手册。",
+  "radio.rt-470.connector": "K1 Kenwood 2 针",
+  "radio.rt-470.notes": "使用 WLT2000 CPS。KDH 引导加载程序，使用 .kdhx 固件。此 URL 适用于新的 PCB（V2.12A，全频段）。旧的 PCB（10W）使用不同的固件，请参阅 radtels.com。",
+  "radio.rt-490.bootloader_keys": "未知——请查阅手册。",
+  "radio.rt-490.connector": "K1 Kenwood 2 针",
+  "radio.rt-490.notes": "共享 JJCC JC-8629 PCB。KDH 引导加载程序。此网址指向旧版 PCB（v1.03）。可在 radtels.com 上找到具有频道名称编辑功能的较新版 PCB。",
+  "radio.socotran-jc8629.bootloader_keys": "开机时按住PTT键（无线电指示灯变为绿色，表示进入启动加载程序模式）。",
+  "radio.socotran-jc8629.connector": "K1 Kenwood 2 针",
+  "radio.socotran-jc8629.notes": "JC-8629/8630 PCB 与 Radtel RT-490 使用相同的电路板。已知 Radtel RT-490 固件 (.kdhx) 能够正常工作——您可以从 Radtel 页面下载，或使用 RT-490 条目的自动下载功能，然后返回此处进行刷机。来源：CHIRP 问题的编号为 9665，它将所有 8 个克隆设备注册到同一个驱动程序类中。",
+  "radio.socotran-fb8629.bootloader_keys": "开机时按住PTT键（无线电指示灯变为绿色，表示进入启动加载程序模式）。",
+  "radio.socotran-fb8629.connector": "K1 Kenwood 2 针",
+  "radio.socotran-fb8629.notes": "与 Radtel RT-490 相同的数学标记 JC-8629/8630 PCB，在 CHIRP 中注册为单独的别名。Radtel RT-490 的 .kdhx 固件可以正常工作。来源：CHIRP 问题 #9665。",
+  "radio.jianpai-8800plus.bootloader_keys": "开机时按住PTT键（无线电指示灯变为绿色，表示进入启动加载程序模式）。",
+  "radio.jianpai-8800plus.connector": "K1 Kenwood 2 针",
+  "radio.jianpai-8800plus.notes": "与 Radtel RT-490 具有相同的数学标记 JC-8629/8630 PCB。有时，经销商会将其标记为“8629”，但 CHIRP 会将其识别为“Jianpai 8800 Plus”。请使用 Radtel RT-490 的 .kdhx 固件。来源：CHIRP 问题 #9665。",
+  "radio.boristone-8rs.bootloader_keys": "开机时按住 PTT 键（无线电 LED 变为绿色，表示进入引导程序模式）。如果不确定，请参考 JJCC JC-8629 的说明。",
+  "radio.boristone-8rs.connector": "K1 Kenwood 2 针",
+  "radio.boristone-8rs.notes": "与 Radtel RT-490 具有相同的数学标记 JC-8629/8630 PCB。CHIRP 附件“Boristone_8RS_EN.img”的字节大小与 MMLradio 镜像完全相同，证实它们共享固件。使用 Radtel RT-490 的 .kdhx 固件。来源：CHIRP 问题 #9665。",
+  "radio.abbree-ar-869.bootloader_keys": "开机时按住PTT键（无线电指示灯变为绿色，表示进入启动加载程序模式）。",
+  "radio.abbree-ar-869.connector": "K1 Kenwood 2 针",
+  "radio.abbree-ar-869.notes": "与 Radtel RT-490 具有相同的数学标记 JC-8629/8630 PCB。Abbree 下载索引未单独列出 AR-869，请使用 Radtel RT-490 的 .kdhx 固件。来源：CHIRP 问题 #9665。",
+  "radio.hamgeek-hg-590.bootloader_keys": "开机时按住 PTT 键（无线电 LED 变为绿色，表示进入引导程序模式）。如果不确定，请参考 JJCC JC-8629 的说明。",
+  "radio.hamgeek-hg-590.connector": "K1 Kenwood 2 针",
+  "radio.hamgeek-hg-590.notes": "与 Radtel RT-490 具有相同的数学标记 JC-8629/8630 PCB。HamGeek 固件索引中没有单独列出 HG-590，请使用 Radtel RT-490 的 .kdhx 固件。来源：CHIRP 问题 #9665。",
+  "radio.mmlradio-8629.bootloader_keys": "开机时按住PTT键（无线电指示灯变为绿色，表示进入启动加载程序模式）。",
+  "radio.mmlradio-8629.connector": "K1 Kenwood 2 针",
+  "radio.mmlradio-8629.notes": "Math Mark / MMLradio 是 JC-8629/8630 PCB 的原始设备制造商 (OEM)，该 PCB 以各种其他克隆名称出售。请使用 Radtel RT-490 .kdhx 固件。来源：CHIRP 问题 #9665。",
+  "radio.generic.bootloader_keys": "请查阅您的收音机的用户手册，了解启动加载程序的按键组合。",
+  "radio.generic.connector": "K1 Kenwood 2 针",
+  "radio.generic.notes": "适用于使用 KDH 启动程序的任何无线电的通用选项。浏览您从制造商处下载的 .kdhx 固件文件。许多基于 KeDiHeng 设计的无线电（Abbree、Hamgeek、Socotran、JJCC 等）都使用此启动程序。",
+  "radio.rt-950-pro.bootloader_keys": "开机时同时按住两侧按键（侧键1 + 侧键2）。当启动加载程序运行时，LCD屏幕上会显示“UPDATE”。",
+  "radio.rt-950-pro.connector": "K1 Kenwood 2 针",
+  "radio.rt-950-pro.notes": "AT32F403A MCU，带有 .BTF 固件容器。BTF 文件以原始形式发送到无线电模块——无线电模块上的引导加载程序使用嵌入在文件偏移量 0x400 处的 16 字节 XOR 密钥对其进行解密。供应商通过 RT-950 Pro 用户 Facebook 群组分发固件；社区镜像位于 https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware。尚未在实际硬件上进行测试——在将其用于生产固件刷新之前，需要社区确认。",
+  "tooltip.language": "更改界面语言",
+  "dialog.language.prompt": "选择界面语言。非英语语言包会在您第一次选择时下载。",
+  "dialog.language.title": "选择语言。"
 }

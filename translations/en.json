@@ -43,6 +43,7 @@
   "tooltip.theme_toggle": "Toggle light / dark theme",
   "tooltip.usage": "Open the Usage Guide",
   "tooltip.about": "About this app",
+  "tooltip.language": "Change interface language",
 
   "handset.col_port": "Port",
   "handset.col_cable": "Cable / Chip",
@@ -73,6 +74,9 @@
   "dialog.about.license_link": "Licensed under GNU GPL v3.0",
   "dialog.about.tab_about": "About",
   "dialog.about.tab_license": "License",
+
+  "dialog.language.title": "Choose language",
+  "dialog.language.prompt": "Pick the interface language. Non-English catalogs download the first time you select them.",
   "dialog.about.license_text": "FlintWave Flash\nCopyright (C) 2026 FlintWave Radio Tools\n\nThis program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.\n\nThis program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.\n\nYou should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.\n\nThe full GPL v3.0 license text ships with the source distribution in the LICENSE file at the root of the repository.",
 
   "dialog.report.title": "Submit Test Report",

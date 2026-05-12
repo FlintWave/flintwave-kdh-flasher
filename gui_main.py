@@ -13,11 +13,12 @@ import wx.adv
 import wx.lib.scrolledpanel
 
 import flash_firmware as fw
+import flash_btf as fw_btf
 import firmware_download as dl
 import firmware_manifest as fm
 import firmware_version as fv
 import i18n
-from i18n import t
+from i18n import t, t_radio_field
 import updater
 import serial
 
@@ -28,7 +29,7 @@ from gui_dialogs import (
 )
 from gui_themes import apply_theme, THEME_PALETTES, MOCHA_PALETTE
 
-VERSION = "26.05.4"
+VERSION = "26.05.5"
 
 FONT_SIZES = [9, 11, 12, 14, 16]
 
@@ -300,38 +301,78 @@ class FlasherFrame(wx.Frame):
             self.handset_list.InsertColumn(idx, t(key),
                                            width=width, format=fmt)
 
-    def _on_lang_change(self, event):
-        """User picked a language from the title-bar dropdown."""
-        if not hasattr(self, "lang_choice"):
-            return
-        idx = self.lang_choice.GetSelection()
-        if idx < 0 or idx >= len(i18n.LANGUAGES):
-            return
-        code, label = i18n.LANGUAGES[idx]
-        prev_index = self._prev_lang_index
-        if code == i18n.current_code():
-            self._prev_lang_index = idx
+    def _language_button_label(self):
+        """Status-bar text for the language button — native label of the
+        currently active language, prefixed with a globe glyph so it's
+        visually distinct from the textual font/theme controls."""
+        for code, label in i18n.LANGUAGES:
+            if code == i18n.current_code():
+                return f"\U0001F310 {label}"
+        return "\U0001F310"  # globe alone if current code is unknown
+
+    def _open_language_dialog(self):
+        """Modal language picker. Single-select listbox with native-script
+        labels; OK applies the change (downloading the catalog if needed),
+        Cancel reverts."""
+        dlg = wx.Dialog(self, title=t("dialog.language.title"),
+                        style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        dlg.SetMinSize((320, 360))
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        prompt = wx.StaticText(dlg, label=t("dialog.language.prompt"))
+        sizer.Add(prompt, 0, wx.ALL, 12)
+
+        labels = [label for _, label in i18n.LANGUAGES]
+        listbox = wx.ListBox(dlg, choices=labels, style=wx.LB_SINGLE)
+        try:
+            listbox.SetSelection(i18n.index_of(i18n.current_code()))
+        except Exception:
+            pass
+        # Double-click on an entry = OK.
+        listbox.Bind(wx.EVT_LISTBOX_DCLICK, lambda e: dlg.EndModal(wx.ID_OK))
+        sizer.Add(listbox, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+
+        sizer.AddSpacer(8)
+        btn_row = dlg.CreateButtonSizer(wx.OK | wx.CANCEL)
+        if btn_row is not None:
+            sizer.Add(btn_row, 0, wx.EXPAND | wx.ALL, 12)
+        dlg.SetSizer(sizer)
+
+        # Re-use the existing dialog-theme helper so the modal matches the
+        # current Latte/Mocha palette.
+        try:
+            from gui_themes import apply_theme_to_dialog
+            apply_theme_to_dialog(self, dlg)
+        except Exception:
+            pass
+
+        dlg.Centre()
+        result = dlg.ShowModal()
+        idx = listbox.GetSelection()
+        dlg.Destroy()
+        if result != wx.ID_OK or idx < 0 or idx >= len(i18n.LANGUAGES):
             return
 
-        # Disable the dropdown while we (possibly) download.
-        self.lang_choice.Disable()
+        code, label = i18n.LANGUAGES[idx]
+        if code == i18n.current_code():
+            return
+
         try:
             self.log_msg(t("lang.downloading").format(language=label))
         except Exception:
             pass
 
-        def on_done(success, _code=code, _label=label, _prev=prev_index, _idx=idx):
+        def on_done(success, _code=code, _label=label):
             def apply_on_gui():
-                self.lang_choice.Enable()
                 if success:
                     try:
                         fm.set_language(_code)
                     except Exception:
                         pass
-                    self._prev_lang_index = _idx
                     self.retranslate_ui()
+                    self.lang_btn.SetLabel(self._language_button_label())
+                    self.status_bar_panel.Layout()
                 else:
-                    self.lang_choice.SetSelection(_prev)
                     try:
                         self.log_msg(t("lang.download_failed").format(language=_label))
                     except Exception:
@@ -405,6 +446,15 @@ class FlasherFrame(wx.Frame):
         try:
             if hasattr(self, "update_link") and self.update_link.IsShown():
                 self.update_link.SetMinSize(self.update_link.GetBestSize())
+                self.status_bar_panel.Layout()
+        except Exception:
+            pass
+
+        # Language button reflects the active language by name; refresh it
+        # whenever any language change comes through retranslate_ui.
+        try:
+            if hasattr(self, "lang_btn"):
+                self.lang_btn.SetLabel(self._language_button_label())
                 self.status_bar_panel.Layout()
         except Exception:
             pass
@@ -635,15 +685,9 @@ class FlasherFrame(wx.Frame):
 
         sizer.AddStretchSpacer(1)
 
-        # Language dropdown lives between the title and the window-control
-        # glyphs (minimize / close). Under RTL it mirrors to the left side.
-        self.lang_choice = wx.Choice(bar, choices=[label for _, label in i18n.LANGUAGES])
-        self.lang_choice.SetSelection(i18n.index_of(i18n.current_code()))
-        self.lang_choice.SetToolTip(t("titlebar.language_tooltip"))
-        self._tr_tooltip(self.lang_choice, "titlebar.language_tooltip")
-        self.lang_choice.Bind(wx.EVT_CHOICE, self._on_lang_change)
-        sizer.Add(self.lang_choice, 0,
-                  wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
+        # The language picker used to live here as a wx.Choice dropdown; it
+        # was moved to the status bar in v26.05.5 so the title bar stays
+        # focused on identity (icon + title) and window controls only.
 
         def make_chrome_btn(label, tooltip_key, handler):
             b = wx.StaticText(bar, label=label)
@@ -726,6 +770,14 @@ class FlasherFrame(wx.Frame):
             "☀" if self.current_theme == "mocha" else "☾",
             "tooltip.theme_toggle", self._toggle_theme)
 
+        # Language picker (was a title-bar dropdown pre-v26.05.5). Click opens
+        # a modal listing every supported language with its native-script
+        # label; the button itself shows the current language so users always
+        # see which one is active.
+        self.lang_btn = make_link(
+            self._language_button_label(),
+            "tooltip.language", self._open_language_dialog)
+
         usage_link = make_link(t("statusbar.usage"), "tooltip.usage",
                                lambda: self.on_usage_guide(None),
                                label_key="statusbar.usage")
@@ -745,6 +797,7 @@ class FlasherFrame(wx.Frame):
         bar_sizer.AddSpacer(12)
         bar_sizer.Add(self.font_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
         bar_sizer.Add(self.theme_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
+        bar_sizer.Add(self.lang_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
         bar_sizer.AddStretchSpacer(1)
         bar_sizer.Add(usage_link, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
         bar_sizer.Add(self.update_link, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
@@ -848,16 +901,19 @@ class FlasherFrame(wx.Frame):
             threading.Thread(target=self._probe_thread, daemon=True).start()
 
     def _probe_thread(self):
-        """Send CMD_HANDSHAKE to every listed port; update Status as we go.
+        """Send the protocol-appropriate handshake to every listed port; update
+        Status as we go. The handshake is dispatched on the selected radio's
+        protocol — KDH ("BOOTLOADER" handshake) or BTF (cmd 0x42 probe).
 
         If the very first probe hits PermissionError (Linux dialout), surface
         the hint once and abort instead of marking every port "No response".
         """
+        driver = self._driver_for(self._get_selected_radio())
         permission_blocked = False
         for idx, entry in enumerate(list(self._handset_ports)):
             wx.CallAfter(self._set_handset_status, idx, STATUS_PROBING)
             try:
-                ready = fw.probe_port(entry["device"], timeout=1.5)
+                ready = driver.probe_port(entry["device"], timeout=1.5)
             except PermissionError:
                 permission_blocked = True
                 wx.CallAfter(self._log_dialout_hint, entry["device"])
@@ -1193,6 +1249,7 @@ class FlasherFrame(wx.Frame):
         if not radio:
             return ""
         bits = []
+        rid = radio.get("id", "")
         keys = radio.get("bootloader_keys")
         connector = radio.get("connector")
         tested = radio.get("tested")
@@ -1203,9 +1260,11 @@ class FlasherFrame(wx.Frame):
         full_name = name if name.startswith(manufacturer) else f"{manufacturer} {name}".strip()
         bits.append(t("info.radio_label").format(name=full_name))
         if keys:
-            bits.append(t("info.bootloader_keys").format(keys=keys))
+            bits.append(t("info.bootloader_keys").format(
+                keys=t_radio_field(rid, "bootloader_keys", keys)))
         if connector:
-            bits.append(t("info.connector").format(connector=connector))
+            bits.append(t("info.connector").format(
+                connector=t_radio_field(rid, "connector", connector)))
         bits.append(t("info.tested") if tested else t("info.untested"))
         _, version = self._get_firmware_url_and_version(radio)
         if version:
@@ -1213,7 +1272,7 @@ class FlasherFrame(wx.Frame):
         notes = radio.get("notes")
         if notes:
             bits.append("")
-            bits.append(notes)
+            bits.append(t_radio_field(rid, "notes", notes))
         return "\n".join(bits)
 
     def _set_hint(self, state):
@@ -1354,6 +1413,14 @@ class FlasherFrame(wx.Frame):
         if idx >= 1 and (idx - 1) < len(self.radios):
             return self.radios[idx - 1]
         return None
+
+    def _driver_for(self, radio):
+        # Return the protocol driver module that probes/flashes this radio.
+        # Both modules expose the same interface: probe_port, flash_to_port,
+        # validate_firmware, MAX_FIRMWARE_BYTES. Default is "kdh" for any
+        # radio without an explicit `protocol` field (backward compatible).
+        proto = (radio or {}).get("protocol", "kdh")
+        return fw_btf if proto == "btf" else fw
 
     def _get_firmware_url_and_version(self, radio):
         """Get the best firmware URL and version for a radio.
@@ -1595,10 +1662,11 @@ class FlasherFrame(wx.Frame):
         radio_name = radio["name"] if radio else t("fallback.radio_unknown")
 
         # Validate firmware once up front
+        driver = self._driver_for(radio)
         try:
             with open(firmware_path, "rb") as f:
                 firmware_bytes = f.read()
-            fw.validate_firmware(firmware_bytes, firmware_path)
+            driver.validate_firmware(firmware_bytes, firmware_path)
         except Exception as e:
             self.log_msg(t("log.error_prefix").format(message=e))
             self._terminal_state = "failed"
@@ -1626,8 +1694,8 @@ class FlasherFrame(wx.Frame):
                     wx.CallAfter(self._set_handset_progress, _idx, f"{pct_int}%")
 
                 try:
-                    fw.flash_to_port(port, firmware_bytes,
-                                     log_cb=log_cb, progress_cb=progress_cb)
+                    driver.flash_to_port(port, firmware_bytes,
+                                         log_cb=log_cb, progress_cb=progress_cb)
                 except Exception as e:
                     failed += 1
                     wx.CallAfter(self._set_handset_status, idx, STATUS_FAILED)
@@ -1683,6 +1751,12 @@ class FlasherFrame(wx.Frame):
     def _flash_thread(self, port, firmware_path, handset_idx=None):
         radio = self._get_selected_radio()
         radio_name = radio["name"] if radio else t("fallback.radio_unknown")
+
+        # BTF (RT-950 Pro) uses a different on-the-wire protocol than KDH;
+        # delegate to the BTF-specific path. The KDH inline flow below stays
+        # unchanged so existing translations and behavior are preserved.
+        if (radio or {}).get("protocol") == "btf":
+            return self._flash_thread_btf(port, firmware_path, handset_idx, radio)
 
         if handset_idx is not None:
             wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FLASHING)
@@ -1790,6 +1864,77 @@ class FlasherFrame(wx.Frame):
             self._busy = False
             self.set_buttons(True)
 
+    def _flash_thread_btf(self, port, firmware_path, handset_idx, radio):
+        # Single-port BTF flash. Mirrors _flash_thread's structure (busy state,
+        # per-handset status, log messages, post-flash version recording, test
+        # report offer) but delegates the on-the-wire work to fw_btf.
+        radio_name = radio["name"] if radio else t("fallback.radio_unknown")
+        if handset_idx is not None:
+            wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FLASHING)
+            wx.CallAfter(self._set_handset_progress, handset_idx, "0%")
+
+        sha256 = ""
+        try:
+            import os, hashlib
+
+            fw_size = os.path.getsize(firmware_path)
+            if fw_size > fw_btf.MAX_FIRMWARE_BYTES:
+                raise ValueError(t("log.file_too_large").format(size=fw_size))
+            with open(firmware_path, "rb") as f:
+                firmware = f.read()
+
+            fw_btf.validate_firmware(firmware, firmware_path)
+            sha256 = hashlib.sha256(firmware).hexdigest()
+            self.log_msg(t("log.firmware_path").format(path=firmware_path))
+            self.log_msg(t("log.port").format(port=port))
+            self.log_msg("")
+
+            def log_cb(msg):
+                self.log_msg(msg)
+
+            def progress_cb(pct):
+                self.set_progress(pct)
+                if handset_idx is not None:
+                    wx.CallAfter(self._set_handset_progress,
+                                 handset_idx, f"{int(pct)}%")
+
+            fw_btf.flash_to_port(port, firmware,
+                                 log_cb=log_cb, progress_cb=progress_cb)
+
+            self.log_msg("")
+            self.log_msg(t("log.flash_complete"))
+            if handset_idx is not None:
+                wx.CallAfter(self._set_handset_status, handset_idx, STATUS_DONE)
+                wx.CallAfter(self._set_handset_progress, handset_idx, "100%")
+
+            file_version = fv.extract_version_from_filename(os.path.basename(firmware_path))
+            if radio and file_version:
+                try:
+                    fm.record_flash(radio["id"], file_version, sha256)
+                    self.log_msg(t("log.recorded_flash").format(
+                        version=file_version, radio=radio_name))
+                except Exception:
+                    pass
+
+            self._terminal_state = "complete"
+            wx.CallAfter(self._offer_test_report, radio_name, firmware_path, True, "")
+
+        except Exception as e:
+            error_msg = str(e)
+            self.log_msg(t("log.error_prefix").format(message=error_msg))
+            if self._is_permission_denied(e):
+                self._log_dialout_hint(port)
+            else:
+                self.log_msg(t("log.may_need_power_cycle"))
+            self._terminal_state = "failed"
+            if handset_idx is not None:
+                wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FAILED)
+                wx.CallAfter(self._set_handset_progress, handset_idx, "—")
+            wx.CallAfter(self._offer_test_report, radio_name, firmware_path, False, error_msg)
+        finally:
+            self._busy = False
+            self.set_buttons(True)
+
     def _is_permission_denied(self, exc):
         """True if the exception looks like a serial-port EACCES (Linux dialout)."""
         if isinstance(exc, PermissionError):
@@ -1864,6 +2009,25 @@ class FlasherFrame(wx.Frame):
         threading.Thread(target=self._dryrun_thread, args=(firmware_path,), daemon=True).start()
 
     def _dryrun_thread(self, firmware_path):
+        # BTF dry-run delegates to fw_btf.dry_run since the validation rules
+        # (vector-table SP/PC range, file-size minimum) and the packet-builder
+        # CRC self-checks differ from KDH. KDH path below is unchanged.
+        radio = self._get_selected_radio()
+        if (radio or {}).get("protocol") == "btf":
+            try:
+                self.log_msg(t("log.dryrun_header"))
+                self.log_msg("")
+                fw_btf.dry_run(firmware_path, log_cb=self.log_msg)
+                self.set_progress(100)
+                self._terminal_state = "dryrun_complete"
+            except Exception as e:
+                self.log_msg(t("log.error_prefix").format(message=e))
+                self._terminal_state = "failed"
+            finally:
+                self._busy = False
+                self.set_buttons(True)
+            return
+
         try:
             import os
             import hashlib
