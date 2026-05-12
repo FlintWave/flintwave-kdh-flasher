@@ -3,25 +3,21 @@
     "language": "fr",
     "language_label": "Français",
     "reviewed": false,
-    "source": "machine"
+    "source": "machine",
+    "machine_translations_added": 40
   },
-
   "app.title": "FlintWave Flash",
   "app.about_blurb": "Flashez des micrologiciels .kdhx sur les radios BTECH, Baofeng, Radtel\net les autres radios à bootloader KDH, depuis n'importe quel OS.",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
-
   "titlebar.minimize_tooltip": "Réduire",
   "titlebar.close_tooltip": "Fermer",
   "titlebar.language_tooltip": "Changer de langue",
-
   "column.firmware": "Micrologiciel",
   "column.handset": "Combiné",
   "column.flash": "Flasher",
   "column.instructions": "Instructions",
   "column.log": "Journal",
-
   "radio.placeholder": "— Sélectionnez votre radio —",
-
   "button.download_latest": "Télécharger la dernière version",
   "button.download_versioned": "Télécharger v{version}",
   "button.no_direct_url": "Pas d'URL directe",
@@ -35,7 +31,6 @@
   "button.close": "Fermer",
   "button.submit": "Envoyer",
   "button.skip": "Passer",
-
   "tooltip.refresh": "Re-scanner les ports série et sonder chacun à la recherche d'une radio en mode bootloader.",
   "tooltip.select_all": "Cocher chaque combiné détecté.",
   "tooltip.select_none": "Décocher tous les combinés.",
@@ -43,13 +38,11 @@
   "tooltip.theme_toggle": "Basculer entre thème clair et sombre",
   "tooltip.usage": "Ouvrir le guide d'utilisation",
   "tooltip.about": "À propos de cette application",
-
   "handset.col_port": "Port",
   "handset.col_cable": "Câble / Puce",
   "handset.col_status": "Statut",
   "handset.col_percent": "%",
   "handset.summary": "{selected} sélectionné(s) / {total} détecté(s)",
-
   "status.unknown": "Inconnu",
   "status.probing": "Sondage…",
   "status.ready": "Prêt",
@@ -58,15 +51,12 @@
   "status.done": "Terminé",
   "status.failed": "Échec",
   "status.skipped": "Ignoré",
-
   "statusbar.usage": "Utilisation",
   "statusbar.about": "À propos",
   "statusbar.update_available": "Mise à jour disponible",
   "statusbar.update_tooltip": "Version actuelle v{local} (dernière disponible : {remote}).\nCliquez pour ouvrir la page des versions dans votre navigateur.",
-
   "lang.downloading": "Téléchargement de la traduction {language}…",
   "lang.download_failed": "Impossible de télécharger la traduction {language}. La langue précédente est conservée.",
-
   "dialog.about.title": "À propos",
   "dialog.about.version": "Version {version}",
   "dialog.about.github_link": "GitHub : FlintWave/flintwave-kdh-flasher",
@@ -74,7 +64,6 @@
   "dialog.about.tab_about": "À propos",
   "dialog.about.tab_license": "Licence",
   "dialog.about.license_text": "FlintWave Flash\nCopyright (C) 2026 FlintWave Radio Tools\n\nCe programme est un logiciel libre : vous pouvez le redistribuer et/ou le modifier selon les termes de la Licence publique générale GNU telle que publiée par la Free Software Foundation, version 3, ou (à votre choix) toute version ultérieure.\n\nCe programme est distribué dans l'espoir qu'il sera utile, mais SANS AUCUNE GARANTIE ; sans même la garantie implicite de QUALITÉ MARCHANDE ou d'ADÉQUATION À UN USAGE PARTICULIER. Consultez la Licence publique générale GNU pour plus de détails.\n\nVous devriez avoir reçu une copie de la Licence publique générale GNU avec ce programme. Sinon, voir <https://www.gnu.org/licenses/>.\n\nLe texte complet de la licence GPL v3.0 est livré avec la distribution source dans le fichier LICENSE à la racine du dépôt.",
-
   "dialog.report.title": "Soumettre un rapport de test",
   "dialog.report.success": "Le flashage s'est terminé avec succès !\nSouhaitez-vous soumettre un rapport de test ?",
   "dialog.report.failure": "Le flashage a échoué.\nSouhaitez-vous soumettre un rapport pour nous aider à déboguer ?",
@@ -90,41 +79,32 @@
   "dialog.report.body_error": "Erreur : {error}\n",
   "dialog.report.body_notes": "\nNotes additionnelles :\n\n",
   "dialog.report.body_log_header": "--- Journal ---\n",
-
   "dialog.error_title": "Erreur",
   "dialog.error_select_firmware": "Sélectionnez un fichier de micrologiciel.",
   "dialog.error_select_firmware_first": "Sélectionnez d'abord un fichier de micrologiciel.",
   "dialog.error_no_handset_title": "Aucun combiné sélectionné",
   "dialog.error_no_handset_flash": "Cochez au moins un combiné dans la colonne Combiné.\nCliquez sur « Actualiser / Sonder » si votre câble n'apparaît pas.",
   "dialog.error_no_handset_diag": "Cochez au moins un combiné dans la colonne Combiné pour y exécuter le diagnostic.\nCliquez sur « Actualiser / Sonder » pour re-scanner.",
-
   "dialog.untested_title": "Radio non testée",
   "dialog.untested_body": "{radio} n'a PAS été testé avec cet outil.\n\nLe protocole devrait être compatible, mais flasher un micrologiciel\nnon testé pourrait potentiellement briquer la radio.\n\nTélécharger quand même ?",
   "dialog.untested_warning": "REMARQUE : {radio} n'a PAS été testé avec cet outil.\nLe protocole devrait être compatible, mais procédez avec prudence.\n\n",
-
   "dialog.same_version_title": "Même version",
   "dialog.same_version_body": "Vous avez déjà flashé v{version} sur cette radio.\n\nFlasher à nouveau la même version ?",
   "dialog.older_version_title": "Version antérieure",
   "dialog.older_version_body": "Ce micrologiciel (v{file_version}) est plus ancien que celui\nflashé en dernier (v{last_version}).\n\nFlasher une version antérieure ?",
-
   "dialog.confirm_title": "Confirmer",
   "dialog.confirm_single": "{warning}Assurez-vous que la {radio} sur {port} est en mode bootloader :\n\n1. Éteignez la radio\n2. Maintenez {keys}\n3. Tournez la molette d'alimentation pour allumer\n4. L'écran reste vide, la LED verte s'allume\n\nNe débranchez pas la radio ni le câble pendant la mise à jour !\n\nPrêt à flasher ?",
   "dialog.confirm_batch_title": "Confirmer le flashage par lot",
   "dialog.confirm_batch_body": "{warning}Flasher {count} combinés séquentiellement :\n  {ports}\n\nChaque {radio} doit être en mode bootloader :\n  • Éteindre, maintenir {keys}, puis tourner la molette d'alimentation\n  • L'écran reste vide, la LED verte Rx s'allume\n\nNe débranchez aucun câble pendant le lot !\n\nPrêt à commencer ?",
-
   "dialog.batch_failure_title": "Échec du flashage par lot",
   "dialog.batch_failure_body": "Le flashage de {port} a échoué :\n\n{error}\n\nContinuer avec le combiné suivant ?",
-
   "dialog.cleanup_title": "Nettoyer les téléchargements",
   "dialog.cleanup_body": "Les micrologiciels téléchargés utilisent {size_mb:.1f} Mo :\n{path}\n\nLes supprimer pour libérer de l'espace ?\n(Vous pourrez toujours les retélécharger plus tard)",
-
   "filedlg.select_firmware": "Sélectionner un fichier de micrologiciel",
   "filedlg.wildcard": "Micrologiciels (*.kdhx)|*.kdhx|Tous les fichiers (*)|*",
-
   "fallback.radio_name": "votre radio",
   "fallback.bootloader_keys": "les touches du bootloader (consultez le manuel de votre radio)",
   "fallback.radio_unknown": "Inconnu",
-
   "info.radio_label": "Radio : {name}",
   "info.bootloader_keys": "Touches bootloader : {keys}",
   "info.connector": "Connecteur : {connector}",
@@ -132,7 +112,6 @@
   "info.untested": "Non testé avec cet outil",
   "info.latest_firmware": "Dernier micrologiciel : v{version}",
   "info.selected_radio_header": "— Radio sélectionnée —",
-
   "log.downloading_for": "Téléchargement du micrologiciel pour {radio}...",
   "log.url": "URL : {url}",
   "log.firmware_extracted": "Micrologiciel extrait : {path}",
@@ -192,7 +171,6 @@
   "log.dialout_fix_intro": "Corrigez-le une fois et vous ne reverrez plus ce message :",
   "log.dialout_fix_cmd": "  sudo usermod -aG dialout $USER",
   "log.dialout_relogin": "Puis déconnectez-vous et reconnectez-vous (une vraie reconnexion, pas juste un nouveau terminal).",
-
   "hint.no_firmware.title": "Étape 1 — Obtenir le micrologiciel",
   "hint.no_firmware.body": "Choisissez un modèle de radio dans la colonne Micrologiciel, puis cliquez sur « Télécharger la dernière version » si disponible, ou « Parcourir… » pour choisir un fichier .kdhx déjà téléchargé.",
   "hint.no_handset.title": "Étape 2 — Connecter un combiné",
@@ -218,5 +196,47 @@
   "hint.diag_complete.title": "Diagnostic réussi",
   "hint.diag_complete.body": "Le combiné sélectionné a répondu au handshake bootloader — le câble, le port et la configuration bootloader fonctionnent tous. Vous pouvez procéder au flashage.",
   "hint.failed.title": "Opération échouée",
-  "hint.failed.body": "La dernière opération ne s'est pas terminée avec succès. Lisez le journal à droite pour le message d'erreur. La radio devra peut-être être redémarrée et remise en mode bootloader avant de réessayer."
+  "hint.failed.body": "La dernière opération ne s'est pas terminée avec succès. Lisez le journal à droite pour le message d'erreur. La radio devra peut-être être redémarrée et remise en mode bootloader avant de réessayer.",
+  "radio.bf-f8hp-pro.bootloader_keys": "Appuyez sur les boutons SK1 et SK2 (boutons situés sur les côtés supérieur et inférieur, et non le bouton PTT). Réglez le volume au maximum. Enfoncez fermement le connecteur du câble dans la radio et maintenez la pression pendant toute la durée de la programmation.",
+  "radio.bf-f8hp-pro.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.bf-f8hp-pro.notes": "Fonctionne avec la version du micrologiciel V0.53. Il peut être nécessaire d'exercer une pression ferme sur le connecteur K1 pour assurer un bon contact de transmission des données sur l'anneau de 2,5 mm. Maintenez une pression constante sur la prise du câble pendant tout le processus de flashage.",
+  "radio.uv-25-pro.bootloader_keys": "SK2 + SK3 (deux boutons situés sous le bouton PTT)",
+  "radio.uv-25-pro.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.uv-25-pro.notes": "Utilise le même programme de démarrage KDH. Le micrologiciel est disponible sur baofengradio.com. Ne l'utilisez pas si votre UV-25 n'est pas équipé du GPS, car cela entraînerait un dysfonctionnement de la radio.",
+  "radio.rt-470.bootloader_keys": "Inconnu — voir le manuel.",
+  "radio.rt-470.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.rt-470.notes": "Utilise le WLT2000 CPS. Le chargeur d'amorçage KDH est utilisé avec le micrologiciel .kdhx. Cette URL concerne le NOUVEAU PCB (V2.12A, bande complète). L'ancien PCB (10 W) utilise un micrologiciel différent ; voir radtels.com.",
+  "radio.rt-490.bootloader_keys": "Inconnu — voir le manuel.",
+  "radio.rt-490.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.rt-490.notes": "Partage du PCB JJCC JC-8629. Bootloader KDH. Cette URL concerne l'ancienne version du PCB (v1.03). Les versions plus récentes du PCB, avec la possibilité de modifier le nom des canaux, sont disponibles sur radtels.com.",
+  "radio.socotran-jc8629.bootloader_keys": "Maintenez le bouton PTT enfoncé pendant la mise sous tension (le voyant LED de la radio devient vert = mode de démarrage).",
+  "radio.socotran-jc8629.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.socotran-jc8629.notes": "Le circuit imprimé JC-8629/8630 est le même que celui du Radtel RT-490. Le micrologiciel du Radtel RT-490 (.kdhx) est connu pour fonctionner ; téléchargez-le depuis la page Radtel ou utilisez le téléchargement automatique de l'entrée RT-490, puis revenez ici pour le flasher. Source : le problème n° 9665 de CHIRP enregistre les 8 clones dans une seule classe de pilotes.",
+  "radio.socotran-fb8629.bootloader_keys": "Maintenez le bouton PTT enfoncé pendant la mise sous tension (le voyant LED de la radio devient vert = mode de démarrage).",
+  "radio.socotran-fb8629.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.socotran-fb8629.notes": "Le circuit imprimé JC-8629/8630 est identique à celui du Radtel RT-490 et est enregistré comme un alias distinct dans CHIRP. Le micrologiciel .kdhx du Radtel RT-490 fonctionne. Source : problème n° 9665 de CHIRP.",
+  "radio.jianpai-8800plus.bootloader_keys": "Maintenez le bouton PTT enfoncé pendant la mise sous tension (le voyant LED de la radio devient vert = mode de démarrage).",
+  "radio.jianpai-8800plus.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.jianpai-8800plus.notes": "Le circuit imprimé JC-8629/8630 est le même que celui du Radtel RT-490. Il est parfois étiqueté « 8629 » par les revendeurs, mais CHIRP l’enregistre sous le nom de « Jianpai 8800 Plus ». Utilisez le micrologiciel .kdhx du Radtel RT-490. Source : problème n° 9665 de CHIRP.",
+  "radio.boristone-8rs.bootloader_keys": "Maintenez enfoncé le bouton PTT pendant la mise sous tension (le voyant LED de la radio devient vert, ce qui indique le mode de démarrage). En cas de doute, suivez les instructions du JJCC JC-8629.",
+  "radio.boristone-8rs.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.boristone-8rs.notes": "La carte PCB JC-8629/8630 est la même que celle du Radtel RT-490. Le fichier CHIRP 'Boristone_8RS_EN.img' a exactement la même taille en octets que l'image MMLradio, ce qui confirme qu'ils partagent le même micrologiciel. Utilisez le micrologiciel Radtel RT-490 (.kdhx). Source : problème CHIRP n° 9665.",
+  "radio.abbree-ar-869.bootloader_keys": "Maintenez le bouton PTT enfoncé pendant la mise sous tension (le voyant LED de la radio devient vert = mode de démarrage).",
+  "radio.abbree-ar-869.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.abbree-ar-869.notes": "Le circuit imprimé (PCB) du JC-8629/8630 est le même que celui du Radtel RT-490. L'index de téléchargement d'Abbree ne répertorie pas le AR-869 individuellement ; utilisez le micrologiciel .kdhx du Radtel RT-490. Source : problème n° 9665 de CHIRP.",
+  "radio.hamgeek-hg-590.bootloader_keys": "Maintenez enfoncé le bouton PTT pendant la mise sous tension (le voyant LED de la radio devient vert, ce qui indique le mode de démarrage). En cas de doute, suivez les instructions du JJCC JC-8629.",
+  "radio.hamgeek-hg-590.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.hamgeek-hg-590.notes": "Le circuit imprimé JC-8629/8630 est identique à celui du Radtel RT-490. L'index des firmwares de HamGeek ne répertorie pas le HG-590 individuellement ; utilisez le firmware .kdhx du Radtel RT-490. Source : problème n° 9665 de CHIRP.",
+  "radio.mmlradio-8629.bootloader_keys": "Maintenez le bouton PTT enfoncé pendant la mise sous tension (le voyant LED de la radio devient vert = mode de démarrage).",
+  "radio.mmlradio-8629.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.mmlradio-8629.notes": "Math Mark / MMLradio est le fabricant d'origine qui conçoit et produit le circuit imprimé JC-8629/8630, vendu sous toutes les autres marques de clones. Utilisez le firmware Radtel RT-490 .kdhx. Source : problème n° 9665 de CHIRP.",
+  "radio.generic.bootloader_keys": "Consultez le manuel de votre autoradio pour connaître la combinaison de touches permettant d'accéder au mode de démarrage.",
+  "radio.generic.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.generic.notes": "Option générique pour n'importe quelle radio utilisant le chargeur d'amorçage KDH. Parcourez les fichiers de micrologiciel .kdhx que vous avez téléchargés auprès de votre fabricant. De nombreuses radios basées sur les conceptions KeDiHeng (Abbree, Hamgeek, Socotran, JJCC, etc.) utilisent ce chargeur d'amorçage.",
+  "radio.rt-950-pro.bootloader_keys": "Maintenez les deux boutons latéraux (côté 1 + côté 2) enfoncés pendant la mise sous tension. L’écran LCD affiche « MISE À JOUR » lorsque le programme de démarrage est actif.",
+  "radio.rt-950-pro.connector": "Prise Kenwood à 2 broches, modèle K1.",
+  "radio.rt-950-pro.notes": "Microcontrôleur AT32F403A avec conteneur de micrologiciel .BTF. Le fichier BTF est envoyé au module radio tel quel ; le programme de démarrage intégré au module radio le déchiffre à l'aide de la clé XOR de 16 octets intégrée au décalage de fichier 0x400. Le fournisseur distribue le micrologiciel via le groupe Facebook des propriétaires de RT-950 Pro ; une copie est disponible sur https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware. NON TESTÉ sur du matériel réel ; une confirmation de la communauté est demandée avant de l'utiliser pour une mise à jour de production.",
+  "tooltip.language": "Modifier la langue de l'interface.",
+  "dialog.language.title": "Choisissez la langue.",
+  "dialog.language.prompt": "Choisissez la langue de l’interface. Les catalogues autres que ceux en anglais se téléchargent la première fois que vous les sélectionnez."
 }

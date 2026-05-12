@@ -3,25 +3,21 @@
     "language": "es",
     "language_label": "Español",
     "reviewed": false,
-    "source": "machine"
+    "source": "machine",
+    "machine_translations_added": 40
   },
-
   "app.title": "FlintWave Flash",
   "app.about_blurb": "Flashea firmware .kdhx en radios BTECH, Baofeng, Radtel\ny otras radios con bootloader KDH, desde cualquier sistema operativo.",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
-
   "titlebar.minimize_tooltip": "Minimizar",
   "titlebar.close_tooltip": "Cerrar",
   "titlebar.language_tooltip": "Cambiar idioma",
-
   "column.firmware": "Firmware",
   "column.handset": "Equipo",
   "column.flash": "Flash",
   "column.instructions": "Instrucciones",
   "column.log": "Registro",
-
   "radio.placeholder": "— Selecciona tu radio —",
-
   "button.download_latest": "Descargar la última versión",
   "button.download_versioned": "Descargar v{version}",
   "button.no_direct_url": "Sin URL directa",
@@ -35,7 +31,6 @@
   "button.close": "Cerrar",
   "button.submit": "Enviar",
   "button.skip": "Omitir",
-
   "tooltip.refresh": "Re-escanear los puertos serie y sondear cada uno en busca de una radio en modo bootloader.",
   "tooltip.select_all": "Marcar todos los equipos detectados.",
   "tooltip.select_none": "Desmarcar todos los equipos.",
@@ -43,13 +38,11 @@
   "tooltip.theme_toggle": "Alternar tema claro / oscuro",
   "tooltip.usage": "Abrir la guía de uso",
   "tooltip.about": "Acerca de esta aplicación",
-
   "handset.col_port": "Puerto",
   "handset.col_cable": "Cable / Chip",
   "handset.col_status": "Estado",
   "handset.col_percent": "%",
   "handset.summary": "{selected} seleccionados / {total} detectados",
-
   "status.unknown": "Desconocido",
   "status.probing": "Sondeando…",
   "status.ready": "Listo",
@@ -58,15 +51,12 @@
   "status.done": "Completado",
   "status.failed": "Fallido",
   "status.skipped": "Omitido",
-
   "statusbar.usage": "Uso",
   "statusbar.about": "Acerca de",
   "statusbar.update_available": "Actualización disponible",
   "statusbar.update_tooltip": "Ejecutando v{local} (última disponible: {remote}).\nHaz clic para abrir la página de versiones en tu navegador.",
-
   "lang.downloading": "Descargando la traducción {language}…",
   "lang.download_failed": "No se pudo descargar la traducción {language}. Se mantiene el idioma anterior.",
-
   "dialog.about.title": "Acerca de",
   "dialog.about.version": "Versión {version}",
   "dialog.about.github_link": "GitHub: FlintWave/flintwave-kdh-flasher",
@@ -74,7 +64,6 @@
   "dialog.about.tab_about": "Acerca de",
   "dialog.about.tab_license": "Licencia",
   "dialog.about.license_text": "FlintWave Flash\nCopyright (C) 2026 FlintWave Radio Tools\n\nEste programa es software libre: puedes redistribuirlo y/o modificarlo bajo los términos de la Licencia Pública General GNU publicada por la Free Software Foundation, ya sea la versión 3 de la Licencia, o (a tu elección) cualquier versión posterior.\n\nEste programa se distribuye con la esperanza de que sea útil, pero SIN NINGUNA GARANTÍA; ni siquiera la garantía implícita de COMERCIABILIDAD o IDONEIDAD PARA UN PROPÓSITO PARTICULAR. Consulta la Licencia Pública General GNU para más detalles.\n\nDeberías haber recibido una copia de la Licencia Pública General GNU junto con este programa. Si no, consulta <https://www.gnu.org/licenses/>.\n\nEl texto completo de la licencia GPL v3.0 se distribuye con el código fuente en el archivo LICENSE en la raíz del repositorio.",
-
   "dialog.report.title": "Enviar informe de prueba",
   "dialog.report.success": "¡Flasheo completado con éxito!\n¿Quieres enviar un informe de prueba?",
   "dialog.report.failure": "El flasheo falló.\n¿Quieres enviar un informe para ayudarnos a depurar?",
@@ -90,41 +79,32 @@
   "dialog.report.body_error": "Error: {error}\n",
   "dialog.report.body_notes": "\nNotas adicionales:\n\n",
   "dialog.report.body_log_header": "--- Registro ---\n",
-
   "dialog.error_title": "Error",
   "dialog.error_select_firmware": "Selecciona un archivo de firmware.",
   "dialog.error_select_firmware_first": "Primero selecciona un archivo de firmware.",
   "dialog.error_no_handset_title": "Ningún equipo seleccionado",
   "dialog.error_no_handset_flash": "Marca al menos un equipo en la columna Equipo.\nHaz clic en 'Actualizar / Sondear' si tu cable no aparece.",
   "dialog.error_no_handset_diag": "Marca al menos un equipo en la columna Equipo para ejecutar el diagnóstico.\nHaz clic en 'Actualizar / Sondear' para re-escanear.",
-
   "dialog.untested_title": "Radio no probada",
   "dialog.untested_body": "{radio} NO ha sido probada con esta herramienta.\n\nEl protocolo debería ser compatible, pero flashear\nfirmware no probado podría inutilizar la radio.\n\n¿Descargar de todos modos?",
   "dialog.untested_warning": "NOTA: {radio} NO ha sido probada con esta herramienta.\nEl protocolo debería ser compatible, pero procede con precaución.\n\n",
-
   "dialog.same_version_title": "Misma versión",
   "dialog.same_version_body": "Ya has flasheado la v{version} en esta radio.\n\n¿Flashear de nuevo la misma versión?",
   "dialog.older_version_title": "Versión anterior",
   "dialog.older_version_body": "Este firmware (v{file_version}) es más antiguo que el\núltimo flasheado (v{last_version}).\n\n¿Flashear una versión anterior?",
-
   "dialog.confirm_title": "Confirmar",
   "dialog.confirm_single": "{warning}Asegúrate de que la {radio} en {port} esté en modo bootloader:\n\n1. Apaga la radio\n2. Mantén pulsado {keys}\n3. Gira la perilla de encendido para encender\n4. La pantalla queda en blanco, el LED verde se enciende\n\n¡No desconectes la radio ni el cable durante la actualización!\n\n¿Listo para flashear?",
   "dialog.confirm_batch_title": "Confirmar flasheo por lotes",
   "dialog.confirm_batch_body": "{warning}Flashear {count} equipos secuencialmente:\n  {ports}\n\nCada {radio} debe estar en modo bootloader:\n  • Apaga, mantén {keys}, luego gira la perilla de encendido\n  • La pantalla queda en blanco, el LED Rx verde se enciende\n\n¡No desconectes ningún cable durante el lote!\n\n¿Listo para empezar?",
-
   "dialog.batch_failure_title": "Fallo en flasheo por lotes",
   "dialog.batch_failure_body": "El flasheo de {port} falló:\n\n{error}\n\n¿Continuar con el siguiente equipo seleccionado?",
-
   "dialog.cleanup_title": "Limpiar descargas",
   "dialog.cleanup_body": "Los archivos de firmware descargados ocupan {size_mb:.1f} MB:\n{path}\n\n¿Eliminarlos para liberar espacio?\n(Siempre puedes volver a descargarlos)",
-
   "filedlg.select_firmware": "Selecciona un archivo de firmware",
   "filedlg.wildcard": "Archivos de firmware (*.kdhx)|*.kdhx|Todos los archivos (*)|*",
-
   "fallback.radio_name": "tu radio",
   "fallback.bootloader_keys": "las teclas del bootloader (consulta el manual de tu radio)",
   "fallback.radio_unknown": "Desconocido",
-
   "info.radio_label": "Radio: {name}",
   "info.bootloader_keys": "Teclas bootloader: {keys}",
   "info.connector": "Conector: {connector}",
@@ -132,7 +112,6 @@
   "info.untested": "No probada con esta herramienta",
   "info.latest_firmware": "Último firmware: v{version}",
   "info.selected_radio_header": "— Radio seleccionada —",
-
   "log.downloading_for": "Descargando firmware para {radio}...",
   "log.url": "URL: {url}",
   "log.firmware_extracted": "Firmware extraído: {path}",
@@ -192,7 +171,6 @@
   "log.dialout_fix_intro": "Arréglalo una vez y no volverás a verlo:",
   "log.dialout_fix_cmd": "  sudo usermod -aG dialout $USER",
   "log.dialout_relogin": "Luego cierra sesión y vuelve a iniciarla (un re-inicio completo, no solo una terminal nueva).",
-
   "hint.no_firmware.title": "Paso 1 — Obtener firmware",
   "hint.no_firmware.body": "Elige un modelo de radio en la columna Firmware, luego haz clic en “Descargar la última versión” si está disponible, o “Examinar…” para elegir un archivo .kdhx que ya hayas descargado.",
   "hint.no_handset.title": "Paso 2 — Conecta un equipo",
@@ -218,5 +196,47 @@
   "hint.diag_complete.title": "Diagnóstico superado",
   "hint.diag_complete.body": "El equipo seleccionado respondió al handshake del bootloader — el cable, el puerto y la configuración del bootloader funcionan. Puedes proceder al flasheo.",
   "hint.failed.title": "Operación fallida",
-  "hint.failed.body": "La última operación no se completó correctamente. Consulta el registro a la derecha para el mensaje de error. Puede ser necesario apagar y encender la radio y volver a ponerla en modo bootloader antes de intentarlo de nuevo."
+  "hint.failed.body": "La última operación no se completó correctamente. Consulta el registro a la derecha para el mensaje de error. Puede ser necesario apagar y encender la radio y volver a ponerla en modo bootloader antes de intentarlo de nuevo.",
+  "radio.bf-f8hp-pro.bootloader_keys": "Presione los botones SK1 y SK2 (botones superior e inferior, no el botón PTT). Suba el volumen al máximo. Presione firmemente el conector del cable en la radio y mantenga la presión durante toda la operación.",
+  "radio.bf-f8hp-pro.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.uv-25-pro.bootloader_keys": "SK2 + SK3 (dos botones debajo del botón PTT)",
+  "radio.uv-25-pro.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.uv-25-pro.notes": "Utiliza el mismo cargador de arranque KDH. El firmware está disponible en baofengradio.com. No lo utilice si su UV-25 no tiene GPS, ya que esto provocará un mal funcionamiento de la radio.",
+  "radio.rt-470.bootloader_keys": "Desconocido — consulte el manual.",
+  "radio.rt-470.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.rt-470.notes": "Utiliza WLT2000 CPS. El gestor de arranque KDH utiliza el firmware .kdhx. Esta URL es para la NUEVA PCB (V2.12A, banda completa). La PCB antigua (10W) utiliza un firmware diferente; consulte radtels.com.",
+  "radio.rt-490.bootloader_keys": "Desconocido — consulte el manual.",
+  "radio.rt-490.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.rt-490.notes": "Comparte la PCB JJCC JC-8629. Bootloader KDH. Esta URL es para la PCB antigua (v1.03). Las versiones más recientes de la PCB, con la opción de editar el nombre del canal, están disponibles en radtels.com.",
+  "radio.socotran-jc8629.bootloader_keys": "Mantenga presionado el botón PTT mientras enciende el dispositivo (el LED de la radio se vuelve verde = modo de arranque).",
+  "radio.socotran-jc8629.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.socotran-jc8629.notes": "La placa de circuito impreso (PCB) JC-8629/8630 es la misma que la del Radtel RT-490. Se sabe que el firmware del Radtel RT-490 (.kdhx) funciona; descárgalo de la página de Radtel o utiliza la descarga automática de la entrada RT-490 y luego vuelve aquí para actualizarlo. Fuente: el problema #9665 de CHIRP registra los 8 clones en una sola clase de controlador.",
+  "radio.socotran-fb8629.bootloader_keys": "Mantenga presionado el botón PTT mientras enciende el dispositivo (el LED de la radio se vuelve verde = modo de arranque).",
+  "radio.socotran-fb8629.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.socotran-fb8629.notes": "Misma placa de circuito impreso (PCB) Math Mark JC-8629/8630 que la Radtel RT-490; registrada como un alias independiente en CHIRP. El firmware .kdhx de la Radtel RT-490 funciona. Fuente: problema #9665 de CHIRP.",
+  "radio.jianpai-8800plus.bootloader_keys": "Mantenga presionado el botón PTT mientras enciende el dispositivo (el LED de la radio se vuelve verde = modo de arranque).",
+  "radio.jianpai-8800plus.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.jianpai-8800plus.notes": "La placa de circuito impreso (PCB) JC-8629/8630 es la misma que la del Radtel RT-490. A veces, los revendedores la etiquetan como '8629', pero CHIRP la registra como 'Jianpai 8800 Plus'. Utilice el firmware .kdhx del Radtel RT-490. Fuente: problema #9665 de CHIRP.",
+  "radio.boristone-8rs.bootloader_keys": "Mantenga presionado el botón PTT mientras enciende el dispositivo (el LED de la radio se vuelve verde = modo de arranque). Si no está seguro, siga las instrucciones del JJCC JC-8629.",
+  "radio.boristone-8rs.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.boristone-8rs.notes": "La placa de circuito impreso (PCB) JC-8629/8630 es la misma que la del Radtel RT-490. El archivo de configuración CHIRP 'Boristone_8RS_EN.img' tiene el mismo tamaño en bytes que la imagen de MMLradio, lo que confirma que comparten el mismo firmware. Utilice el firmware .kdhx del Radtel RT-490. Fuente: problema #9665 de CHIRP.",
+  "radio.abbree-ar-869.bootloader_keys": "Mantenga presionado el botón PTT mientras enciende el dispositivo (el LED de la radio se vuelve verde = modo de arranque).",
+  "radio.abbree-ar-869.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.abbree-ar-869.notes": "La placa de circuito impreso (PCB) JC-8629/8630 es la misma que la del Radtel RT-490. El índice de descargas de Abbree no incluye el AR-869 individualmente; utilice el firmware .kdhx del Radtel RT-490. Fuente: problema #9665 de CHIRP.",
+  "radio.hamgeek-hg-590.bootloader_keys": "Mantenga presionado el botón PTT mientras enciende el dispositivo (el LED de la radio se vuelve verde = modo de arranque). Si no está seguro, siga las instrucciones del JJCC JC-8629.",
+  "radio.hamgeek-hg-590.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.hamgeek-hg-590.notes": "La placa de circuito impreso (PCB) JC-8629/8630 es la misma que la del Radtel RT-490. El índice de firmware de HamGeek no incluye el HG-590 individualmente; utilice el firmware .kdhx del Radtel RT-490. Fuente: problema #9665 de CHIRP.",
+  "radio.mmlradio-8629.bootloader_keys": "Mantenga presionado el botón PTT mientras enciende el dispositivo (el LED de la radio se vuelve verde = modo de arranque).",
+  "radio.mmlradio-8629.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.mmlradio-8629.notes": "Math Mark / MMLradio es el fabricante original (OEM) que diseña y produce la PCB JC-8629/8630, que se vende bajo todas las demás marcas de clones. Utilice el firmware Radtel RT-490 .kdhx. Fuente: problema #9665 de CHIRP.",
+  "radio.generic.bootloader_keys": "Consulta el manual de tu radio para conocer la combinación de teclas del gestor de arranque.",
+  "radio.generic.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.generic.notes": "Opción genérica para cualquier radio que utilice el cargador de arranque KDH. Busque un archivo de firmware .kdhx que haya descargado de su fabricante. Muchas radios basadas en diseños KeDiHeng (Abbree, Hamgeek, Socotran, JJCC, etc.) utilizan este cargador de arranque.",
+  "radio.bf-f8hp-pro.notes": "Se ha confirmado que funciona con el firmware V0.53. Es posible que el conector K1 necesite una presión firme para mantener el contacto de retorno de datos en el anillo de 2,5 mm. Mantenga una presión constante sobre el conector del cable durante todo el proceso de actualización.",
+  "radio.rt-950-pro.bootloader_keys": "Mantenga presionados ambos botones laterales (Lado 1 + Lado 2) mientras enciende el dispositivo. La pantalla LCD mostrará \"ACTUALIZACIÓN\" cuando el gestor de arranque esté activo.",
+  "radio.rt-950-pro.connector": "Enchufe Kenwood de 2 pines.",
+  "radio.rt-950-pro.notes": "AT32F403A MCU con contenedor de firmware .BTF. El archivo BTF se envía al dispositivo de radio tal cual; el gestor de arranque integrado en el dispositivo de radio lo descifra utilizando la clave XOR de 16 bytes incrustada en el desplazamiento 0x400 del archivo. El proveedor distribuye el firmware a través del grupo de Facebook de propietarios de RT-950 Pro; la comunidad lo replica en https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware. NO SE HA PROBADO en hardware real; se solicita la confirmación de la comunidad antes de confiar en él para la programación en producción.",
+  "tooltip.language": "Cambiar el idioma de la interfaz.",
+  "dialog.language.title": "Seleccione el idioma.",
+  "dialog.language.prompt": "Selecciona el idioma de la interfaz. Los catálogos que no están en inglés se descargarán la primera vez que los selecciones."
 }

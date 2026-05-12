@@ -875,5 +875,192 @@ class TestManifestSchema(unittest.TestCase):
                                     f"Radio {radio_id} version '{ver}' did not parse")
 
 
+class TestBtfProtocol(unittest.TestCase):
+    """Verify the BTF (RT-950 Pro) protocol module — packet framing, CRC,
+    validation, and the protocol-driver alias.
+    """
+
+    def test_module_exposes_driver_interface(self):
+        # The GUI dispatches via a uniform interface; verify all required
+        # callables exist on the BTF module so dispatch can't NameError.
+        import flash_btf as btf
+        for name in ("probe_port", "flash_to_port", "validate_firmware",
+                     "MAX_FIRMWARE_BYTES", "build_packet", "dry_run"):
+            self.assertTrue(hasattr(btf, name),
+                            f"flash_btf missing {name} (driver interface)")
+
+    def test_constants_match_spec(self):
+        import flash_btf as btf
+        self.assertEqual(btf.HEADER, 0xAA)
+        self.assertEqual(btf.TRAILER, 0x55)
+        self.assertEqual(btf.ACK, 0x06)
+        self.assertEqual(btf.CMD_PROBE, 0x42)
+        self.assertEqual(btf.CMD_VERSION, 0x0A)
+        self.assertEqual(btf.CMD_MODEL, 0x02)
+        self.assertEqual(btf.CMD_PKG_COUNT, 0x04)
+        self.assertEqual(btf.CMD_DATA, 0x03)
+        self.assertEqual(btf.CMD_END, 0x45)
+        self.assertEqual(btf.VERSION_STRING, b"BOOTLOADER_V3")
+        self.assertEqual(btf.BTF_MODEL_OFFSET, 0x3E0)
+        self.assertEqual(btf.BTF_MODEL_SIZE, 32)
+        self.assertEqual(btf.BTF_KEY_OFFSET, 0x400)
+        self.assertEqual(btf.DATA_BLOCK_SIZE, 1024)
+
+    def test_build_packet_framing(self):
+        import flash_btf as btf
+        # CMD_PROBE with no payload — anchors the framing format end-to-end.
+        pkt = btf.build_packet(btf.CMD_PROBE)
+        self.assertEqual(pkt[0], btf.HEADER)
+        self.assertEqual(pkt[-1], btf.TRAILER)
+        self.assertEqual(pkt[1], btf.CMD_PROBE)
+        # args=0, len=0 → 4 zero bytes after cmd
+        self.assertEqual(pkt[2:6], b"\x00\x00\x00\x00")
+        self.assertEqual(len(pkt), 9)  # header + 5 + 0 + 2crc + trailer
+
+    def test_build_packet_data_carries_2byte_seq(self):
+        # CMD_DATA's seq# is a 16-bit big-endian field in args. Verify it
+        # round-trips and survives values > 255 (KDH used 1 byte; BTF uses 2).
+        import flash_btf as btf
+        block = b"\xab" * 1024
+        pkt = btf.build_packet(btf.CMD_DATA, args=0x0102, data=block)
+        self.assertEqual(pkt[1], btf.CMD_DATA)
+        self.assertEqual(pkt[2], 0x01)  # args_hi
+        self.assertEqual(pkt[3], 0x02)  # args_lo
+        self.assertEqual(pkt[4], 0x04)  # len_hi (1024 = 0x0400)
+        self.assertEqual(pkt[5], 0x00)  # len_lo
+        self.assertEqual(len(pkt), 1 + 5 + 1024 + 2 + 1)
+
+    def test_build_packet_crc_self_consistent(self):
+        import flash_btf as btf
+        from flash_firmware import crc16_ccitt
+        for cmd, args, data in [
+            (btf.CMD_PROBE, 0, b""),
+            (btf.CMD_VERSION, 0, btf.VERSION_STRING),
+            (btf.CMD_MODEL, 0, b"RT-950      " + b"\x00" * 20),
+            (btf.CMD_DATA, 0xFFFE, b"\x55" * 1024),
+            (btf.CMD_END, 0, b""),
+        ]:
+            pkt = btf.build_packet(cmd, args, data)
+            payload = pkt[1:-3]
+            pkt_crc = (pkt[-3] << 8) | pkt[-2]
+            self.assertEqual(crc16_ccitt(payload), pkt_crc,
+                             f"CRC mismatch on cmd 0x{cmd:02X}")
+
+    def test_parse_response_valid(self):
+        import flash_btf as btf
+        # Mock a 9-byte response: [AA][cmd][00][result][00][00][crcH][crcL][55]
+        body = bytes([btf.HEADER, btf.CMD_PROBE, 0x00, btf.ACK,
+                      0x00, 0x00, 0xDE, 0xAD, btf.TRAILER])
+        parsed = btf.parse_response(body)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed, (btf.CMD_PROBE, btf.ACK))
+
+    def test_parse_response_rejects_short_or_unframed(self):
+        import flash_btf as btf
+        self.assertIsNone(btf.parse_response(b""))
+        self.assertIsNone(btf.parse_response(None))
+        self.assertIsNone(btf.parse_response(b"\xAA\x42"))  # too short
+        self.assertIsNone(btf.parse_response(b"\x99" + b"\x00" * 7 + b"\x55"))  # bad header
+        self.assertIsNone(btf.parse_response(b"\xAA" + b"\x00" * 7 + b"\x99"))  # bad trailer
+
+    def test_validate_btf_rejects_too_small(self):
+        import flash_btf as btf
+        with self.assertRaises(ValueError):
+            btf.validate_firmware(b"\x00" * 100, "tiny.btf")
+
+    def test_validate_btf_rejects_invalid_vector_table(self):
+        import flash_btf as btf
+        size = btf.BTF_KEY_OFFSET + btf.BTF_KEY_SIZE + btf.DATA_BLOCK_SIZE
+        bad = bytearray(b"\x00" * size)
+        bad[0:4] = (0xDEADBEEF).to_bytes(4, "little")  # SP outside SRAM
+        bad[4:8] = (0x08003001).to_bytes(4, "little")
+        with self.assertRaises(ValueError):
+            btf.validate_firmware(bytes(bad), "bad-sp.btf")
+
+    def test_validate_btf_accepts_valid_layout(self):
+        import flash_btf as btf
+        size = btf.BTF_KEY_OFFSET + btf.BTF_KEY_SIZE + btf.DATA_BLOCK_SIZE
+        blob = bytearray(b"\x00" * size)
+        blob[0:4] = (0x20001000).to_bytes(4, "little")
+        blob[4:8] = (0x08003101).to_bytes(4, "little")
+        blob[btf.BTF_MODEL_OFFSET:btf.BTF_MODEL_OFFSET + 12] = b"TEST-RADIO  "
+        info = btf.validate_firmware(bytes(blob), "ok.btf")
+        self.assertEqual(info["model_str"], "TEST-RADIO")
+        self.assertEqual(info["size"], size)
+        self.assertGreater(info["chunks"], 0)
+
+    def test_error_messages_cover_documented_codes(self):
+        import flash_btf as btf
+        for code in (0xE1, 0xE2, 0xE3, 0xE5, 0xE6):
+            self.assertIn(code, btf.ERROR_MESSAGES,
+                          f"missing error message for 0x{code:02X}")
+
+    def test_radio_with_btf_protocol_is_registered(self):
+        # Catches accidental removal of the RT-950 Pro entry, and confirms
+        # the field is actually `protocol: "btf"` so dispatch will fire.
+        import json, os
+        radios = json.load(open(os.path.join(
+            os.path.dirname(__file__), "radios.json")))["radios"]
+        btf_radios = [r for r in radios if r.get("protocol") == "btf"]
+        self.assertGreater(len(btf_radios), 0,
+                           "Expected at least one radio with protocol='btf'")
+        for r in btf_radios:
+            self.assertEqual(r.get("firmware_filename_pattern"), "*.BTF",
+                             f"BTF radio {r['id']} should match *.BTF")
+
+
+class TestRadioStringTranslations(unittest.TestCase):
+    """Verify per-radio strings (bootloader_keys, connector, notes) have
+    coverage in every shipped translation catalog. Catches contributors
+    adding a new radio without the i18n keys, or a translation file
+    drifting out of sync.
+    """
+    REQUIRED_LANGS = ["zh-CN", "fr", "de", "it", "es", "ar", "ru"]
+    TRANSLATABLE_FIELDS = ("bootloader_keys", "connector", "notes")
+
+    def setUp(self):
+        import json, os
+        repo = os.path.dirname(__file__)
+        self.radios = json.load(open(os.path.join(repo, "radios.json")))["radios"]
+        self.catalogs = {}
+        for code in self.REQUIRED_LANGS:
+            path = os.path.join(repo, "translations", f"{code}.json")
+            self.catalogs[code] = json.load(open(path, encoding="utf-8"))
+
+    def test_every_radio_field_translated_in_every_lang(self):
+        missing = []
+        for r in self.radios:
+            rid = r["id"]
+            for field in self.TRANSLATABLE_FIELDS:
+                src = r.get(field)
+                if not isinstance(src, str) or not src.strip():
+                    continue
+                key = f"radio.{rid}.{field}"
+                for code, cat in self.catalogs.items():
+                    if key not in cat:
+                        missing.append(f"{code}: {key}")
+        self.assertEqual(missing, [],
+                         f"{len(missing)} missing radio translations: "
+                         f"{missing[:5]}")
+
+    def test_translations_are_actually_translated(self):
+        # A common failure mode is the model echoing the English source.
+        # Catch any radio.* key whose value is identical to the English source.
+        echoed = []
+        for r in self.radios:
+            rid = r["id"]
+            for field in self.TRANSLATABLE_FIELDS:
+                src = r.get(field)
+                if not isinstance(src, str) or not src.strip():
+                    continue
+                key = f"radio.{rid}.{field}"
+                for code, cat in self.catalogs.items():
+                    if cat.get(key, "").strip() == src.strip():
+                        echoed.append(f"{code}: {key}")
+        self.assertEqual(echoed, [],
+                         f"{len(echoed)} translations identical to English "
+                         f"source (model echo): {echoed[:5]}")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

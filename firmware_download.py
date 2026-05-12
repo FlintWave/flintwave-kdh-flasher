@@ -259,7 +259,7 @@ def download_and_extract(radio_id, progress_callback=None, url_override=None,
     kdhx_files = extract_kdhx(zip_path, pattern)
 
     if not kdhx_files:
-        raise ValueError(f"No .kdhx files found in downloaded bundle")
+        raise ValueError(f"No firmware files matching {pattern!r} found in downloaded bundle")
 
     # Return the first (usually only) kdhx file
     return kdhx_files[0], radio

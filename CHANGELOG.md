@@ -1,5 +1,26 @@
 # Changelog
 
+## v26.05.5 — 2026-05-12
+
+### New radios
+
+- **Radtel RT-950 Pro** (AT32F403A, .BTF firmware) is now supported as a first-class radio. The on-the-wire protocol is implemented in a sibling module (`flash_btf.py`) that shares the CRC-16/CCITT helper with the KDH path. The .BTF wrapper is sent to the radio as-is — the on-radio bootloader decrypts the XOR-encrypted payload using the 16-byte key embedded at file offset 0x400. Reference: [Hertzz58/Radtel-RT950-Pro-Firmware](https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware) (GPL-3.0). UNTESTED on real hardware — community confirmation requested.
+- **Seven JC-8629 family clones added to `radios.json`** as zero-code manifest entries. All seven (Socotran JC8629, Socotran FB8629, Jianpai 8800 Plus, Boristone 8RS, Abbree AR-869, HamGeek HG-590, MMLradio 8629) share the Math Mark JC-8629/8630 PCB with the existing Radtel RT-490, register as a single driver class in CHIRP issue #9665, and use the same `.kdhx` firmware. Source-of-truth English instructions live in `radios.json`; translations in `translations/*.json`.
+
+### Multilingual UI
+
+- **Per-radio bootloader instructions, connector type, and notes are now translated** for every supported language. A new `i18n.t_radio_field(radio_id, field, fallback)` helper looks up `radio.<id>.<field>` in the active catalog and falls back to the English source from `radios.json`, so contributors adding a new radio only edit one file. 252+ machine-translated strings shipped (12+1 radios × 3 fields × 7 languages); flagged `_meta.reviewed: false` for community refinement.
+- **Language picker moved from the title bar to the status bar.** The old title-bar dropdown is replaced by a `🌐 <native-name>` clickable entry next to the font-size and theme controls. Clicking opens a modal with all 8 languages listed in their native scripts; double-clicking applies. The title bar is now reserved for identity (icon + title) and window controls only.
+
+### Tests
+
+- 98 → **112** unit tests, all passing on Python 3.12 with wxPython 4.2.1.
+- New coverage: BTF protocol module (constants, packet framing, CRC self-consistency, response parsing, validation, error code map, radios.json registration); per-radio translation completeness and "model echoed input" detection across all 7 non-English catalogs.
+
+### Known limitations
+
+- The RT-950 Pro flow is implemented and statically validated against the reference impl, but has not yet been tested against a real RT-950 Pro radio. Test reports welcome.
+
 ## v26.05.4 — 2026-05-11
 
 ### Rebrand
