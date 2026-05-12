@@ -4,6 +4,14 @@ on:
   push:
     tags: ['v*']
 
+# A duplicate workflow trigger for the same tag (GitHub occasionally fires
+# twice in quick succession on a tag push) used to race two `release` jobs
+# against each other and the second would fail with "release already exists".
+# Coalesce to one run per tag.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 # Least-privilege default for every job. The `release` job overrides this
 # locally with `contents: write` so it can publish the GitHub Release.
 permissions:
@@ -209,7 +217,7 @@ jobs:
       - name: List artifacts
         run: find . -type f -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.exe" -o -name "*.dmg" | sort
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
@@ -226,8 +234,19 @@ jobs:
           ; do
             [ -f "$f" ] && ASSETS="$ASSETS $f"
           done
-          gh release create "$TAG_NAME" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG_NAME" \
-            --generate-notes \
-            $ASSETS
+          # Idempotent: if a previous workflow run already published this tag
+          # (e.g. duplicate trigger, manual re-run, or the concurrency block
+          # above let a second run through), update the existing release in
+          # place instead of failing with "release already exists".
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME exists; uploading assets with --clobber"
+            gh release upload "$TAG_NAME" $ASSETS \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$TAG_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG_NAME" \
+              --generate-notes \
+              $ASSETS
+          fi

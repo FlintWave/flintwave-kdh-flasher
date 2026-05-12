@@ -1,5 +1,14 @@
 # Changelog
 
+## v26.05.6 — 2026-05-12
+
+### Build / CI
+
+- **Release workflow is now idempotent on duplicate tag triggers.** GitHub occasionally fires the release workflow twice for the same tag push (it happened on v26.05.5 — runs `25723159486` succeeded, `25723160099` failed with "release already exists"). Two changes prevent the race:
+  - A `concurrency: release-${{ github.ref_name }}` block coalesces simultaneous tag-push triggers into a single workflow run.
+  - The release step now checks for an existing release first and uploads assets with `--clobber` instead of failing if one exists. Either path produces a green status check.
+- No app code changes — this release rebuilds the same set of binaries with the working release pipeline so future releases come up green from the start.
+
 ## v26.05.5 — 2026-05-12
 
 ### New radios
