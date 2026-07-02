@@ -26,6 +26,12 @@
       "firmware_url": "https://cdn.shopify.com/s/files/1/0564/8855/8800/files/Firmware_Version_1.03.zip",
       "firmware_sha256": null,
       "release_notes": "V1.03: old PCB firmware"
+    },
+    "rt-490-new": {
+      "firmware_version": "1.25a",
+      "firmware_url": null,
+      "firmware_sha256": null,
+      "release_notes": "V1.25a: new PCB, channel name editing"
     }
   }
 }

@@ -51,7 +51,20 @@
       "bootloader_keys": "Unknown — check manual",
       "connector": "K1 Kenwood 2-pin",
       "tested": false,
-      "notes": "Shares JJCC JC-8629 PCB. KDH bootloader. This URL is for the old PCB (v1.03). Newer PCB versions with channel name editing available on radtels.com."
+      "notes": "Shares JJCC JC-8629 PCB. KDH bootloader. This URL is for the OLD PCB (v1.03). If your RT-490 has channel name editing, you have the new PCB — select 'Radtel RT-490 (New PCB)' instead."
+    },
+    {
+      "id": "rt-490-new",
+      "name": "Radtel RT-490 (New PCB)",
+      "manufacturer": "Radtel",
+      "model_type": "WLT",
+      "firmware_url": null,
+      "firmware_page": "https://www.radtels.com/pages/software-download",
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "Unknown — check manual",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "Radtel RT-490 with NEW PCB (supports channel name editing). Only use firmware v1.23a/v1.24a/v1.25a — do NOT use V2.11A or old-PCB firmware, it will brick the radio. Same JJCC JC-8629 platform. Download firmware from radtels.com or browse for a .kdhx file."
     },
     {
       "id": "socotran-jc8629",
