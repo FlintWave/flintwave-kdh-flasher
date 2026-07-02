@@ -1,6 +1,6 @@
 {
   "_comment": "Remote firmware manifest. Update this file to publish new firmware URLs without requiring an app update. Community contributions welcome — submit a PR.",
-  "_updated": "2026-04-01",
+  "_updated": "2026-07-02",
   "manifest_version": 1,
   "radios": {
     "bf-f8hp-pro": {
@@ -16,10 +16,10 @@
       "release_notes": "V0.20: fixed GPS radar distance display after location sharing"
     },
     "rt-470": {
-      "firmware_version": "2.12A",
-      "firmware_url": "https://cdn.shopify.com/s/files/1/0564/8855/8800/files/RT-470_2.12A.rar",
+      "firmware_version": "2.13C",
+      "firmware_url": "https://cdn.shopify.com/s/files/1/0564/8855/8800/files/RT-470_RT470X_RT470L_NEW_PCB_8.33KHZ_V2.13C_20240425.rar",
       "firmware_sha256": null,
-      "release_notes": "V2.12A: new PCB, full band"
+      "release_notes": "V2.13C: AM/FM modulation switch 18MHz-1000MHz, 8.33kHz air band (470X/470/470L, new PCB)"
     },
     "rt-490": {
       "firmware_version": "1.03",
