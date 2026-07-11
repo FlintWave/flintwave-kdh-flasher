@@ -81,6 +81,8 @@ class FlasherFrame(wx.Frame):
         self.current_theme = "mocha"
         self.current_theme_palette = MOCHA_PALETTE
         self._busy = False
+        self._probing = False        # True while _probe_thread is walking ports
+        self._closing = False        # set on EVT_CLOSE so bg loops can stop
         self._terminal_state = None  # set to "complete"/"failed" by threads
         self._handset_ports = []     # list of dicts: device, cable, vid_pid, status, progress
         self._port_poll_signature = None  # last (device,cable,vid_pid) tuple for change detection
@@ -208,6 +210,22 @@ class FlasherFrame(wx.Frame):
 
         # Bind change events that update hint state
         self.file_path.Bind(wx.EVT_TEXT, self._on_state_change)
+
+        # Stop background loops cleanly when the window closes, and give the
+        # borderless frame (no OS chrome) a keyboard way to quit — otherwise a
+        # keyboard-only user has no route to close the app.
+        self.Bind(wx.EVT_CLOSE, self._on_close)
+        # Retain the id ref on the instance — a local would be garbage-collected
+        # after __init__, freeing the id for recycling while the accelerator
+        # table and Bind still reference its integer value.
+        self._close_id = wx.NewIdRef()
+        self.Bind(wx.EVT_MENU, lambda e: self.Close(), id=self._close_id)
+        self.SetAcceleratorTable(wx.AcceleratorTable([
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord("W"), self._close_id),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord("Q"), self._close_id),
+            wx.AcceleratorEntry(wx.ACCEL_CMD, ord("W"), self._close_id),
+            wx.AcceleratorEntry(wx.ACCEL_CMD, ord("Q"), self._close_id),
+        ]))
 
         # Initial population. Don't probe or auto-check anything yet — the
         # Handset column is gated until a radio + firmware are chosen, and
@@ -551,10 +569,10 @@ class FlasherFrame(wx.Frame):
         file_row = wx.BoxSizer(wx.HORIZONTAL)
         self.file_path = wx.TextCtrl(col)
         file_row.Add(self.file_path, 1, wx.EXPAND | wx.RIGHT, 4)
-        browse_btn = wx.Button(col, label=t("button.browse"))
-        self._tr_label(browse_btn, "button.browse")
-        browse_btn.Bind(wx.EVT_BUTTON, self.on_browse)
-        file_row.Add(browse_btn, 0)
+        self.browse_btn = wx.Button(col, label=t("button.browse"))
+        self._tr_label(self.browse_btn, "button.browse")
+        self.browse_btn.Bind(wx.EVT_BUTTON, self.on_browse)
+        file_row.Add(self.browse_btn, 0)
         sizer.Add(file_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
         sizer.AddStretchSpacer(1)
@@ -864,8 +882,11 @@ class FlasherFrame(wx.Frame):
         and updates Status. PC03 cables are auto-checked unless preserve_checks
         is True (used by the polling loop so we don't fight the user).
         """
-        if self._busy:
-            return  # don't reshape the list while flashing
+        if self._busy or self._probing:
+            # Don't reshape the list while flashing, or while a probe thread is
+            # posting status updates keyed by row index — a rebuild here would
+            # invalidate those indices and land results on the wrong rows.
+            return
 
         previously_checked = set()
         if preserve_checks:
@@ -898,6 +919,7 @@ class FlasherFrame(wx.Frame):
 
         if probe and new_ports:
             self.refresh_btn.Disable()
+            self._probing = True
             threading.Thread(target=self._probe_thread, daemon=True).start()
 
     def _probe_thread(self):
@@ -910,26 +932,34 @@ class FlasherFrame(wx.Frame):
         """
         driver = self._driver_for(self._get_selected_radio())
         permission_blocked = False
-        for idx, entry in enumerate(list(self._handset_ports)):
-            wx.CallAfter(self._set_handset_status, idx, STATUS_PROBING)
-            try:
-                ready = driver.probe_port(entry["device"], timeout=1.5)
-            except PermissionError:
-                permission_blocked = True
-                wx.CallAfter(self._log_dialout_hint, entry["device"])
-                # Mark this port and all remaining ones as Unknown rather
-                # than No response — they may well be radios.
-                for remaining_idx in range(idx, len(self._handset_ports)):
-                    wx.CallAfter(self._set_handset_status,
-                                 remaining_idx, STATUS_UNKNOWN)
-                break
-            except Exception:
-                ready = False
-            else:
-                new_status = STATUS_READY if ready else STATUS_NO_RESP
-                wx.CallAfter(self._set_handset_status, idx, new_status)
-                if ready:
-                    wx.CallAfter(self._set_handset_check, idx, True)
+        try:
+            for idx, entry in enumerate(list(self._handset_ports)):
+                wx.CallAfter(self._set_handset_status, idx, STATUS_PROBING)
+                try:
+                    ready = driver.probe_port(entry["device"], timeout=1.5)
+                except PermissionError:
+                    permission_blocked = True
+                    wx.CallAfter(self._log_dialout_hint, entry["device"])
+                    # Mark this port and all remaining ones as Unknown rather
+                    # than No response — they may well be radios.
+                    for remaining_idx in range(idx, len(self._handset_ports)):
+                        wx.CallAfter(self._set_handset_status,
+                                     remaining_idx, STATUS_UNKNOWN)
+                    break
+                except Exception:
+                    # A non-permission failure (port vanished, busy, I/O error)
+                    # still needs a terminal status, otherwise the row is left
+                    # showing "Probing…" forever.
+                    wx.CallAfter(self._set_handset_status, idx, STATUS_NO_RESP)
+                else:
+                    new_status = STATUS_READY if ready else STATUS_NO_RESP
+                    wx.CallAfter(self._set_handset_status, idx, new_status)
+                    if ready:
+                        wx.CallAfter(self._set_handset_check, idx, True)
+        finally:
+            # Always clear the in-flight flag, even on an unexpected error, so
+            # the port-poll loop isn't blocked from refreshing forever.
+            self._probing = False
         wx.CallAfter(self.refresh_btn.Enable)
         if not permission_blocked:
             wx.CallAfter(lambda: self._set_hint(self._compute_hint_state()))
@@ -941,8 +971,10 @@ class FlasherFrame(wx.Frame):
         aren't busy), refresh the list while preserving user-made checkbox state.
         """
         import time
-        while True:
+        while not self._closing:
             time.sleep(2.0)
+            if self._closing:
+                break
             try:
                 ports = self._enumerate_serial_ports()
                 signature = tuple(sorted(p["device"] for p in ports))
@@ -1149,7 +1181,7 @@ class FlasherFrame(wx.Frame):
         timer.Start(interval_ms)
 
     # ------------------------------------------------------------------
-    # Font controls (theme is now fixed to Frappe; no toggle)
+    # Font controls (theme has a Mocha/Latte toggle in the status bar)
     # ------------------------------------------------------------------
 
     def _set_font_size(self, size):
@@ -1319,7 +1351,10 @@ class FlasherFrame(wx.Frame):
             return self._terminal_state
         if self._busy:
             return self._busy_state if hasattr(self, "_busy_state") else "flashing"
-        if not self.file_path.GetValue():
+        # Use _firmware_ready() (path present AND file exists) so the hint
+        # can't advance to "ready to flash" while the Flash button stays
+        # disabled because the referenced file is missing/deleted.
+        if not self._firmware_ready():
             return "no_firmware"
         if not self._selected_handset_indices():
             return "no_handset"
@@ -1342,7 +1377,11 @@ class FlasherFrame(wx.Frame):
     def on_usage_guide(self, event):
         guide_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "USAGE.md")
         if os.path.exists(guide_path):
-            wx.LaunchDefaultBrowser("file://" + guide_path)
+            # Path.as_uri() produces a valid file:// URI on every platform
+            # (Windows needs file:///C:/… with forward slashes; naive string
+            # concatenation yields file://C:\… which won't open).
+            import pathlib
+            wx.LaunchDefaultBrowser(pathlib.Path(guide_path).as_uri())
         else:
             wx.LaunchDefaultBrowser("https://github.com/FlintWave/flintwave-kdh-flasher/blob/master/USAGE.md")
 
@@ -1351,6 +1390,12 @@ class FlasherFrame(wx.Frame):
 
     def on_about(self, event):
         show_about_dialog(self)
+
+    def _on_close(self, event):
+        # Signal the daemon background loops (port poll, update check) to stop
+        # touching the frame, then let the default close proceed.
+        self._closing = True
+        event.Skip()
 
     # ------------------------------------------------------------------
     # Background tasks
@@ -1382,6 +1427,8 @@ class FlasherFrame(wx.Frame):
 
     def _notify_update(self, local_info, remote_info):
         """An update is available — show the Update Available link in the status bar."""
+        if self._closing or not self:
+            return
         url = updater.get_releases_url()
         self._update_url = url
         try:
@@ -1443,11 +1490,18 @@ class FlasherFrame(wx.Frame):
         in the hints panel via _set_hint(); this method only owns the
         Download button + hint refresh.
         """
+        # May be posted from the background manifest fetch after the frame has
+        # started closing — bail rather than touch destroyed widgets.
+        if self._closing or not self:
+            return
         radio = self._get_selected_radio()
         if radio:
             url, version = self._get_firmware_url_and_version(radio)
             has_url = bool(url)
-            self.download_btn.Enable(has_url)
+            # Never re-enable Download during an in-progress operation; the
+            # busy-end gating pass will restore the correct state.
+            if not self._busy:
+                self.download_btn.Enable(has_url)
             if not has_url:
                 self.download_btn.SetLabel(t("button.no_direct_url"))
             elif version:
@@ -1459,10 +1513,15 @@ class FlasherFrame(wx.Frame):
         self._set_hint(self._compute_hint_state())
 
     def on_radio_changed(self, event):
+        # Picking a different radio clears any sticky terminal state so the
+        # hint panel doesn't keep showing the previous flash's completion copy.
+        self._terminal_state = None
         self._update_radio_info()
         self._update_workflow_gating()
 
     def on_download(self, event):
+        if self._busy:
+            return
         radio = self._get_selected_radio()
         if not radio:
             return
@@ -1552,6 +1611,14 @@ class FlasherFrame(wx.Frame):
         wx.CallAfter(self.refresh_btn.Enable, enabled)
         wx.CallAfter(self.select_all_btn.Enable, enabled)
         wx.CallAfter(self.select_none_btn.Enable, enabled)
+        # Also lock the firmware inputs so a radio switch, path edit, or
+        # Browse can't fire mid-operation (which would let a second worker
+        # thread start on the same serial port). Re-enabled by the gating
+        # pass below on completion.
+        for w in ("radio_combo", "file_path", "browse_btn"):
+            widget = getattr(self, w, None)
+            if widget is not None:
+                wx.CallAfter(widget.Enable, enabled)
         if enabled:
             wx.CallAfter(self._update_radio_info)
             # Recompute hint AFTER the thread has set _terminal_state
@@ -1561,6 +1628,8 @@ class FlasherFrame(wx.Frame):
             wx.CallAfter(self._update_workflow_gating)
 
     def on_flash(self, event):
+        if self._busy:
+            return
         firmware_path = self.file_path.GetValue()
         if not firmware_path:
             wx.MessageBox(t("dialog.error_select_firmware"),
@@ -1576,8 +1645,8 @@ class FlasherFrame(wx.Frame):
 
         radio = self._get_selected_radio()
         if radio:
-            keys = radio["bootloader_keys"]
-            radio_name = radio["name"]
+            keys = radio.get("bootloader_keys", t("fallback.bootloader_keys"))
+            radio_name = radio.get("name", t("fallback.radio_name"))
             tested = radio.get("tested", False)
         else:
             keys = t("fallback.bootloader_keys")
@@ -1988,11 +2057,21 @@ class FlasherFrame(wx.Frame):
                 import shutil
                 shutil.rmtree(download_dir, ignore_errors=True)
                 self.log_msg(t("log.cleanup_done"))
+                # The firmware we just flashed lived in that dir and is now
+                # gone. Clear the path field so the hint and workflow gating
+                # reflect that no firmware is loaded (otherwise the textbox
+                # shows a dead path and Flash stays enabled over a missing file).
+                if firmware_path.startswith(download_dir):
+                    self.file_path.SetValue("")
+                    self._terminal_state = None
+                    self._update_workflow_gating()
             dlg.Destroy()
         except Exception:
             pass
 
     def on_dry_run(self, event):
+        if self._busy:
+            return
         firmware_path = self.file_path.GetValue()
         if not firmware_path:
             wx.MessageBox(t("dialog.error_select_firmware_first"),
@@ -2110,6 +2189,8 @@ class FlasherFrame(wx.Frame):
             self.set_buttons(True)
 
     def on_diag(self, event):
+        if self._busy:
+            return
         # Diagnostics runs on a single port — use the first checked handset.
         selected = self._selected_handset_indices()
         if not selected:
@@ -2151,7 +2232,14 @@ class FlasherFrame(wx.Frame):
                 self.log_msg("")
 
                 self.log_msg(t("log.diag_sending"))
-                packet = fw.build_packet(fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
+                # Build the probe for the selected radio's protocol. A BTF
+                # radio (RT-950 Pro) answers a different handshake than the KDH
+                # bootloader, so sending the KDH packet would report "no
+                # response" even for a healthy BTF radio.
+                if (self._get_selected_radio() or {}).get("protocol") == "btf":
+                    packet = fw_btf.build_packet(fw_btf.CMD_PROBE)
+                else:
+                    packet = fw.build_packet(fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
                 self.log_msg(t("log.diag_tx").format(hex=packet.hex()))
                 ser.reset_input_buffer()
                 ser.write(packet)

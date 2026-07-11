@@ -18,7 +18,9 @@ from gui_main import main, FlasherFrame  # noqa: F401
 # copy; keep them in sync when bumping.
 VERSION = "26.05.6"
 
-# Single theme: "frappe" — defined in gui_themes.FRAPPE_PALETTE.
+# Themes: "mocha" (dark) and "latte" (light) — defined in gui_themes.py.
+# The status-bar ☀ / ☾ button toggles between them; initial choice follows
+# the OS color scheme.
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,7 @@
     "language_label": "Deutsch",
     "reviewed": false,
     "source": "machine",
-    "machine_translations_added": 39
+    "machine_translations_added": 42
   },
   "app.title": "FlintWave Flash",
   "app.about_blurb": "Flashen Sie .kdhx-Firmware auf BTECH-, Baofeng-, Radtel-\nund andere Funkgeräte mit KDH-Bootloader, von jedem Betriebssystem aus.",
@@ -209,6 +209,9 @@
   "radio.rt-490.bootloader_keys": "Unbekannt — siehe Handbuch",
   "radio.rt-490.connector": "K1 Kenwood 2-polig",
   "radio.rt-490.notes": "Teilen Sie die JJCC JC-8629-Leiterplatte. KDH-Bootloader. Diese URL gilt für die alte Leiterplatte (v1.03). Neuere Leiterplattenversionen mit der Möglichkeit, Kanalnamen zu bearbeiten, sind auf radtels.com verfügbar.",
+  "radio.rt-490-new.bootloader_keys": "Unbekannt — siehe Handbuch",
+  "radio.rt-490-new.connector": "K1 Kenwood 2-polig",
+  "radio.rt-490-new.notes": "Radtel RT-490 mit NEUER Leiterplatte (unterstützt die Bearbeitung von Kanalnamen). Verwenden Sie nur Firmware v1.23a/v1.24a/v1.25a — verwenden Sie NICHT V2.11A oder Firmware der alten Leiterplatte, da dies das Gerät unbrauchbar macht. Gleiche JJCC JC-8629-Plattform. Laden Sie die Firmware von radtels.com herunter oder wählen Sie eine .kdhx-Datei aus.",
   "radio.socotran-jc8629.bootloader_keys": "PTT-Taste während des Einschaltens gedrückt halten (die Radio-LED leuchtet grün = Bootloader-Modus)",
   "radio.socotran-jc8629.connector": "K1 Kenwood 2-polig",
   "radio.socotran-jc8629.notes": "Die JC-8629/8630-Leiterplatte verwendet die gleiche Mathematik wie die Radtel RT-490. Es ist bekannt, dass die Radtel RT-490-Firmware (.kdhx) funktioniert – laden Sie sie von der Radtel-Seite herunter oder verwenden Sie die automatische Download-Funktion für den RT-490-Eintrag und kehren Sie dann hierher zurück, um sie zu installieren. Quelle: CHIRP-Problem #9665 listet alle 8 Klone in einer einzigen Treiberklasse auf.",
