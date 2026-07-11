@@ -215,13 +215,16 @@ class FlasherFrame(wx.Frame):
         # borderless frame (no OS chrome) a keyboard way to quit — otherwise a
         # keyboard-only user has no route to close the app.
         self.Bind(wx.EVT_CLOSE, self._on_close)
-        close_id = wx.NewIdRef()
-        self.Bind(wx.EVT_MENU, lambda e: self.Close(), id=close_id)
+        # Retain the id ref on the instance — a local would be garbage-collected
+        # after __init__, freeing the id for recycling while the accelerator
+        # table and Bind still reference its integer value.
+        self._close_id = wx.NewIdRef()
+        self.Bind(wx.EVT_MENU, lambda e: self.Close(), id=self._close_id)
         self.SetAcceleratorTable(wx.AcceleratorTable([
-            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord("W"), close_id),
-            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord("Q"), close_id),
-            wx.AcceleratorEntry(wx.ACCEL_CMD, ord("W"), close_id),
-            wx.AcceleratorEntry(wx.ACCEL_CMD, ord("Q"), close_id),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord("W"), self._close_id),
+            wx.AcceleratorEntry(wx.ACCEL_CTRL, ord("Q"), self._close_id),
+            wx.AcceleratorEntry(wx.ACCEL_CMD, ord("W"), self._close_id),
+            wx.AcceleratorEntry(wx.ACCEL_CMD, ord("Q"), self._close_id),
         ]))
 
         # Initial population. Don't probe or auto-check anything yet — the
