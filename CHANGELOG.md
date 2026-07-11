@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v26.07.0 — 2026-07-11
 
 ### Bug fixes
 
