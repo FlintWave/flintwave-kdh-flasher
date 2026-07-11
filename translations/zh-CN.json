@@ -4,7 +4,7 @@
     "language_label": "中文",
     "reviewed": false,
     "source": "machine",
-    "machine_translations_added": 39
+    "machine_translations_added": 42
   },
   "app.title": "FlintWave Flash",
   "app.about_blurb": "在任何操作系统上为 BTECH、Baofeng、Radtel\n等使用 KDH bootloader 的电台刷写 .kdhx 固件。",
@@ -209,6 +209,9 @@
   "radio.rt-490.bootloader_keys": "未知——请查阅手册。",
   "radio.rt-490.connector": "K1 Kenwood 2 针",
   "radio.rt-490.notes": "共享 JJCC JC-8629 PCB。KDH 引导加载程序。此网址指向旧版 PCB（v1.03）。可在 radtels.com 上找到具有频道名称编辑功能的较新版 PCB。",
+  "radio.rt-490-new.bootloader_keys": "未知——请查阅手册。",
+  "radio.rt-490-new.connector": "K1 Kenwood 2 针",
+  "radio.rt-490-new.notes": "采用全新 PCB 的 Radtel RT-490（支持频道名称编辑）。请仅使用 v1.23a/v1.24a/v1.25a 固件——切勿使用 V2.11A 或旧版 PCB 固件，否则会损坏电台。相同的 JJCC JC-8629 平台。请从 radtels.com 下载固件，或浏览选择 .kdhx 文件。",
   "radio.socotran-jc8629.bootloader_keys": "开机时按住PTT键（无线电指示灯变为绿色，表示进入启动加载程序模式）。",
   "radio.socotran-jc8629.connector": "K1 Kenwood 2 针",
   "radio.socotran-jc8629.notes": "JC-8629/8630 PCB 与 Radtel RT-490 使用相同的电路板。已知 Radtel RT-490 固件 (.kdhx) 能够正常工作——您可以从 Radtel 页面下载，或使用 RT-490 条目的自动下载功能，然后返回此处进行刷机。来源：CHIRP 问题的编号为 9665，它将所有 8 个克隆设备注册到同一个驱动程序类中。",

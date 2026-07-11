@@ -4,7 +4,7 @@
     "language_label": "Italiano",
     "reviewed": false,
     "source": "machine",
-    "machine_translations_added": 39
+    "machine_translations_added": 42
   },
   "app.title": "FlintWave Flash",
   "app.about_blurb": "Esegui il flashing di firmware .kdhx su radio BTECH, Baofeng, Radtel\ne altre radio con bootloader KDH, da qualsiasi sistema operativo.",
@@ -209,6 +209,9 @@
   "radio.rt-490.bootloader_keys": "Sconosciuto — consultare il manuale",
   "radio.rt-490.connector": "K1 Kenwood 2 poli",
   "radio.rt-490.notes": "Condivide il PCB JJCC JC-8629. Bootloader KDH. Questo URL è per la vecchia versione del PCB (v1.03). Le versioni più recenti del PCB, con la possibilità di modificare il nome del canale, sono disponibili su radtels.com.",
+  "radio.rt-490-new.bootloader_keys": "Sconosciuto — consultare il manuale",
+  "radio.rt-490-new.connector": "K1 Kenwood 2 poli",
+  "radio.rt-490-new.notes": "Radtel RT-490 con la NUOVA PCB (supporta la modifica del nome dei canali). Utilizzare solo firmware v1.23a/v1.24a/v1.25a — NON utilizzare V2.11A o firmware della vecchia PCB, poiché renderebbe la radio inutilizzabile. Stessa piattaforma JJCC JC-8629. Scaricare il firmware da radtels.com o selezionare un file .kdhx.",
   "radio.socotran-jc8629.bootloader_keys": "Tenere premuto il pulsante PTT durante l'accensione (il LED della radio diventa verde = modalità bootloader)",
   "radio.socotran-jc8629.connector": "K1 Kenwood 2 poli",
   "radio.socotran-jc8629.notes": "La scheda PCB JC-8629/8630 è la stessa del Radtel RT-490. È noto che il firmware (.kdhx) del Radtel RT-490 funziona: scaricalo dalla pagina Radtel o utilizza il download automatico dalla voce RT-490, quindi torna qui per eseguire il flashing. Fonte: il problema #9665 di CHIRP registra tutti e 8 i cloni in un'unica classe di driver.",

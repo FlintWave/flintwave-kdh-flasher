@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Bug fixes
+
+- **Diagnostics now honours the selected radio's protocol.** `_diag_thread` previously always sent the KDH `CMD_HANDSHAKE` probe, so running Diagnostics against a BTF radio (Radtel RT-950 Pro) reported "no response" even for a healthy radio in bootloader mode. It now sends the BTF `CMD_PROBE` when the selected radio uses `protocol: "btf"`, matching the flash and port-probe paths.
+- **Re-entrancy: a second operation could start mid-flash.** The radio dropdown, firmware-path field, and Browse button stayed live during a flash/download, and `_update_radio_info` re-enabled the Download button while busy — so changing the radio mid-flash could re-arm Download and kick off a second worker thread on the same serial port. Those inputs are now locked while an operation is in progress, and the action handlers (`on_flash`/`on_download`/`on_dry_run`/`on_diag`) early-return if already busy.
+- **Local usage guide now opens on Windows.** The "Usage Guide" link built a `file://` URI by string concatenation, producing an invalid `file://C:\…` on Windows. It now uses `pathlib.Path.as_uri()`, which emits a valid `file:///C:/…` on every platform.
+- **Handset rows no longer get stuck showing "Probing…".** A non-permission error during a port probe (port vanished, busy, I/O error) left the row's status unchanged. It now falls back to "No response".
+- **Probe/poll race.** The 2-second port-poll loop could rebuild the handset list mid-probe, invalidating the row indices the probe thread was writing to. Refreshes are now suppressed while a probe is in flight.
+
+### UX / UI polish
+
+- **Keyboard close for the borderless window.** With the OS title bar hidden, keyboard-only users had no way to quit. Ctrl/Cmd+W and Ctrl/Cmd+Q now close the app.
+- **Stale "ready to flash" hint fixed.** The instructions panel now uses the same file-exists check as the button gating, so it can't advertise "ready to flash" while the Flash button is disabled because the firmware file is missing.
+- **Sticky completion hint cleared on radio change.** Selecting a different radio after a flash no longer leaves the previous flash's "Flash complete!" copy showing.
+- **Firmware cleanup clears the stale path.** After deleting downloaded firmware via the post-flash cleanup prompt, the firmware-path field is cleared and the workflow re-gates, instead of leaving a dead path that fails on the next flash attempt.
+
+### Robustness
+
+- `on_flash` reads `bootloader_keys`/`name` from the radio via `.get()` with fallbacks, so a `radios.json` entry missing a field can't raise instead of flashing.
+- Background daemon loops (port poll, update check) stop touching the frame once it starts closing, avoiding "wrapped C/C++ object deleted" noise on exit.
+
+### Translations
+
+- Added the missing `radio.rt-490-new.*` strings (bootloader keys, connector, notes) to all seven non-English catalogs. The RT-490 (New PCB) entry shipped in v26.05.6 without them, which failed the per-radio translation-completeness test.
+
 ## v26.05.6 — 2026-05-12
 
 ### Build / CI
