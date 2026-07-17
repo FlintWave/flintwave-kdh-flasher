@@ -69,6 +69,7 @@
   "dialog.report.success": "Прошивка успешно завершена!\nХотите отправить отчёт о тестировании?",
   "dialog.report.failure": "Прошивка не удалась.\nХотите отправить отчёт, чтобы помочь нам в отладке?",
   "dialog.report.email_hint": "Вы также можете отправлять отчёты по адресу flintwave@tuta.com",
+  "dialog.report.dont_ask_again": "Больше не спрашивать для этой радиостанции и версии прошивки",
   "dialog.report.subject": "Отчёт о тестировании: {radio} — {status}",
   "dialog.report.result_success": "УСПЕХ",
   "dialog.report.result_failure": "СБОЙ",

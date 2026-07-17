@@ -69,6 +69,7 @@
   "dialog.report.success": "Le flashage s'est terminé avec succès !\nSouhaitez-vous soumettre un rapport de test ?",
   "dialog.report.failure": "Le flashage a échoué.\nSouhaitez-vous soumettre un rapport pour nous aider à déboguer ?",
   "dialog.report.email_hint": "Vous pouvez également envoyer les rapports par e-mail à flintwave@tuta.com",
+  "dialog.report.dont_ask_again": "Ne plus demander pour cette radio et cette version de micrologiciel",
   "dialog.report.subject": "Rapport de test : {radio} — {status}",
   "dialog.report.result_success": "SUCCÈS",
   "dialog.report.result_failure": "ÉCHEC",

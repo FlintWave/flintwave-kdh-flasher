@@ -69,6 +69,7 @@
   "dialog.report.success": "Flashvorgang erfolgreich abgeschlossen!\nMöchten Sie einen Testbericht einreichen?",
   "dialog.report.failure": "Flashvorgang fehlgeschlagen.\nMöchten Sie einen Bericht einreichen, der uns beim Debugging hilft?",
   "dialog.report.email_hint": "Sie können Berichte auch an flintwave@tuta.com senden",
+  "dialog.report.dont_ask_again": "Für dieses Funkgerät und diese Firmware-Version nicht mehr fragen",
   "dialog.report.subject": "Testbericht: {radio} — {status}",
   "dialog.report.result_success": "ERFOLG",
   "dialog.report.result_failure": "FEHLER",

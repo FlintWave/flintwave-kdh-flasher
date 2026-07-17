@@ -612,77 +612,116 @@ class TestVersionConsistency(unittest.TestCase):
 
 
 class TestReportURLs(unittest.TestCase):
-    """Verify test report URL generation is safe."""
+    """Verify test report URL generation is safe. These exercise the REAL
+    build_report_subject / build_report_body / build_report_url functions in
+    gui_dialogs (not a hand-rolled copy), so the shipped code path is guarded."""
+
+    def setUp(self):
+        import i18n
+        i18n.load_bundled_en()
+        try:
+            import gui_dialogs
+        except ImportError:
+            self.skipTest("gui_dialogs not importable in this environment")
+        self.gd = gui_dialogs
 
     def test_github_issue_url_is_valid(self):
         import urllib.parse
-        title = "Test Report: BTECH BF-F8HP Pro — SUCCESS"
-        body = "Radio: BTECH BF-F8HP Pro\nFirmware: test.kdhx\nResult: SUCCESS\n"
-        url = ("https://github.com/FlintWave/flintwave-kdh-flasher/issues/new?"
-               + urllib.parse.urlencode({"title": title, "body": body, "labels": "test-report"}))
+        subject = self.gd.build_report_subject("BTECH BF-F8HP Pro", True)
+        body = self.gd.build_report_body("BTECH BF-F8HP Pro", "test.kdhx", True, "")
+        url = self.gd.build_report_url(subject, body)
         self.assertTrue(url.startswith("https://github.com/FlintWave/flintwave-kdh-flasher/"))
         parsed = urllib.parse.urlparse(url)
         self.assertEqual(parsed.scheme, "https")
         self.assertEqual(parsed.hostname, "github.com")
 
     def test_github_url_includes_label(self):
-        import urllib.parse
-        title = "Test Report: BTECH BF-F8HP Pro — SUCCESS"
-        body = "Radio: BTECH BF-F8HP Pro\nResult: SUCCESS\n"
-        url = ("https://github.com/FlintWave/flintwave-kdh-flasher/issues/new?"
-               + urllib.parse.urlencode({"title": title, "body": body, "labels": "test-report"}))
+        subject = self.gd.build_report_subject("BTECH BF-F8HP Pro", True)
+        body = self.gd.build_report_body("BTECH BF-F8HP Pro", "test.kdhx", True, "")
+        url = self.gd.build_report_url(subject, body)
         self.assertIn("labels=test-report", url)
 
     def test_special_characters_escaped(self):
-        import urllib.parse
-        title = 'Test Report: Radio "Special" & <weird>'
-        body = "Line1\nLine2\n"
-        params = urllib.parse.urlencode({"title": title, "body": body})
-        self.assertNotIn("<", params)
-        self.assertNotIn(">", params)
-        self.assertNotIn('"', params)
+        subject = self.gd.build_report_subject('Radio "Special" & <weird>', False)
+        body = self.gd.build_report_body(
+            'Radio "Special" & <weird>', "fw<>.kdhx", False,
+            'boom & <error> "quoted"', "Line1\nLine2\n")
+        url = self.gd.build_report_url(subject, body)
+        self.assertNotIn("<", url)
+        self.assertNotIn(">", url)
+        self.assertNotIn('"', url)
+
+    def test_url_length_budget(self):
+        # Regression guard for the URL-length analysis in design.md: a
+        # worst-case log tail of all newlines (each encodes to "%0A", 3 bytes)
+        # at the documented truncation cap must still keep the fully encoded
+        # issues/new URL under the ~8000-char practical browser/GitHub ceiling.
+        log = "\n" * (self.gd.LOG_TRUNCATE_CHARS + 500)
+        subject = self.gd.build_report_subject("Some Radio Model", False)
+        body = self.gd.build_report_body(
+            "Some Radio Model", "firmware_v1.2.3.kdhx", False,
+            "some representative error message string", log)
+        url = self.gd.build_report_url(subject, body)
+        self.assertLess(len(url), 8000,
+                        f"encoded report URL is {len(url)} chars, over the 8000 budget")
 
 
 class TestReportGeneration(unittest.TestCase):
-    """Test that report body content is well-formed."""
+    """Test that report body content is well-formed. Exercises the REAL
+    build_report_body function in gui_dialogs."""
+
+    def setUp(self):
+        import i18n
+        i18n.load_bundled_en()
+        try:
+            import gui_dialogs
+        except ImportError:
+            self.skipTest("gui_dialogs not importable in this environment")
+        self.gd = gui_dialogs
 
     def test_success_report_body(self):
-        import platform
-        radio_name = "BTECH BF-F8HP Pro"
-        fw_file = "BTECH_V0.53_260116.kdhx"
-        report = (
-            f"Radio: {radio_name}\n"
-            f"Firmware: {fw_file}\n"
-            f"Result: SUCCESS\n"
-            f"OS: {platform.system()} {platform.release()}\n"
-            f"Python: {platform.python_version()}\n"
-        )
+        report = self.gd.build_report_body(
+            "BTECH BF-F8HP Pro",
+            "/home/user/downloads/BTECH_V0.53_260116.kdhx", True, "")
         self.assertIn("Radio: BTECH BF-F8HP Pro", report)
+        self.assertIn("Firmware: BTECH_V0.53_260116.kdhx", report)  # basename only
+        self.assertNotIn("/home/user/", report)  # no local path leaks
         self.assertIn("Result: SUCCESS", report)
         self.assertNotIn("Error:", report)
 
     def test_failure_report_body(self):
-        import platform
-        error_msg = "No response from radio"
-        report = (
-            f"Radio: RT-470\n"
-            f"Firmware: test.kdhx\n"
-            f"Result: FAILED\n"
-            f"OS: {platform.system()} {platform.release()}\n"
-            f"Python: {platform.python_version()}\n"
-            f"Error: {error_msg}\n"
-        )
+        report = self.gd.build_report_body(
+            "RT-470", "test.kdhx", False, "No response from radio")
         self.assertIn("Result: FAILED", report)
         self.assertIn("Error: No response from radio", report)
 
     def test_report_body_has_os_info(self):
         import platform
-        report = f"OS: {platform.system()} {platform.release()}\n"
+        report = self.gd.build_report_body("X", "f.kdhx", True, "")
         self.assertIn(platform.system(), report)
+        self.assertIn(platform.python_version(), report)
 
     def test_additional_notes_placeholder(self):
-        report_body = "Radio: Test\nResult: SUCCESS\n\nAdditional notes:\n"
-        self.assertTrue(report_body.endswith("Additional notes:\n"))
+        report = self.gd.build_report_body("Test", "f.kdhx", True, "")
+        self.assertIn("Additional notes:", report)
+
+    def test_missing_firmware_path_uses_unknown(self):
+        report = self.gd.build_report_body("X", "", True, "")
+        self.assertIn("Firmware: unknown", report)
+
+    def test_log_truncated_to_cap(self):
+        # A log longer than the cap keeps only its last LOG_TRUNCATE_CHARS chars.
+        cap = self.gd.LOG_TRUNCATE_CHARS
+        log = "A" * 100 + "B" * (cap + 500)
+        report = self.gd.build_report_body("X", "f.kdhx", True, "", log)
+        self.assertIn("--- Log ---", report)
+        self.assertNotIn("A" * 100, report)  # leading chars dropped
+        log_section = report.split("--- Log ---\n", 1)[1]
+        self.assertLessEqual(len(log_section), cap + 1)  # +1 for trailing newline
+
+    def test_short_log_not_truncated(self):
+        report = self.gd.build_report_body("X", "f.kdhx", True, "", "short log\n")
+        self.assertIn("short log", report)
 
 
 class TestThemePalettes(unittest.TestCase):
@@ -1022,6 +1061,49 @@ class TestFirmwareManifest(unittest.TestCase):
         self.assertIsNone(fm_mod.get_radio_firmware_info("nope", {}))
         self.assertIsNone(fm_mod.get_radio_firmware_info("nope", None))
 
+    def test_test_report_status_fresh_is_none(self):
+        fm_mod = self._use_temp_state()
+        self.assertIsNone(fm_mod.get_test_report_status("bf-f8hp-pro", "0.53"))
+
+    def test_mark_test_report_roundtrip(self):
+        fm_mod = self._use_temp_state()
+        fm_mod.mark_test_report("bf-f8hp-pro", "0.53", "submitted")
+        self.assertEqual(
+            fm_mod.get_test_report_status("bf-f8hp-pro", "0.53"), "submitted")
+
+    def test_mark_test_report_skipped_status(self):
+        fm_mod = self._use_temp_state()
+        fm_mod.mark_test_report("rt-470", "1.0", "skipped")
+        self.assertEqual(fm_mod.get_test_report_status("rt-470", "1.0"), "skipped")
+
+    def test_test_report_status_different_version_is_none(self):
+        fm_mod = self._use_temp_state()
+        fm_mod.mark_test_report("bf-f8hp-pro", "0.53", "submitted")
+        # A version bump on the same radio is a fresh combination.
+        self.assertIsNone(fm_mod.get_test_report_status("bf-f8hp-pro", "0.54"))
+
+    def test_test_report_falsy_version_uses_sentinel(self):
+        fm_mod = self._use_temp_state()
+        # An unparseable (falsy) version falls back to a sentinel; mark and get
+        # agree on it, so suppression degrades to keying on radio id alone.
+        fm_mod.mark_test_report("rt-950-pro", None, "submitted")
+        self.assertEqual(
+            fm_mod.get_test_report_status("rt-950-pro", None), "submitted")
+        self.assertEqual(
+            fm_mod.get_test_report_status("rt-950-pro", ""), "submitted")
+        self.assertEqual(
+            fm_mod.get_test_report_status(
+                "rt-950-pro", fm_mod.TEST_REPORT_UNKNOWN_VERSION),
+            "submitted")
+
+    def test_test_report_coexists_with_last_flashed(self):
+        fm_mod = self._use_temp_state()
+        fm_mod.record_flash("rt-470", "1.0", "hash1")
+        fm_mod.mark_test_report("rt-470", "1.0", "submitted")
+        # Both blocks live side by side in the same state file.
+        self.assertEqual(fm_mod.get_last_flashed("rt-470")["version"], "1.0")
+        self.assertEqual(fm_mod.get_test_report_status("rt-470", "1.0"), "submitted")
+
 
 class TestManifestSchema(unittest.TestCase):
     """Validate firmware_manifest.json structure."""
@@ -1337,6 +1419,153 @@ class TestRadioStringTranslations(unittest.TestCase):
         self.assertEqual(echoed, [],
                          f"{len(echoed)} translations identical to English "
                          f"source (model echo): {echoed[:5]}")
+
+
+class TestDialogReportTranslations(unittest.TestCase):
+    """Every `dialog.report.*` key in the English catalog must be present in
+    each shipped catalog, and prose keys must not echo the English source.
+
+    Guards the new "don't ask again" affordance the same way
+    TestRadioStringTranslations guards per-radio strings. A small allowlist
+    covers keys whose value is a loanword/abbreviation/proper-noun legitimately
+    identical across locales ("Firmware:", "OS:", "Python:", "Radio:",
+    "Error:", "--- Log ---")."""
+
+    REQUIRED_LANGS = ["zh-CN", "fr", "de", "it", "es", "ar", "ru"]
+    # Keys whose English value may legitimately appear verbatim in a catalog.
+    ECHO_ALLOWED = {
+        "dialog.report.body_radio",
+        "dialog.report.body_firmware",
+        "dialog.report.body_os",
+        "dialog.report.body_python",
+        "dialog.report.body_error",
+        "dialog.report.body_log_header",
+    }
+
+    def setUp(self):
+        repo = os.path.dirname(__file__)
+        self.en = json.load(
+            open(os.path.join(repo, "translations", "en.json"), encoding="utf-8"))
+        self.catalogs = {}
+        for code in self.REQUIRED_LANGS:
+            path = os.path.join(repo, "translations", f"{code}.json")
+            self.catalogs[code] = json.load(open(path, encoding="utf-8"))
+        self.report_keys = [k for k in self.en if k.startswith("dialog.report.")]
+
+    def test_dont_ask_again_key_exists(self):
+        self.assertIn("dialog.report.dont_ask_again", self.en)
+
+    def test_all_report_keys_present_in_every_lang(self):
+        missing = []
+        for key in self.report_keys:
+            for code, cat in self.catalogs.items():
+                if key not in cat:
+                    missing.append(f"{code}: {key}")
+        self.assertEqual(missing, [],
+                         f"{len(missing)} missing dialog.report translations: "
+                         f"{missing[:5]}")
+
+    def test_prose_report_keys_actually_translated(self):
+        echoed = []
+        for key in self.report_keys:
+            if key in self.ECHO_ALLOWED:
+                continue
+            src = self.en[key].strip()
+            for code, cat in self.catalogs.items():
+                if cat.get(key, "").strip() == src:
+                    echoed.append(f"{code}: {key}")
+        self.assertEqual(echoed, [],
+                         f"{len(echoed)} dialog.report translations identical to "
+                         f"English source (model echo): {echoed[:5]}")
+
+
+class TestOfferTestReportSuppression(unittest.TestCase):
+    """FlasherFrame._offer_test_report must not show the dialog once a report
+    was submitted or explicitly skipped for a given radio+version, and must
+    persist the dialog's outcome otherwise. Bound onto a lightweight stub so it
+    runs headlessly (no wx.Frame / display), the pattern the variant-gating
+    tests use. The report dialog itself is monkeypatched out."""
+
+    def setUp(self):
+        import importlib
+        try:
+            self.gm = importlib.import_module("gui_main")
+        except ImportError:
+            self.skipTest("gui_main not importable in this environment")
+        import firmware_manifest as fm_mod
+        self.fm = fm_mod
+        self._orig_state_file = fm_mod.STATE_FILE
+        self._orig_state_dir = fm_mod.STATE_DIR
+        self._tmpdir = tempfile.mkdtemp()
+        fm_mod.STATE_FILE = os.path.join(self._tmpdir, "state.json")
+        fm_mod.STATE_DIR = self._tmpdir
+        self._orig_dialog = self.gm.show_test_report_dialog
+
+    def tearDown(self):
+        self.fm.STATE_FILE = self._orig_state_file
+        self.fm.STATE_DIR = self._orig_state_dir
+        self.gm.show_test_report_dialog = self._orig_dialog
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def _stub(self, dialog_return):
+        calls = []
+
+        def fake_dialog(*args, **kwargs):
+            calls.append(args)
+            return dialog_return
+
+        self.gm.show_test_report_dialog = fake_dialog
+        stub = types.SimpleNamespace()
+        stub.log = types.SimpleNamespace(GetValue=lambda: "log text")
+        stub._offer_firmware_cleanup = lambda path: None
+        stub._offer_test_report = \
+            self.gm.FlasherFrame._offer_test_report.__get__(stub)
+        return stub, calls
+
+    def test_suppressed_after_submitted(self):
+        self.fm.mark_test_report("radio-x", "1.0", "submitted")
+        stub, calls = self._stub(None)
+        stub._offer_test_report("Radio X", "/tmp/fw.kdhx", True, "",
+                                radio_id="radio-x", file_version="1.0")
+        self.assertEqual(calls, [], "dialog must not be shown when suppressed")
+
+    def test_suppressed_after_skipped(self):
+        self.fm.mark_test_report("radio-x", "1.0", "skipped")
+        stub, calls = self._stub(None)
+        stub._offer_test_report("Radio X", "/tmp/fw.kdhx", False, "boom",
+                                radio_id="radio-x", file_version="1.0")
+        self.assertEqual(calls, [])
+
+    def test_shown_when_not_recorded_and_plain_skip_does_not_persist(self):
+        stub, calls = self._stub(None)  # dialog returns None => plain Skip
+        stub._offer_test_report("Radio Y", "/tmp/fw.kdhx", True, "",
+                                radio_id="radio-y", file_version="1.0")
+        self.assertEqual(len(calls), 1)
+        # Plain Skip persists nothing, so a future flash still prompts.
+        self.assertIsNone(self.fm.get_test_report_status("radio-y", "1.0"))
+
+    def test_submit_outcome_persisted(self):
+        stub, calls = self._stub("submitted")
+        stub._offer_test_report("Radio Z", "/tmp/fw.kdhx", True, "",
+                                radio_id="radio-z", file_version="2.0")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            self.fm.get_test_report_status("radio-z", "2.0"), "submitted")
+
+    def test_skip_with_checkbox_persisted(self):
+        stub, calls = self._stub("skipped")
+        stub._offer_test_report("Radio W", "/tmp/fw.kdhx", False, "boom",
+                                radio_id="radio-w", file_version="3.0")
+        self.assertEqual(
+            self.fm.get_test_report_status("radio-w", "3.0"), "skipped")
+
+    def test_new_version_prompts_again(self):
+        self.fm.mark_test_report("radio-x", "1.0", "submitted")
+        stub, calls = self._stub(None)
+        stub._offer_test_report("Radio X", "/tmp/fw.kdhx", True, "",
+                                radio_id="radio-x", file_version="2.0")
+        self.assertEqual(len(calls), 1, "a new firmware version must prompt again")
 
 
 class TestVariantGroupTranslations(unittest.TestCase):

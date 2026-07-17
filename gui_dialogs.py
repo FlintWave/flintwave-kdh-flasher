@@ -8,11 +8,81 @@ have been removed.
 """
 
 import os
+import platform
+import urllib.parse
+
 import wx
 import wx.adv
 
 from gui_themes import apply_theme_to_dialog
 from i18n import t, is_rtl
+
+# Base URL and label for the community test-report GitHub issue. The
+# maintainer-side triage convention keys off this exact `test-report` label
+# plus the `Radio:` line that build_report_body() emits as the body's first
+# line (see openspec/changes/one-click-test-reports/design.md).
+REPORT_ISSUE_URL = "https://github.com/FlintWave/flintwave-kdh-flasher/issues/new"
+REPORT_LABEL = "test-report"
+
+# The in-app log is truncated to its last N characters before it goes into the
+# report body. Percent-encoding can expand each character up to ~3x (a newline
+# becomes "%0A"), so this cap is chosen to keep the fully encoded issues/new URL
+# comfortably under the ~8000-char practical browser/GitHub ceiling even for a
+# worst-case log. TestReportURLs.test_url_length_budget guards this.
+LOG_TRUNCATE_CHARS = 2000
+
+
+def build_report_subject(radio_name, success):
+    """Build the GitHub issue title for a flash report. No wx dependency."""
+    status = (t("dialog.report.result_success") if success
+              else t("dialog.report.result_failure"))
+    return t("dialog.report.subject").format(radio=radio_name, status=status)
+
+
+def build_report_body(radio_name, firmware_path, success, error_msg,
+                      log_content=""):
+    """Build the prefilled GitHub issue body for a flash report.
+
+    Pure string construction with no wx dependency so it is unit-testable
+    without a display. Includes, in order: radio name, firmware basename,
+    result, OS name/release, Python version, the error message (on failure),
+    an additional-notes placeholder, and (if a log was captured) the last
+    LOG_TRUNCATE_CHARS characters of the in-app log under a log header.
+    """
+    status = (t("dialog.report.result_success") if success
+              else t("dialog.report.result_failure"))
+    fw_file = os.path.basename(firmware_path) if firmware_path else "unknown"
+
+    report_body = (
+        t("dialog.report.body_radio").format(radio=radio_name)
+        + t("dialog.report.body_firmware").format(firmware=fw_file)
+        + t("dialog.report.body_result").format(status=status)
+        + t("dialog.report.body_os").format(
+            os=f"{platform.system()} {platform.release()}")
+        + t("dialog.report.body_python").format(python=platform.python_version())
+    )
+    if error_msg:
+        report_body += t("dialog.report.body_error").format(error=error_msg)
+    report_body += t("dialog.report.body_notes")
+    if log_content:
+        # Truncate log to last LOG_TRUNCATE_CHARS chars to keep URL manageable
+        truncated = (log_content[-LOG_TRUNCATE_CHARS:]
+                     if len(log_content) > LOG_TRUNCATE_CHARS else log_content)
+        report_body += t("dialog.report.body_log_header") + truncated + "\n"
+    return report_body
+
+
+def build_report_url(title, body):
+    """Build the full GitHub issues/new URL with title/body/labels prefilled.
+
+    urlencode percent-escapes special characters (`<`, `>`, `"`, `&`, newlines,
+    ...) so the returned URL never carries them raw. No wx dependency.
+    """
+    return REPORT_ISSUE_URL + "?" + urllib.parse.urlencode({
+        "title": title,
+        "body": body,
+        "labels": REPORT_LABEL,
+    })
 
 
 def _apply_direction(window):
@@ -129,30 +199,18 @@ def show_about_dialog(frame):
 
 
 def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg, log_content=""):
-    """Show the test report submission dialog after a flash attempt."""
-    import platform
-    import urllib.parse
+    """Show the test report submission dialog after a flash attempt.
 
-    status = t("dialog.report.result_success") if success else t("dialog.report.result_failure")
-    fw_file = os.path.basename(firmware_path) if firmware_path else "unknown"
-
-    report_body = (
-        t("dialog.report.body_radio").format(radio=radio_name)
-        + t("dialog.report.body_firmware").format(firmware=fw_file)
-        + t("dialog.report.body_result").format(status=status)
-        + t("dialog.report.body_os").format(
-            os=f"{platform.system()} {platform.release()}")
-        + t("dialog.report.body_python").format(python=platform.python_version())
-    )
-    if error_msg:
-        report_body += t("dialog.report.body_error").format(error=error_msg)
-    report_body += t("dialog.report.body_notes")
-    if log_content:
-        # Truncate log to last 2000 chars to keep URL manageable
-        truncated = log_content[-2000:] if len(log_content) > 2000 else log_content
-        report_body += t("dialog.report.body_log_header") + truncated + "\n"
-
-    subject = t("dialog.report.subject").format(radio=radio_name, status=status)
+    Returns the nag-suppression status the caller should persist for this
+    radio+firmware combination:
+      - "submitted" — the user clicked Submit (a submitted report always
+        suppresses future offers).
+      - "skipped"   — the user dismissed with "don't ask again" checked.
+      - None        — a plain Skip, which must NOT suppress future offers.
+    """
+    report_body = build_report_body(radio_name, firmware_path, success,
+                                    error_msg, log_content)
+    subject = build_report_subject(radio_name, success)
 
     dlg = wx.Dialog(frame, title=t("dialog.report.title"), size=(520, 500))
     dlg.SetMinSize((480, 400))
@@ -186,19 +244,21 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
 
     sizer.AddSpacer(10)
 
+    # Explicit, opt-in suppression. Distinct from the Skip button: a plain
+    # Skip keeps prompting on future flashes, only this checkbox persists a
+    # "skipped" record for this radio+firmware.
+    dont_ask = wx.CheckBox(dlg, label=t("dialog.report.dont_ask_again"))
+    dont_ask.SetFont(ui_font)
+    sizer.Add(dont_ask, 0, wx.ALIGN_CENTER | wx.LEFT | wx.RIGHT, 15)
+
+    sizer.AddSpacer(10)
+
     btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
     submit_btn = wx.Button(dlg, label=t("button.submit"))
     submit_btn.SetFont(ui_font)
     submit_btn.Bind(wx.EVT_BUTTON, lambda e: (
-        wx.LaunchDefaultBrowser(
-            "https://github.com/FlintWave/flintwave-kdh-flasher/issues/new?"
-            + urllib.parse.urlencode({
-                "title": subject,
-                "body": preview.GetValue(),
-                "labels": "test-report"
-            })
-        ),
+        wx.LaunchDefaultBrowser(build_report_url(subject, preview.GetValue())),
         dlg.EndModal(wx.ID_OK)
     ))
     btn_sizer.Add(submit_btn, 0, wx.RIGHT, 8)
@@ -218,5 +278,14 @@ def show_test_report_dialog(frame, radio_name, firmware_path, success, error_msg
         hint.SetOwnForegroundColour(wx.Colour(*palette[4]))  # subtext1
 
     dlg.Centre()
-    dlg.ShowModal()
+    result = dlg.ShowModal()
+    # Read the checkbox before destroying the dialog. Submit always suppresses;
+    # a Skip only suppresses when "don't ask again" was checked.
+    if result == wx.ID_OK:
+        status = "submitted"
+    elif dont_ask.GetValue():
+        status = "skipped"
+    else:
+        status = None
     dlg.Destroy()
+    return status

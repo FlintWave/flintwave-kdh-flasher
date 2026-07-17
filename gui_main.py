@@ -1563,6 +1563,12 @@ class FlasherFrame(wx.Frame):
         if (radio or {}).get("protocol") == "btf":
             return self._flash_thread_btf(port, firmware_path, handset_idx, radio)
 
+        # Derive once, up front, so both the success and failure paths pass the
+        # same identity to record_flash and to the test-report nag suppression.
+        radio_id = radio["id"] if radio else None
+        file_version = fv.extract_version_from_filename(
+            os.path.basename(firmware_path))
+
         if handset_idx is not None:
             wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FLASHING)
             wx.CallAfter(self._set_handset_progress, handset_idx, "0%")
@@ -1632,7 +1638,6 @@ class FlasherFrame(wx.Frame):
                 wx.CallAfter(self._set_handset_progress, handset_idx, "100%")
 
             # Record flash version
-            file_version = fv.extract_version_from_filename(os.path.basename(firmware_path))
             if radio and file_version:
                 try:
                     fm.record_flash(radio["id"], file_version, sha256)
@@ -1651,7 +1656,8 @@ class FlasherFrame(wx.Frame):
                             latest=latest_ver, current=file_version))
 
             self._terminal_state = "complete"
-            wx.CallAfter(self._offer_test_report, radio_name, firmware_path, True, "")
+            wx.CallAfter(self._offer_test_report, radio_name, firmware_path,
+                         True, "", radio_id, file_version)
 
         except Exception as e:
             error_msg = str(e)
@@ -1664,7 +1670,8 @@ class FlasherFrame(wx.Frame):
             if handset_idx is not None:
                 wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FAILED)
                 wx.CallAfter(self._set_handset_progress, handset_idx, "—")
-            wx.CallAfter(self._offer_test_report, radio_name, firmware_path, False, error_msg)
+            wx.CallAfter(self._offer_test_report, radio_name, firmware_path,
+                         False, error_msg, radio_id, file_version)
         finally:
             self._busy = False
             self.set_buttons(True)
@@ -1674,6 +1681,11 @@ class FlasherFrame(wx.Frame):
         # per-handset status, log messages, post-flash version recording, test
         # report offer) but delegates the on-the-wire work to fw_btf.
         radio_name = radio["name"] if radio else t("fallback.radio_unknown")
+        # Derive once, up front, so both the success and failure paths pass the
+        # same identity to record_flash and to the test-report nag suppression.
+        radio_id = radio["id"] if radio else None
+        file_version = fv.extract_version_from_filename(
+            os.path.basename(firmware_path))
         if handset_idx is not None:
             wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FLASHING)
             wx.CallAfter(self._set_handset_progress, handset_idx, "0%")
@@ -1712,7 +1724,6 @@ class FlasherFrame(wx.Frame):
                 wx.CallAfter(self._set_handset_status, handset_idx, STATUS_DONE)
                 wx.CallAfter(self._set_handset_progress, handset_idx, "100%")
 
-            file_version = fv.extract_version_from_filename(os.path.basename(firmware_path))
             if radio and file_version:
                 try:
                     fm.record_flash(radio["id"], file_version, sha256)
@@ -1722,7 +1733,8 @@ class FlasherFrame(wx.Frame):
                     pass
 
             self._terminal_state = "complete"
-            wx.CallAfter(self._offer_test_report, radio_name, firmware_path, True, "")
+            wx.CallAfter(self._offer_test_report, radio_name, firmware_path,
+                         True, "", radio_id, file_version)
 
         except Exception as e:
             error_msg = str(e)
@@ -1735,7 +1747,8 @@ class FlasherFrame(wx.Frame):
             if handset_idx is not None:
                 wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FAILED)
                 wx.CallAfter(self._set_handset_progress, handset_idx, "—")
-            wx.CallAfter(self._offer_test_report, radio_name, firmware_path, False, error_msg)
+            wx.CallAfter(self._offer_test_report, radio_name, firmware_path,
+                         False, error_msg, radio_id, file_version)
         finally:
             self._busy = False
             self.set_buttons(True)
@@ -1756,9 +1769,26 @@ class FlasherFrame(wx.Frame):
         self.log_msg(t("log.dialout_fix_cmd"))
         self.log_msg(t("log.dialout_relogin"))
 
-    def _offer_test_report(self, radio_name, firmware_path, success, error_msg):
+    def _offer_test_report(self, radio_name, firmware_path, success, error_msg,
+                           radio_id=None, file_version=None):
+        # Nag suppression: once a report was submitted or explicitly skipped for
+        # this radio id + firmware version, don't offer again for that same
+        # combination (keyed the same grain record_flash uses). A plain Skip
+        # does not record anything, so it keeps prompting on future flashes.
+        if radio_id and fm.get_test_report_status(radio_id, file_version) in (
+                "submitted", "skipped"):
+            if success:
+                self._offer_firmware_cleanup(firmware_path)
+            return
+
         log_content = self.log.GetValue()
-        show_test_report_dialog(self, radio_name, firmware_path, success, error_msg, log_content)
+        status = show_test_report_dialog(self, radio_name, firmware_path,
+                                         success, error_msg, log_content)
+        if radio_id and status:
+            try:
+                fm.mark_test_report(radio_id, file_version, status)
+            except Exception:
+                pass
         if success:
             self._offer_firmware_cleanup(firmware_path)
 
