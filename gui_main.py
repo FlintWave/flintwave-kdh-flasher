@@ -36,6 +36,9 @@ from gui_workflow import (
 )
 from gui_titlebar import TitleBar
 from gui_statusbar import StatusBar, theme_toggle_glyph
+from gui_columns import (
+    FirmwareColumn, HandsetColumn, FlashColumn, radio_display_name,
+)
 
 VERSION = "26.07.0"
 
@@ -116,9 +119,9 @@ class FlasherFrame(wx.Frame):
         self.manifest = None
         self.radios = dl.load_radios()
 
-        col_firmware = self._build_firmware_column(panel)
-        col_handset = self._build_handset_column(panel)
-        col_flash = self._build_flash_column(panel)
+        col_firmware = FirmwareColumn(panel, self)
+        col_handset = HandsetColumn(panel, self)
+        col_flash = FlashColumn(panel, self)
 
         # Bumped one size larger from previous 20pt to give more visual weight.
         arrow_font = wx.Font(28, wx.FONTFAMILY_DEFAULT,
@@ -541,153 +544,6 @@ class FlasherFrame(wx.Frame):
             self._column_headings = []
         self._column_headings.append(h)
         return h
-
-    def _build_firmware_column(self, parent):
-        # Borderless: a wx.Panel + a heading StaticText, no StaticBox.
-        col = wx.Panel(parent)
-        col.SetMinSize(wx.Size(240, -1))
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self._column_heading(col, "column.firmware"), 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 6)
-
-        # First entry is a placeholder so the user has to actively pick a
-        # radio (instead of getting whichever radio happened to be in
-        # radios.json[0] by default). _get_selected_radio() treats index 0 as
-        # "no radio selected" (returns None).
-        self.RADIO_PLACEHOLDER = t("radio.placeholder")
-        radio_names = [self.RADIO_PLACEHOLDER] + [
-            r['name'] if r['name'].startswith(r['manufacturer'])
-            else f"{r['manufacturer']} {r['name']}"
-            for r in self.radios
-        ]
-        self.radio_combo = wx.ComboBox(col, choices=radio_names,
-                                       style=wx.CB_DROPDOWN | wx.CB_READONLY)
-        self.radio_combo.SetSelection(0)
-        self.radio_combo.Bind(wx.EVT_COMBOBOX, self.on_radio_changed)
-        # On GTK with CB_READONLY, clicking the text portion does nothing —
-        # only the arrow drops down. Bind LEFT_DOWN so a click anywhere on the
-        # combo opens the list.
-        def _open_combo(event):
-            try:
-                self.radio_combo.Popup()
-            except Exception:
-                pass
-            event.Skip()
-        self.radio_combo.Bind(wx.EVT_LEFT_DOWN, _open_combo)
-        sizer.Add(self.radio_combo, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
-
-        self.download_btn = wx.Button(col, label=t("button.download_latest"))
-        self.download_btn.Bind(wx.EVT_BUTTON, self.on_download)
-        # Note: download_btn's label is set dynamically by _update_radio_info
-        # (Download Latest / Download v… / No Direct URL) and so isn't tracked
-        # in _i18n_widgets — retranslate_ui re-invokes _update_radio_info.
-        sizer.Add(self.download_btn, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
-
-        file_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.file_path = wx.TextCtrl(col)
-        file_row.Add(self.file_path, 1, wx.EXPAND | wx.RIGHT, 4)
-        self.browse_btn = wx.Button(col, label=t("button.browse"))
-        self._tr_label(self.browse_btn, "button.browse")
-        self.browse_btn.Bind(wx.EVT_BUTTON, self.on_browse)
-        file_row.Add(self.browse_btn, 0)
-        sizer.Add(file_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
-
-        sizer.AddStretchSpacer(1)
-        col.SetSizer(sizer)
-        self._rtl_targets.append(col)
-        return col
-
-    def _build_handset_column(self, parent):
-        col = wx.Panel(parent)
-        col.SetMinSize(wx.Size(280, -1))
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self._column_heading(col, "column.handset"), 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 6)
-
-        # Multi-select list of detected serial ports / cables. Each row has
-        # a checkbox; FTDI/PC03 cables auto-check on detection. Status column
-        # shows probe results (Ready / No response) and per-port flash progress.
-        self.handset_list = wx.ListCtrl(col, style=wx.LC_REPORT)
-        self._handset_checkboxes_supported = False
-        try:
-            self.handset_list.EnableCheckBoxes(True)
-            self._handset_checkboxes_supported = True
-        except Exception:
-            self._handset_checkboxes_supported = False
-        self._apply_handset_columns()
-        sizer.Add(self.handset_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
-
-        if self._handset_checkboxes_supported:
-            self.handset_list.Bind(wx.EVT_LIST_ITEM_CHECKED, self._on_handset_check_changed)
-            self.handset_list.Bind(wx.EVT_LIST_ITEM_UNCHECKED, self._on_handset_check_changed)
-        else:
-            self.handset_list.Bind(wx.EVT_LIST_ITEM_SELECTED, self._on_handset_check_changed)
-            self.handset_list.Bind(wx.EVT_LIST_ITEM_DESELECTED, self._on_handset_check_changed)
-
-        # Selection summary + selection helpers. Summary text is computed via
-        # the i18n "handset.summary" template; _refresh_handset_summary() owns
-        # the rendering.
-        self.handset_summary = wx.StaticText(
-            col, label=t("handset.summary").format(selected=0, total=0))
-        sizer.Add(self.handset_summary, 0, wx.LEFT | wx.RIGHT | wx.TOP, 6)
-
-        btn_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.refresh_btn = wx.Button(col, label=t("button.refresh_probe"))
-        self._tr_label(self.refresh_btn, "button.refresh_probe")
-        self._tr_tooltip(self.refresh_btn, "tooltip.refresh")
-        self.refresh_btn.Bind(wx.EVT_BUTTON, lambda e: self._refresh_handset_ports(probe=True))
-        btn_row.Add(self.refresh_btn, 1, wx.RIGHT, 4)
-
-        self.select_all_btn = wx.Button(col, label=t("button.select_all"))
-        self._tr_label(self.select_all_btn, "button.select_all")
-        self._tr_tooltip(self.select_all_btn, "tooltip.select_all")
-        self.select_all_btn.Bind(wx.EVT_BUTTON, lambda e: self._set_all_handsets_checked(True))
-        btn_row.Add(self.select_all_btn, 0, wx.RIGHT, 4)
-
-        self.select_none_btn = wx.Button(col, label=t("button.select_none"))
-        self._tr_label(self.select_none_btn, "button.select_none")
-        self._tr_tooltip(self.select_none_btn, "tooltip.select_none")
-        self.select_none_btn.Bind(wx.EVT_BUTTON, lambda e: self._set_all_handsets_checked(False))
-        btn_row.Add(self.select_none_btn, 0)
-        sizer.Add(btn_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
-
-        col.SetSizer(sizer)
-        self._rtl_targets.append(col)
-        self._rtl_targets.append(self.handset_list)
-        return col
-
-    def _build_flash_column(self, parent):
-        col = wx.Panel(parent)
-        col.SetMinSize(wx.Size(220, -1))
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self._column_heading(col, "column.flash"), 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 6)
-
-        self.flash_btn = wx.Button(col, label=t("button.flash_firmware"))
-        self._tr_label(self.flash_btn, "button.flash_firmware")
-        flash_font = wx.Font(12, wx.FONTFAMILY_DEFAULT,
-                             wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-        self.flash_btn.SetFont(flash_font)
-        self.flash_btn.Bind(wx.EVT_BUTTON, self.on_flash)
-        sizer.Add(self.flash_btn, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
-
-        self.progress = wx.Gauge(col, range=100)
-        sizer.Add(self.progress, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
-
-        sizer.AddSpacer(4)
-
-        sec_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.dryrun_btn = wx.Button(col, label=t("button.dry_run"))
-        self._tr_label(self.dryrun_btn, "button.dry_run")
-        self.dryrun_btn.Bind(wx.EVT_BUTTON, self.on_dry_run)
-        sec_row.Add(self.dryrun_btn, 1, wx.RIGHT, 4)
-        self.diag_btn = wx.Button(col, label=t("button.diagnostics"))
-        self._tr_label(self.diag_btn, "button.diagnostics")
-        self.diag_btn.Bind(wx.EVT_BUTTON, self.on_diag)
-        sec_row.Add(self.diag_btn, 1)
-        sizer.Add(sec_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 6)
-
-        sizer.AddStretchSpacer(1)
-        col.SetSizer(sizer)
-        self._rtl_targets.append(col)
-        return col
 
     def _toggle_theme(self):
         """Switch between mocha (dark) and latte (light), re-render everything."""
@@ -1148,11 +1004,10 @@ class FlasherFrame(wx.Frame):
         keys = radio.get("bootloader_keys")
         connector = radio.get("connector")
         tested = radio.get("tested")
-        # Same dedup logic as the dropdown: skip the manufacturer prefix when
-        # the name already starts with it (e.g. "BTECH BF-F8HP Pro").
-        manufacturer = radio.get("manufacturer", "")
-        name = radio.get("name", "")
-        full_name = name if name.startswith(manufacturer) else f"{manufacturer} {name}".strip()
+        # Same dedup rule as the dropdown (shared helper), so the manufacturer
+        # isn't double-stamped when the name already starts with it.
+        full_name = radio_display_name(radio.get("name", ""),
+                                       radio.get("manufacturer", ""))
         bits.append(t("info.radio_label").format(name=full_name))
         if keys:
             bits.append(t("info.bootloader_keys").format(

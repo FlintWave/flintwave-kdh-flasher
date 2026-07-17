@@ -652,8 +652,10 @@ class TestRadioNameDedup(unittest.TestCase):
 
     @staticmethod
     def _full_name(manufacturer, name):
-        # Same one-liner used in both call sites.
-        return name if name.startswith(manufacturer) else f"{manufacturer} {name}".strip()
+        # Delegates to the real production helper (gui_columns.radio_display_name),
+        # shared by the firmware dropdown and the frame's per-radio info panel.
+        import gui_columns
+        return gui_columns.radio_display_name(name, manufacturer)
 
     def test_name_already_starts_with_manufacturer(self):
         self.assertEqual(self._full_name("BTECH", "BTECH BF-F8HP Pro"),
@@ -1461,6 +1463,34 @@ class TestStatusBarModule(unittest.TestCase):
         # Importable without wxPython; StatusBar is a class in CI, None here.
         self.assertTrue(hasattr(self.s, "StatusBar"))
         self.assertTrue(self.s.RELEASES_URL.startswith("https://"))
+
+
+class TestColumnsModule(unittest.TestCase):
+    """Pure radio-name helper + import contract (widgets tested via wx in CI)."""
+
+    def setUp(self):
+        import gui_columns
+        self.c = gui_columns
+
+    def test_radio_display_name_no_double_stamp(self):
+        # Name already starts with manufacturer -> used as-is.
+        self.assertEqual(
+            self.c.radio_display_name("BTECH BF-F8HP Pro", "BTECH"),
+            "BTECH BF-F8HP Pro")
+
+    def test_radio_display_name_prefixes_manufacturer(self):
+        self.assertEqual(
+            self.c.radio_display_name("UV-25 Plus", "Baofeng"),
+            "Baofeng UV-25 Plus")
+
+    def test_radio_display_name_strips(self):
+        # Empty manufacturer must not leave a leading space.
+        self.assertEqual(self.c.radio_display_name("RT-490", ""), "RT-490")
+
+    def test_module_imports_and_exposes_columns(self):
+        # Importable without wxPython; the column classes are defined in CI.
+        for name in ("FirmwareColumn", "HandsetColumn", "FlashColumn"):
+            self.assertTrue(hasattr(self.c, name))
 
 
 if __name__ == "__main__":
