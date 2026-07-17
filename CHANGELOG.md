@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Firmware integrity
+
+- **All firmware downloads are now SHA-256 pinned.** `uv-25-pro`, `rt-470`, and `rt-490` had null hashes in the manifest — the blind spot that let the 2026-07-10 silent bundle repack go undetected. All three bundles were downloaded, their contents verified, and their hashes pinned; a new manifest-schema test blocks any future entry from shipping with a `firmware_url` but no hash.
+- **UV-25 Plus/Pro firmware version corrected to V0.23.** Verification caught another silent vendor swap: the bundle at the (unchanged) manifest URL actually contains `UV25Pro_NRF_401+_V0.23`, not the V0.20 the manifest claimed. Released clients will now correctly see V0.23 as the latest.
+- Known issue surfaced during verification: the RT-490 bundle ships **4** hardware-variant firmware files (GPS/NoGPS × HW V1.0/V2.0). Since the multi-match guard shipped in v26.07.0, that download fails safely instead of silently flashing the first file; proper variant selection lands with the `generalize-hardware-variants` change (see `openspec/changes/`).
+
 ## v26.07.0 — 2026-07-17
 
 ### Firmware download
