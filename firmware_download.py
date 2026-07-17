@@ -151,6 +151,32 @@ def download_firmware_bundle(url, progress_callback=None):
     return dest
 
 
+def list_archive_kdhx(archive_path):
+    """Return basenames of all .kdhx files present in a bundle, without
+    extracting. Used to build a helpful error when the radio's filename
+    pattern stops matching (e.g. the vendor renamed files in a repack).
+    Returns [] if the archive can't be read.
+    """
+    try:
+        if archive_path.lower().endswith(".rar"):
+            import rarfile
+            with rarfile.RarFile(archive_path) as rf:
+                names = rf.namelist()
+        else:
+            with zipfile.ZipFile(archive_path) as zf:
+                names = zf.namelist()
+    except Exception:
+        return []
+    found = []
+    for name in names:
+        basename = os.path.basename(name)
+        if not basename or basename.startswith(".") or basename.startswith("__"):
+            continue
+        if fnmatch.fnmatch(basename, "*.kdhx"):
+            found.append(basename)
+    return found
+
+
 def extract_kdhx(archive_path, pattern="*.kdhx"):
     """Extract .kdhx files from a firmware bundle (ZIP or RAR).
 
@@ -258,8 +284,45 @@ def download_and_extract(radio_id, progress_callback=None, url_override=None,
     pattern = radio.get("firmware_filename_pattern", "*.kdhx")
     kdhx_files = extract_kdhx(zip_path, pattern)
 
-    if not kdhx_files:
-        raise ValueError(f"No firmware files matching {pattern!r} found in downloaded bundle")
+    return select_firmware_file(kdhx_files, pattern,
+                                available=list_archive_kdhx(zip_path)), radio
 
-    # Return the first (usually only) kdhx file
-    return kdhx_files[0], radio
+
+def select_firmware_file(kdhx_files, pattern, available=None):
+    """Validate that extraction produced exactly one firmware file.
+
+    Vendors ship bundles with several hardware-variant firmware files that
+    are NOT interchangeable (e.g. the BF-F8HP Pro NRF/NRFB split), and they
+    rename files inside bundles without changing the URL. Never guess: zero
+    or multiple matches is an error that tells the user what was found.
+
+    ``available`` is the list of all .kdhx basenames in the bundle, used to
+    make the zero-match error diagnosable.
+    """
+    if not kdhx_files:
+        if available:
+            detail = (
+                "The bundle contains: " + ", ".join(sorted(available)) + "\n"
+                "The vendor may have renamed or split the firmware files since "
+                "this radio definition was written. If the bundle now ships "
+                "separate hardware-variant files, pick the radio entry matching "
+                "your hardware version, or report this so the definition can be "
+                "updated."
+            )
+        else:
+            detail = "The bundle contains no .kdhx firmware files at all."
+        raise ValueError(
+            f"No firmware files matching {pattern!r} found in downloaded bundle.\n"
+            f"{detail}"
+        )
+
+    if len(kdhx_files) > 1:
+        names = ", ".join(sorted(os.path.basename(p) for p in kdhx_files))
+        raise ValueError(
+            f"Multiple firmware files match {pattern!r}: {names}\n"
+            "These are usually hardware-specific variants that are NOT "
+            "interchangeable — flashing the wrong one can damage the radio. "
+            "Select the radio entry that matches your hardware version instead."
+        )
+
+    return kdhx_files[0]

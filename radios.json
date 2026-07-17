@@ -3,16 +3,29 @@
   "radios": [
     {
       "id": "bf-f8hp-pro",
-      "name": "BTECH BF-F8HP Pro",
+      "name": "BTECH BF-F8HP Pro (NRF)",
       "manufacturer": "BTECH",
       "model_type": "H802",
       "firmware_url": "https://baofengtech.com/wp-content/uploads/2026/01/F8HPPRO-V53-Update-Bundle.zip",
       "firmware_page": "https://baofengtech.com/product/bf-f8hp-pro/",
-      "firmware_filename_pattern": "BTECH_V*.kdhx",
+      "firmware_filename_pattern": "NRF_ONLY_*.kdhx",
       "bootloader_keys": "SK1 + SK2 (top and bottom side buttons, not PTT). Volume to max. Press cable connector firmly into radio and hold pressure during entire flash.",
       "connector": "K1 Kenwood 2-pin",
       "tested": true,
-      "notes": "Confirmed working on V0.53 firmware. The K1 connector may need firm pressure to maintain the data return contact on the 2.5mm ring. Keep steady pressure on the cable plug during the entire flash process."
+      "notes": "The BF-F8HP Pro exists as two hardware versions, NRF and NRFB, and their firmware files are NOT interchangeable — flashing the wrong one can break the receiver. To check yours: with the radio OFF, hold the 8 key while turning it on; the display shows NRF or NRFB. If it shows NRFB, select 'BTECH BF-F8HP Pro (NRFB)' instead. Confirmed working on V0.53 firmware. The K1 connector may need firm pressure to maintain the data return contact on the 2.5mm ring. Keep steady pressure on the cable plug during the entire flash process."
+    },
+    {
+      "id": "bf-f8hp-pro-nrfb",
+      "name": "BTECH BF-F8HP Pro (NRFB)",
+      "manufacturer": "BTECH",
+      "model_type": "H802",
+      "firmware_url": "https://baofengtech.com/wp-content/uploads/2026/01/F8HPPRO-V53-Update-Bundle.zip",
+      "firmware_page": "https://baofengtech.com/product/bf-f8hp-pro/",
+      "firmware_filename_pattern": "NRFB_ONLY_*.kdhx",
+      "bootloader_keys": "SK1 + SK2 (top and bottom side buttons, not PTT). Volume to max. Press cable connector firmly into radio and hold pressure during entire flash.",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": false,
+      "notes": "The BF-F8HP Pro exists as two hardware versions, NRF and NRFB, and their firmware files are NOT interchangeable — flashing the wrong one can break the receiver. To check yours: with the radio OFF, hold the 8 key while turning it on; the display shows NRF or NRFB. If it shows NRF, select 'BTECH BF-F8HP Pro (NRF)' instead. The K1 connector may need firm pressure to maintain the data return contact on the 2.5mm ring. Keep steady pressure on the cable plug during the entire flash process."
     },
     {
       "id": "uv-25-pro",

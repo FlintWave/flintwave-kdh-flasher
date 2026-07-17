@@ -1,13 +1,19 @@
 {
   "_comment": "Remote firmware manifest. Update this file to publish new firmware URLs without requiring an app update. Community contributions welcome — submit a PR.",
-  "_updated": "2026-07-02",
+  "_updated": "2026-07-17",
   "manifest_version": 1,
   "radios": {
     "bf-f8hp-pro": {
       "firmware_version": "0.53",
       "firmware_url": "https://baofengtech.com/wp-content/uploads/2026/01/F8HPPRO-V53-Update-Bundle.zip",
-      "firmware_sha256": null,
-      "release_notes": "V0.53: smarter scanning, better airband, more control"
+      "firmware_sha256": "511f2a6b7df51c9dc4297728f4fc374359d6a23f806627bd4209e239048fbe1d",
+      "release_notes": "V0.53: smarter scanning, better airband, more control (NRF hardware)"
+    },
+    "bf-f8hp-pro-nrfb": {
+      "firmware_version": "0.53",
+      "firmware_url": "https://baofengtech.com/wp-content/uploads/2026/01/F8HPPRO-V53-Update-Bundle.zip",
+      "firmware_sha256": "511f2a6b7df51c9dc4297728f4fc374359d6a23f806627bd4209e239048fbe1d",
+      "release_notes": "V0.53: smarter scanning, better airband, more control (NRFB hardware)"
     },
     "uv-25-pro": {
       "firmware_version": "0.20",

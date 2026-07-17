@@ -1,6 +1,12 @@
 # Changelog
 
-## v26.07.0 — 2026-07-11
+## v26.07.0 — 2026-07-17
+
+### Firmware download
+
+- **BF-F8HP Pro NRF/NRFB hardware split.** BaofengTech silently repacked the V0.53 bundle (2026-07-10, same URL) into two hardware-specific firmware files, which broke the `BTECH_V*.kdhx` pattern and with it the download. The radio list now has separate "BTECH BF-F8HP Pro (NRF)" and "(NRFB)" entries — mirroring the RT-490 old/new-PCB precedent — whose notes walk through identifying the hardware version (radio off, hold 8 while powering on) and warn that the files are not interchangeable. Translated in all seven catalogs. NRF confirmed working on real hardware (#20).
+- **The downloader no longer guesses between multiple matching firmware files.** It used to silently take the first match — with variant bundles that could flash the wrong hardware's firmware. Multiple matches now raise an error naming the files and directing the user to the hardware-specific radio entry; zero matches now list what the bundle actually contains, so a vendor repack is diagnosable instead of a dead end.
+- **Bundle SHA-256 pinned for the BF-F8HP Pro** in the remote manifest, so the next silent repack fails loudly as a hash mismatch instead of a confusing pattern miss.
 
 ### Bug fixes
 
