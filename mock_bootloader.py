@@ -35,7 +35,8 @@ import contextlib
 
 import flash_firmware as _kdh
 import flash_btf as _btf
-from flash_firmware import crc16_ccitt
+
+crc16_ccitt = _kdh.crc16_ccitt
 
 ACK = 0x06
 

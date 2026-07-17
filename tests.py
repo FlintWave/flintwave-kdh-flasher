@@ -1073,9 +1073,8 @@ class TestEndToEndFlashKDH(unittest.TestCase):
     """
 
     def setUp(self):
-        import flash_firmware
         import mock_bootloader as mb
-        self.flash_firmware = flash_firmware
+        self.flash_firmware = fw
         self.mb = mb
 
     def _firmware(self, size):
@@ -1257,15 +1256,14 @@ class TestBatchFlashRouting(unittest.TestCase):
     """Multiple ports route to independent mock radios (batch-flash shape)."""
 
     def test_two_ports_flash_independently(self):
-        import flash_firmware
         import mock_bootloader as mb
         firmware = struct.pack("<II", 0x200078E0, 0x08001185) + b"\x5A" * (2 * 1024 - 8)
         eng_a = mb.KDHBootloader()
         eng_b = mb.KDHBootloader()
         registry = {"/dev/ttyUSB0": eng_a, "/dev/ttyUSB1": eng_b}
-        with mb.patch_serial(flash_firmware, registry=registry):
+        with mb.patch_serial(fw, registry=registry):
             for port in registry:
-                flash_firmware.flash_to_port(port, firmware)
+                fw.flash_to_port(port, firmware)
         self.assertTrue(eng_a.finished)
         self.assertTrue(eng_b.finished)
         pad = firmware + b"\x00" * ((-len(firmware)) % 1024)
