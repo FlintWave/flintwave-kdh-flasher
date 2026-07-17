@@ -1271,5 +1271,87 @@ class TestBatchFlashRouting(unittest.TestCase):
         self.assertEqual(eng_b.reassembled_firmware(), pad)
 
 
+class TestWorkflowStateMachine(unittest.TestCase):
+    """Pure workflow logic extracted from FlasherFrame (gui_workflow).
+
+    These run with no wxPython and no display — the whole point of pulling the
+    hint/gating decisions out of the GUI god-class is that they're now testable
+    in isolation.
+    """
+
+    def setUp(self):
+        import gui_workflow
+        self.w = gui_workflow
+
+    def test_terminal_state_is_sticky(self):
+        for state in ("complete", "failed", "dryrun_complete", "diag_complete"):
+            # A terminal state wins even over busy / firmware / handset inputs.
+            self.assertEqual(
+                self.w.compute_hint_state(state, True, True, 5), state)
+
+    def test_busy_reports_busy_state(self):
+        self.assertEqual(
+            self.w.compute_hint_state(None, True, True, 1), "flashing")
+        self.assertEqual(
+            self.w.compute_hint_state(None, True, True, 1,
+                                      busy_state="downloading"), "downloading")
+
+    def test_no_firmware_before_anything_else(self):
+        self.assertEqual(
+            self.w.compute_hint_state(None, False, False, 0), "no_firmware")
+        # No firmware outranks having handsets checked.
+        self.assertEqual(
+            self.w.compute_hint_state(None, False, False, 3), "no_firmware")
+
+    def test_no_handset_when_firmware_ready_but_none_checked(self):
+        self.assertEqual(
+            self.w.compute_hint_state(None, False, True, 0), "no_handset")
+
+    def test_single_vs_batch(self):
+        self.assertEqual(
+            self.w.compute_hint_state(None, False, True, 1), "ready_flash")
+        self.assertEqual(
+            self.w.compute_hint_state(None, False, True, 2), "batch_ready")
+
+    def test_every_state_is_a_known_hint_key(self):
+        # Any state the machine can emit must have a hint.<state>.* entry.
+        produced = {
+            self.w.compute_hint_state(None, False, False, 0),
+            self.w.compute_hint_state(None, False, True, 0),
+            self.w.compute_hint_state(None, False, True, 1),
+            self.w.compute_hint_state(None, False, True, 2),
+            self.w.compute_hint_state(None, True, True, 1, busy_state="downloading"),
+            self.w.compute_hint_state(None, True, True, 1, busy_state="flashing"),
+        }
+        produced |= set(self.w.TERMINAL_STATES)
+        self.assertTrue(produced <= set(self.w.HINT_STATES),
+                        f"unknown hint keys: {produced - set(self.w.HINT_STATES)}")
+
+    def test_gates_download_needs_radio(self):
+        g = self.w.compute_gates(radio_chosen=False, firmware_ready=True,
+                                 handset_ready=True)
+        self.assertFalse(g.download)
+        g = self.w.compute_gates(radio_chosen=True, firmware_ready=False,
+                                 handset_ready=False)
+        self.assertTrue(g.download)
+
+    def test_gates_handset_needs_firmware(self):
+        self.assertFalse(self.w.compute_gates(True, False, True).handset)
+        self.assertTrue(self.w.compute_gates(True, True, False).handset)
+
+    def test_gates_flash_needs_firmware_and_handset(self):
+        self.assertFalse(self.w.compute_gates(True, True, False).flash)
+        self.assertFalse(self.w.compute_gates(True, False, True).flash)
+        self.assertTrue(self.w.compute_gates(True, True, True).flash)
+
+    def test_gates_return_plain_bools(self):
+        # Frame passes truthy objects (e.g. a radio dict); gates must normalize.
+        g = self.w.compute_gates(radio_chosen={"id": "x"}, firmware_ready=1,
+                                 handset_ready=[0])
+        self.assertIs(g.download, True)
+        self.assertIs(g.handset, True)
+        self.assertIs(g.flash, True)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
