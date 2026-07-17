@@ -70,6 +70,7 @@
   "dialog.report.success": "اكتملت البرمجة بنجاح!\nهل ترغب في إرسال تقرير اختبار؟",
   "dialog.report.failure": "فشلت البرمجة.\nهل ترغب في إرسال تقرير لمساعدتنا في التصحيح؟",
   "dialog.report.email_hint": "يمكنك أيضًا إرسال التقارير عبر البريد إلى flintwave@tuta.com",
+  "dialog.report.dont_ask_again": "لا تسأل مرة أخرى عن هذا الجهاز وإصدار البرنامج الثابت",
   "dialog.report.subject": "تقرير اختبار: {radio} — {status}",
   "dialog.report.result_success": "نجاح",
   "dialog.report.result_failure": "فشل",

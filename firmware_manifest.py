@@ -257,6 +257,40 @@ def get_last_flashed(radio_id):
     return state.get("last_flashed", {}).get(radio_id)
 
 
+# Sentinel firmware version used when the version can't be parsed from the
+# filename, so nag suppression degrades to keying on radio id alone instead of
+# crashing or never suppressing.
+TEST_REPORT_UNKNOWN_VERSION = "unknown"
+
+
+def mark_test_report(radio_id, version, status):
+    """Record that a community test report was submitted or explicitly skipped.
+
+    Keyed by (radio id, firmware version); `status` is "submitted" or
+    "skipped". A falsy version falls back to a sentinel so suppression still
+    works for firmware whose version can't be parsed from the filename.
+    """
+    version = version or TEST_REPORT_UNKNOWN_VERSION
+    state = _load_state()
+    if "test_reports" not in state:
+        state["test_reports"] = {}
+    if radio_id not in state["test_reports"]:
+        state["test_reports"][radio_id] = {}
+    state["test_reports"][radio_id][version] = status
+    _save_state(state)
+
+
+def get_test_report_status(radio_id, version):
+    """Return the stored test-report status for a radio+version, or None.
+
+    Uses the same falsy-version fallback as mark_test_report so a lookup and a
+    write for an unparseable version resolve to the same sentinel key.
+    """
+    version = version or TEST_REPORT_UNKNOWN_VERSION
+    state = _load_state()
+    return state.get("test_reports", {}).get(radio_id, {}).get(version)
+
+
 def get_language(default="en"):
     """Return the persisted UI language code, or the default if none stored."""
     state = _load_state()

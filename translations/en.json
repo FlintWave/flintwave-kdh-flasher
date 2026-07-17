@@ -86,6 +86,7 @@
   "dialog.report.success": "Flash completed successfully!\nWould you like to submit a test report?",
   "dialog.report.failure": "Flash failed.\nWould you like to submit a report to help us debug?",
   "dialog.report.email_hint": "You can also email reports to flintwave@tuta.com",
+  "dialog.report.dont_ask_again": "Don't ask again for this radio and firmware version",
   "dialog.report.subject": "Test Report: {radio} — {status}",
   "dialog.report.result_success": "SUCCESS",
   "dialog.report.result_failure": "FAILED",

@@ -69,6 +69,7 @@
   "dialog.report.success": "刷写已成功完成!\n是否提交测试报告?",
   "dialog.report.failure": "刷写失败。\n是否提交报告以帮助我们调试?",
   "dialog.report.email_hint": "您也可以将报告发送至 flintwave@tuta.com",
+  "dialog.report.dont_ask_again": "对此电台和固件版本不再询问",
   "dialog.report.subject": "测试报告:{radio} — {status}",
   "dialog.report.result_success": "成功",
   "dialog.report.result_failure": "失败",

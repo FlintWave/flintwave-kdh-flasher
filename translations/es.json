@@ -69,6 +69,7 @@
   "dialog.report.success": "¡Flasheo completado con éxito!\n¿Quieres enviar un informe de prueba?",
   "dialog.report.failure": "El flasheo falló.\n¿Quieres enviar un informe para ayudarnos a depurar?",
   "dialog.report.email_hint": "También puedes enviar informes por correo a flintwave@tuta.com",
+  "dialog.report.dont_ask_again": "No volver a preguntar por esta radio y versión de firmware",
   "dialog.report.subject": "Informe de prueba: {radio} — {status}",
   "dialog.report.result_success": "ÉXITO",
   "dialog.report.result_failure": "FALLIDO",

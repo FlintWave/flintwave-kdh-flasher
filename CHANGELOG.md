@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Test reports
+
+- **The post-flash test-report offer no longer nags.** A new "don't ask again for this radio + firmware version" checkbox suppresses the prompt per (radio, version) — recorded in the state file — while a plain Skip keeps asking next time, and a new firmware version re-opens the offer. The report URL/body builders were extracted from the dialog into pure functions with real tests (URL-length budget included), replacing tests that re-derived the logic by hand. Reports keep the `test-report` label + `Radio:` body-line convention maintainers use to flip `tested` flags.
+
 ### Hardware variants
 
 - **Guided hardware-variant identification.** Radios that ship as non-interchangeable hardware versions behind one vendor bundle (BTECH BF-F8HP Pro NRF/NRFB, Radtel RT-490 old/new PCB) now appear as a single family row in the radio picker. Selecting the family walks the user through identifying their version (e.g. "radio off, hold 8 while powering on") with one option per variant and an explicit "I'm not sure" that fails safe — Download stays disabled with a link to the vendor page instead of risking a wrong-variant flash. Fully translated in all 7 catalogs; radio ids, the remote manifest shape, and the post-download multi-match guard are unchanged, so released clients are unaffected.
