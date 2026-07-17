@@ -28,6 +28,12 @@ from gui_dialogs import (
     show_test_report_dialog,
 )
 from gui_themes import apply_theme, THEME_PALETTES, MOCHA_PALETTE
+from gui_workflow import (
+    compute_hint_state,
+    compute_gates,
+    HINT_STATES as WORKFLOW_HINT_STATES,
+    RADIO_INFO_STATES,
+)
 
 VERSION = "26.07.0"
 
@@ -1085,11 +1091,14 @@ class FlasherFrame(wx.Frame):
         radio_chosen = self._get_selected_radio() is not None
         firmware = self._firmware_ready()
         handset = self._handset_ready()
+        gates = compute_gates(radio_chosen=radio_chosen,
+                              firmware_ready=firmware,
+                              handset_ready=handset)
 
         # Firmware column: Download requires a real radio. Browse is always
         # available (user may already have a .kdhx on disk).
         try:
-            self.download_btn.Enable(radio_chosen)
+            self.download_btn.Enable(gates.download)
         except Exception:
             pass
 
@@ -1097,13 +1106,13 @@ class FlasherFrame(wx.Frame):
         for w in (self.refresh_btn, self.select_all_btn, self.select_none_btn,
                   self.handset_list):
             try:
-                w.Enable(firmware)
+                w.Enable(gates.handset)
             except Exception:
                 pass
         # Flash column gate
         for w in (self.flash_btn, self.dryrun_btn, self.diag_btn):
             try:
-                w.Enable(firmware and handset)
+                w.Enable(gates.flash)
             except Exception:
                 pass
 
@@ -1258,11 +1267,9 @@ class FlasherFrame(wx.Frame):
     # from the active translation catalog by _get_hint_copy(); keeping this as a
     # set rather than a dict-of-strings means language changes are picked up
     # without rebuilding any structures.
-    HINT_STATES = {
-        "no_firmware", "no_handset", "batch_ready", "ready_dryrun",
-        "ready_flash", "downloading", "flashing", "dryrun", "diagnostics",
-        "complete", "dryrun_complete", "diag_complete", "failed",
-    }
+    # Source of truth lives in gui_workflow so the pure logic and its tests
+    # share one definition.
+    HINT_STATES = WORKFLOW_HINT_STATES
 
     def _get_hint_copy(self, state):
         """Return (title, body) for a hint state in the active language."""
@@ -1271,9 +1278,9 @@ class FlasherFrame(wx.Frame):
         return (t(f"hint.{state}.title"), t(f"hint.{state}.body"))
 
     # States during which it's useful to also show the per-radio info
-    # (bootloader keys, connector type, notes from radios.json).
-    _RADIO_INFO_STATES = {"no_firmware", "no_handset", "ready_flash",
-                          "ready_dryrun", "batch_ready"}
+    # (bootloader keys, connector type, notes from radios.json). Defined in
+    # gui_workflow alongside the state machine that produces these keys.
+    _RADIO_INFO_STATES = RADIO_INFO_STATES
 
     def _format_radio_info(self):
         """Return per-radio instructions for the active radio, or empty string."""
@@ -1346,21 +1353,18 @@ class FlasherFrame(wx.Frame):
             self.hint_text.Thaw()
 
     def _compute_hint_state(self):
-        if self._terminal_state in ("complete", "failed",
-                                    "dryrun_complete", "diag_complete"):
-            return self._terminal_state
-        if self._busy:
-            return self._busy_state if hasattr(self, "_busy_state") else "flashing"
-        # Use _firmware_ready() (path present AND file exists) so the hint
-        # can't advance to "ready to flash" while the Flash button stays
-        # disabled because the referenced file is missing/deleted.
-        if not self._firmware_ready():
-            return "no_firmware"
-        if not self._selected_handset_indices():
-            return "no_handset"
-        if len(self._selected_handset_indices()) > 1:
-            return "batch_ready"
-        return "ready_flash"
+        # Pure decision logic lives in gui_workflow.compute_hint_state; this
+        # method only reads the current values off the frame. _firmware_ready()
+        # checks path-present AND file-exists so the hint can't advance to
+        # "ready to flash" while the Flash button stays disabled because the
+        # referenced file is missing/deleted.
+        return compute_hint_state(
+            terminal_state=self._terminal_state,
+            busy=self._busy,
+            firmware_ready=self._firmware_ready(),
+            handset_count=len(self._selected_handset_indices()),
+            busy_state=getattr(self, "_busy_state", "flashing"),
+        )
 
     def _on_state_change(self, event):
         # User-initiated change clears any sticky terminal state
