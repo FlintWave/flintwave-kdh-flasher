@@ -35,6 +35,7 @@ from gui_workflow import (
     RADIO_INFO_STATES,
 )
 from gui_titlebar import TitleBar
+from gui_statusbar import StatusBar, theme_toggle_glyph
 
 VERSION = "26.07.0"
 
@@ -209,7 +210,13 @@ class FlasherFrame(wx.Frame):
         root_sizer.Add(middle_row, 1, wx.EXPAND)
 
         # ---- Bottom status bar: borderless text/icon links, darker background ----
-        self.status_bar_panel = self._build_status_bar(panel)
+        self.status_bar_panel = StatusBar(panel, self)
+        # Keep frame-level handles to the widgets the frame updates directly
+        # (font/theme/lang labels, the update-available link).
+        self.font_btn = self.status_bar_panel.font_btn
+        self.theme_btn = self.status_bar_panel.theme_btn
+        self.lang_btn = self.status_bar_panel.lang_btn
+        self.update_link = self.status_bar_panel.update_link
         root_sizer.Add(self.status_bar_panel, 0, wx.EXPAND)
 
         panel.SetSizer(root_sizer)
@@ -682,76 +689,12 @@ class FlasherFrame(wx.Frame):
         self._rtl_targets.append(col)
         return col
 
-    def _build_status_bar(self, parent):
-        """Borderless status bar with text/icon click-targets (no button frames)."""
-        bar = wx.Panel(parent)
-        bar_sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        def make_link(label, tooltip_key, handler, label_key=None):
-            """Create a clickable StaticText (no button border)."""
-            link = wx.StaticText(bar, label=label)
-            link.SetCursor(wx.Cursor(wx.CURSOR_HAND))
-            link.SetToolTip(t(tooltip_key))
-            self._tr_tooltip(link, tooltip_key)
-            if label_key is not None:
-                self._tr_label(link, label_key)
-            link.Bind(wx.EVT_LEFT_DOWN, lambda e: handler())
-            return link
-
-        self.font_btn = make_link(
-            f"{self.font_size}pt", "tooltip.font_cycle", self._cycle_font)
-
-        # Theme toggle: glyph reflects the destination — sun = "switch to light",
-        # moon = "switch to dark". Currently mocha (dark) → show sun.
-        self.theme_btn = make_link(
-            "☀" if self.current_theme == "mocha" else "☾",
-            "tooltip.theme_toggle", self._toggle_theme)
-
-        # Language picker (was a title-bar dropdown pre-v26.05.5). Click opens
-        # a modal listing every supported language with its native-script
-        # label; the button itself shows the current language so users always
-        # see which one is active.
-        self.lang_btn = make_link(
-            self._language_button_label(),
-            "tooltip.language", self._open_language_dialog)
-
-        usage_link = make_link(t("statusbar.usage"), "tooltip.usage",
-                               lambda: self.on_usage_guide(None),
-                               label_key="statusbar.usage")
-        about_link = make_link(t("statusbar.about"), "tooltip.about",
-                               lambda: self.on_about(None),
-                               label_key="statusbar.about")
-
-        # Hidden hyperlink: when _check_update finds a newer release we set
-        # its URL and Show() it. Click opens the releases page.
-        self.update_link = wx.adv.HyperlinkCtrl(
-            bar, label=t("statusbar.update_available"),
-            url="https://github.com/FlintWave/flintwave-kdh-flasher/releases/latest",
-            style=wx.adv.HL_ALIGN_LEFT | wx.NO_BORDER)
-        self._tr_label(self.update_link, "statusbar.update_available")
-        self.update_link.Hide()
-
-        bar_sizer.AddSpacer(12)
-        bar_sizer.Add(self.font_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
-        bar_sizer.Add(self.theme_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
-        bar_sizer.Add(self.lang_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
-        bar_sizer.AddStretchSpacer(1)
-        bar_sizer.Add(usage_link, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
-        bar_sizer.Add(self.update_link, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
-        bar_sizer.Add(about_link, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
-        bar_sizer.AddSpacer(4)
-
-        bar.SetSizer(bar_sizer)
-        bar.SetMinSize(wx.Size(-1, 32))
-        self._rtl_targets.append(bar)
-        return bar
-
     def _toggle_theme(self):
         """Switch between mocha (dark) and latte (light), re-render everything."""
         new_theme = "latte" if self.current_theme == "mocha" else "mocha"
         apply_theme(self, new_theme)
         # Re-glyph the toggle to point at the *next* destination.
-        self.theme_btn.SetLabel("☀" if self.current_theme == "mocha" else "☾")
+        self.theme_btn.SetLabel(theme_toggle_glyph(self.current_theme))
         # Force a repaint of every dialog-style child so they pick up the swap.
         self.panel.Layout()
         self.panel.Refresh()
@@ -2209,7 +2152,7 @@ def main():
     frame = FlasherFrame()
     initial_theme = detect_os_theme()
     frame.current_theme = initial_theme
-    frame.theme_btn.SetLabel("☀" if initial_theme == "mocha" else "☾")
+    frame.theme_btn.SetLabel(theme_toggle_glyph(initial_theme))
     frame.Show()
     apply_theme(frame, initial_theme)
     # Apply the default font size to every widget so the user gets 12pt UI on
