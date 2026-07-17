@@ -1441,5 +1441,27 @@ class TestTitleBarModule(unittest.TestCase):
         self.assertIs(gui_titlebar.WindowDragger, WindowDragger)
 
 
+class TestStatusBarModule(unittest.TestCase):
+    """Pure status-bar helpers + import contract (widget tested via wx in CI)."""
+
+    def setUp(self):
+        import gui_statusbar
+        self.s = gui_statusbar
+
+    def test_theme_toggle_glyph_points_at_destination(self):
+        # Dark active -> sun ("switch to light"); light active -> moon.
+        self.assertEqual(self.s.theme_toggle_glyph("mocha"), "☀")
+        self.assertEqual(self.s.theme_toggle_glyph("latte"), "☾")
+
+    def test_theme_toggle_glyph_defaults_to_moon_for_non_mocha(self):
+        # Anything that isn't the dark theme reads as "currently light".
+        self.assertEqual(self.s.theme_toggle_glyph("anything-else"), "☾")
+
+    def test_module_imports_and_exposes_statusbar(self):
+        # Importable without wxPython; StatusBar is a class in CI, None here.
+        self.assertTrue(hasattr(self.s, "StatusBar"))
+        self.assertTrue(self.s.RELEASES_URL.startswith("https://"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
