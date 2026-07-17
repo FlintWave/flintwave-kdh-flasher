@@ -2327,11 +2327,11 @@ class TestRadioInfoFormatting(unittest.TestCase):
         self.assertIn(t("info.tested") if member.get("tested")
                       else t("info.untested"), lines)
         if member.get("bootloader_keys"):
-            from i18n import t_radio_field
             self.assertIn(
                 t("info.bootloader_keys").format(
-                    keys=t_radio_field(member["id"], "bootloader_keys",
-                                       member["bootloader_keys"])), lines)
+                    keys=self.i18n.t_radio_field(
+                        member["id"], "bootloader_keys",
+                        member["bootloader_keys"])), lines)
 
     def test_variant_prompt_renders_question_and_steps(self):
         t = self.i18n.t
