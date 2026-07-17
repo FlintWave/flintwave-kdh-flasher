@@ -17,3 +17,4 @@ test_gui_visual.py
 !icon.ico
 !screenshots/*.png
 *.resources
+.claude/

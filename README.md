@@ -118,7 +118,7 @@ Radio definitions live in `radios.json`. Firmware URLs are also tracked in `firm
 
 ## Languages
 
-Pick a language from the dropdown in the title bar. Available locales:
+Pick a language via the 🌐 entry in the status bar. Available locales:
 
 | Code  | Native name |
 |-------|------------|
@@ -131,7 +131,9 @@ Pick a language from the dropdown in the title bar. Available locales:
 | ar    | العربية (RTL layout) |
 | ru    | Русский |
 
-Translation files live in `translations/<code>.json`. When you pick a non-English language for the first time the app downloads that file from the GitHub repo and caches it under `~/.flintwave-flash/translations/`; subsequent runs load the cached copy. The non-English catalogs are initial machine-translated stubs (`_meta.reviewed: false`) — community review PRs welcome.
+Translation files live in `translations/<code>.json`. When you pick a non-English language for the first time the app downloads that file from the GitHub repo and caches it under `~/.flintwave-flash/translations/`; subsequent runs load the cached copy.
+
+The non-English catalogs are initially machine-translated (`_meta.reviewed: false`) and are marked "machine translated, help review" in the language picker until a native speaker has checked them — safety-critical strings first. See [CONTRIBUTING.md → Translations](CONTRIBUTING.md#translations) for the review process and the per-language tracking issues.
 
 ## CLI Usage
 

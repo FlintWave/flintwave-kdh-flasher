@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Translations
+
+- **Community translation review process.** All 7 non-English catalogs are machine-translated; a new CONTRIBUTING.md documents how native speakers review them — safety-critical strings first (bootloader key sequences, hardware-variant warnings, confirm/untested dialogs) — with per-language tracking issues labeled `translation-review`. The language picker now marks unreviewed languages ("machine translated, help review", localized) via a new `i18n.is_reviewed()` helper reading the catalog's `_meta.reviewed` flag, and tests enforce the `_meta.reviewed` convention plus the localized picker hint.
+
 ### Build / CI
 
 - **Tests now run on Linux, Windows, and macOS.** The test workflow gained an OS matrix (`fail-fast: false`); Windows/macOS legs reuse the release build's setup-python + pip-wheel install path, so the wx GUI tests execute on the platforms most users run instead of Linux-only.

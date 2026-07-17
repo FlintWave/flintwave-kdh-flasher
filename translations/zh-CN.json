@@ -244,5 +244,6 @@
   "radio.rt-950-pro.notes": "AT32F403A MCU，带有 .BTF 固件容器。BTF 文件以原始形式发送到无线电模块——无线电模块上的引导加载程序使用嵌入在文件偏移量 0x400 处的 16 字节 XOR 密钥对其进行解密。供应商通过 RT-950 Pro 用户 Facebook 群组分发固件；社区镜像位于 https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware。尚未在实际硬件上进行测试——在将其用于生产固件刷新之前，需要社区确认。",
   "tooltip.language": "更改界面语言",
   "dialog.language.prompt": "选择界面语言。非英语语言包会在您第一次选择时下载。",
+  "dialog.language.unreviewed": "机器翻译，欢迎帮助校对",
   "dialog.language.title": "选择语言。"
 }

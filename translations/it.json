@@ -244,5 +244,6 @@
   "radio.rt-950-pro.notes": "MCU AT32F403A con contenitore firmware .BTF. Il file BTF viene inviato alla radio così com'è: il bootloader integrato nella radio lo decrittografa utilizzando la chiave XOR di 16 byte incorporata all'offset 0x400 del file. Il fornitore distribuisce il firmware tramite il gruppo Facebook dei proprietari di RT-950 Pro; la community lo mette a disposizione su https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware. NON TESTATO su hardware reale: si richiede la conferma della community prima di affidarsi a questo per la programmazione in produzione.",
   "tooltip.language": "Cambia la lingua dell'interfaccia.",
   "dialog.language.title": "Scegli la lingua.",
-  "dialog.language.prompt": "Seleziona la lingua dell'interfaccia. I cataloghi non in inglese vengono scaricati la prima volta che li selezioni."
+  "dialog.language.prompt": "Seleziona la lingua dell'interfaccia. I cataloghi non in inglese vengono scaricati la prima volta che li selezioni.",
+  "dialog.language.unreviewed": "traduzione automatica, aiutaci a revisionarla"
 }
