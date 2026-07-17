@@ -62,12 +62,11 @@ if wx is not None:
             # First entry is a placeholder so the user has to actively pick a
             # radio (instead of getting whichever radio happened to be in
             # radios.json[0]). _get_selected_radio() treats index 0 as "no radio
-            # selected" (returns None).
+            # selected" (returns None). frame.radio_dropdown_labels() collapses
+            # each hardware-variant group into a single family row; ungrouped
+            # radios render one-to-one.
             frame.RADIO_PLACEHOLDER = t("radio.placeholder")
-            radio_names = [frame.RADIO_PLACEHOLDER] + [
-                radio_display_name(r["name"], r["manufacturer"])
-                for r in frame.radios
-            ]
+            radio_names = frame.radio_dropdown_labels()
             self.radio_combo = wx.ComboBox(self, choices=radio_names,
                                            style=wx.CB_DROPDOWN | wx.CB_READONLY)
             self.radio_combo.SetSelection(0)

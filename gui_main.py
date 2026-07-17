@@ -18,7 +18,7 @@ import firmware_download as dl
 import firmware_manifest as fm
 import firmware_version as fv
 import i18n
-from i18n import t, t_radio_field
+from i18n import t, t_radio_field, t_variant_field
 import updater
 import serial
 
@@ -27,6 +27,7 @@ from gui_dialogs import (
     show_test_report_dialog,
 )
 from gui_themes import apply_theme, THEME_PALETTES, MOCHA_PALETTE
+from gui_themes import _walk as _theme_walk, _style_widget as _theme_style_widget
 from gui_workflow import (
     compute_hint_state,
     compute_gates,
@@ -52,6 +53,11 @@ FONT_SIZES = [9, 11, 12, 14, 16]
 
 
 class FlasherFrame(wx.Frame):
+    # Sentinel stored in _variant_choice when the user answers "I'm not sure"
+    # to a hardware-variant question. Distinct from "unanswered" (absent key)
+    # so the info panel can show the firmware_page confirm link.
+    VARIANT_UNSURE = "__unsure__"
+
     def __init__(self):
         # Load English fallback synchronously, then load the saved language from
         # cache if available. A non-English code with no cache will fall back to
@@ -111,6 +117,13 @@ class FlasherFrame(wx.Frame):
         # Manifest state (must be set before _update_radio_info)
         self.manifest = None
         self.radios = dl.load_radios()
+        # Hardware-variant groups collapse their sibling members into one
+        # dropdown "family" row. _variant_choice maps a group id to the
+        # answer the user picked: a concrete member radio id (resolved),
+        # the VARIANT_UNSURE sentinel ("I'm not sure" → stop safe), or absent
+        # (not yet answered). Selection never guesses — an unresolved group
+        # keeps Download disabled.
+        self._variant_choice = {}
 
         col_firmware = FirmwareColumn(panel, self)
         col_handset = HandsetColumn(panel, self)
@@ -181,6 +194,19 @@ class FlasherFrame(wx.Frame):
         self.hints_panel.SetSizer(hp_sizer)
 
         outer_sizer.Add(self.hints_panel, 1, wx.EXPAND)
+
+        # Hardware-variant walkthrough controls. Live directly under the
+        # instructions text: when an unresolved variant group is selected,
+        # _render_variant_options() fills this panel with one radio button per
+        # variant answer + "I'm not sure" (and a confirm link when unsure).
+        # Hidden whenever a concrete radio or the placeholder is selected.
+        self._variant_panel = wx.Panel(self._instructions_outer)
+        self._variant_panel.SetSizer(wx.BoxSizer(wx.VERTICAL))
+        self._variant_panel.Hide()
+        outer_sizer.Add(self._variant_panel, 0,
+                        wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        self._rtl_targets.append(self._variant_panel)
+
         self._instructions_outer.SetSizer(outer_sizer)
 
         # Log panel (right half) — heading + textarea
@@ -490,12 +516,7 @@ class FlasherFrame(wx.Frame):
         try:
             current = self.radio_combo.GetSelection()
             self.RADIO_PLACEHOLDER = t("radio.placeholder")
-            radio_names = [self.RADIO_PLACEHOLDER] + [
-                r['name'] if r['name'].startswith(r['manufacturer'])
-                else f"{r['manufacturer']} {r['name']}"
-                for r in self.radios
-            ]
-            self.radio_combo.SetItems(radio_names)
+            self.radio_combo.SetItems(self.radio_dropdown_labels())
             self.radio_combo.SetSelection(max(0, current))
         except Exception:
             pass
@@ -809,9 +830,16 @@ class FlasherFrame(wx.Frame):
     _RADIO_INFO_STATES = RADIO_INFO_STATES
 
     def _format_radio_info(self):
-        """Return per-radio instructions for the active radio, or empty string."""
+        """Return per-radio instructions for the active radio, or empty string.
+
+        When an unresolved variant group is selected, returns the group's
+        identification question + steps instead (the selectable answers live in
+        the variant panel below, wired by _render_variant_options)."""
         radio = self._get_selected_radio()
         if not radio:
+            group_sel = self._get_selected_group()
+            if group_sel:
+                return self._format_variant_prompt(*group_sel)
             return ""
         bits = []
         rid = radio.get("id", "")
@@ -838,6 +866,94 @@ class FlasherFrame(wx.Frame):
             bits.append("")
             bits.append(t_radio_field(rid, "notes", notes))
         return "\n".join(bits)
+
+    def _format_variant_prompt(self, group_id, group):
+        """Text block for an unresolved variant group: family name, then the
+        translated identification question and steps."""
+        name = radio_display_name(
+            t_variant_field(group_id, "name", group.get("name", group_id)),
+            group.get("manufacturer", ""))
+        bits = [t("info.radio_label").format(name=name), ""]
+        question = t_variant_field(group_id, "question", group.get("question", ""))
+        steps = t_variant_field(group_id, "steps", group.get("steps", ""))
+        if question:
+            bits.append(t("info.variant_question"))
+            bits.append(question)
+        if steps:
+            bits.append("")
+            bits.append(t("info.variant_steps"))
+            bits.append(steps)
+        return "\n".join(bits)
+
+    def _clear_variant_panel(self):
+        """Empty and hide the variant walkthrough controls."""
+        panel = getattr(self, "_variant_panel", None)
+        if panel is None:
+            return
+        panel.DestroyChildren()
+        panel.GetSizer().Clear()
+        if panel.IsShown():
+            panel.Hide()
+            self._instructions_outer.Layout()
+
+    def _render_variant_options(self, group_id, group):
+        """(Re)build the variant answer controls for a selected group: one
+        radio button per member (translated variant_label) + an "I'm not sure"
+        option, plus a firmware_page confirm link when unsure. Choosing an
+        option resolves (or unresolves) the group and re-runs _update_radio_info.
+        """
+        panel = self._variant_panel
+        panel.DestroyChildren()
+        sizer = panel.GetSizer()
+        sizer.Clear()
+
+        current = self._variant_choice.get(group_id)
+        label_by_id = {o.get("radio_id"): o.get("label", "")
+                       for o in group.get("options", [])}
+
+        first = True
+        for radio_id in dl.variant_members(group_id):
+            label = t_radio_field(radio_id, "variant_label",
+                                  label_by_id.get(radio_id, radio_id))
+            rb = wx.RadioButton(panel, label=label,
+                                style=wx.RB_GROUP if first else 0)
+            first = False
+            rb.SetValue(current == radio_id)
+            rb.Bind(wx.EVT_RADIOBUTTON,
+                    lambda e, rid=radio_id: self._on_variant_chosen(group_id, rid))
+            sizer.Add(rb, 0, wx.BOTTOM, 4)
+
+        rb_unsure = wx.RadioButton(panel, label=t("info.variant_not_sure"),
+                                   style=wx.RB_GROUP if first else 0)
+        rb_unsure.SetValue(current == self.VARIANT_UNSURE)
+        rb_unsure.Bind(
+            wx.EVT_RADIOBUTTON,
+            lambda e: self._on_variant_chosen(group_id, self.VARIANT_UNSURE))
+        sizer.Add(rb_unsure, 0, wx.BOTTOM, 4)
+
+        # When the user says "I'm not sure", surface the vendor page so they can
+        # confirm their hardware before risking a wrong-variant flash.
+        if current == self.VARIANT_UNSURE:
+            page = group.get("firmware_page")
+            if page:
+                link = wx.adv.HyperlinkCtrl(
+                    panel, wx.ID_ANY, t("info.variant_confirm_link"), page)
+                sizer.Add(link, 0, wx.TOP, 2)
+
+        # Match the surrounding theme (children built after apply_theme ran).
+        palette = self.current_theme_palette or MOCHA_PALETTE
+        for w in _theme_walk(panel):
+            _theme_style_widget(w, palette)
+
+        panel.Show()
+        self._instructions_outer.Layout()
+
+    def _on_variant_chosen(self, group_id, choice):
+        """Record a variant answer and refresh the panel + Download gating."""
+        self._variant_choice[group_id] = choice
+        self._terminal_state = None
+        self._update_radio_info()
+        self._update_workflow_gating()
 
     def _set_hint(self, state):
         copy = self._get_hint_copy(state)
@@ -982,12 +1098,83 @@ class FlasherFrame(wx.Frame):
             pass
         self.status_bar_panel.Layout()
 
-    def _get_selected_radio(self):
-        # Combo entry 0 is the "— Select your radio —" placeholder. Real
-        # radios start at index 1 and map to self.radios[idx - 1].
+    def _radio_rows(self):
+        """Ordered dropdown rows, one per line the combo shows (excluding the
+        placeholder). Each row is a dict:
+            {"kind": "radio", "radio": <radio dict>}          — ungrouped radio
+            {"kind": "group", "group_id": <id>, "group": <group dict>}
+
+        Members of a hardware-variant group collapse into a single family row
+        at the position of the group's first member; ungrouped radios map 1:1.
+        Shared by the dropdown builder, the placeholder-refresh, and
+        _get_selected_radio so the row↔index mapping lives in one place.
+        """
+        groups = dl.load_variant_groups()
+        rows = []
+        seen = set()
+        for r in self.radios:
+            gid = r.get("variant_group")
+            if gid and gid in groups:
+                if gid in seen:
+                    continue
+                seen.add(gid)
+                rows.append({"kind": "group", "group_id": gid,
+                             "group": groups[gid]})
+            else:
+                rows.append({"kind": "radio", "radio": r})
+        return rows
+
+    def _radio_row_label(self, row):
+        """Display label for one dropdown row (family name for a group,
+        deduped manufacturer+model for a radio)."""
+        if row["kind"] == "group":
+            gid = row["group_id"]
+            grp = row["group"]
+            name = t_variant_field(gid, "name", grp.get("name", gid))
+            return radio_display_name(name, grp.get("manufacturer", ""))
+        r = row["radio"]
+        return radio_display_name(r.get("name", ""), r.get("manufacturer", ""))
+
+    def radio_dropdown_labels(self):
+        """Combo choices including the placeholder at index 0."""
+        return [self.RADIO_PLACEHOLDER] + [
+            self._radio_row_label(row) for row in self._radio_rows()]
+
+    def _selected_row(self):
+        """The _radio_rows() entry for the current combo selection, or None
+        for the placeholder / out-of-range."""
         idx = self.radio_combo.GetSelection()
-        if idx >= 1 and (idx - 1) < len(self.radios):
-            return self.radios[idx - 1]
+        if idx < 1:
+            return None
+        rows = self._radio_rows()
+        if (idx - 1) >= len(rows):
+            return None
+        return rows[idx - 1]
+
+    def _get_selected_group(self):
+        """Return (group_id, group_dict) when a variant-group family row is
+        selected — resolved or not — else None. Lets the info panel render the
+        walkthrough and gate Download."""
+        row = self._selected_row()
+        if row and row["kind"] == "group":
+            return row["group_id"], row["group"]
+        return None
+
+    def _get_selected_radio(self):
+        # Combo entry 0 is the "— Select your radio —" placeholder. For a plain
+        # radio row we return its dict. For a variant-group family row we return
+        # the concrete member ONLY once the user has resolved the variant; an
+        # unanswered group or "I'm not sure" returns None (Download stays gated,
+        # the app never guesses a variant).
+        row = self._selected_row()
+        if row is None:
+            return None
+        if row["kind"] == "radio":
+            return row["radio"]
+        gid = row["group_id"]
+        choice = self._variant_choice.get(gid)
+        if choice and choice != self.VARIANT_UNSURE:
+            return dl.resolve_variant(gid, choice)
         return None
 
     def _driver_for(self, radio):
@@ -1016,15 +1203,24 @@ class FlasherFrame(wx.Frame):
         """Refresh the Download button label/state for the selected radio.
 
         Per-radio info (bootloader keys, connector, notes) is rendered inline
-        in the hints panel via _set_hint(); this method only owns the
-        Download button + hint refresh.
+        in the hints panel via _set_hint(); this method owns the Download
+        button, the hint refresh, and the variant walkthrough panel.
         """
         # May be posted from the background manifest fetch after the frame has
         # started closing — bail rather than touch destroyed widgets.
         if self._closing or not self:
             return
         radio = self._get_selected_radio()
+        group_sel = self._get_selected_group()
+        # A variant family row keeps its answer controls visible (so the user
+        # can correct a mis-click) whether or not the variant is resolved yet.
+        if group_sel:
+            self._render_variant_options(*group_sel)
+        else:
+            self._clear_variant_panel()
+
         if radio:
+            # Concrete radio (plain row, or a group with a resolved variant).
             url, version = self._get_firmware_url_and_version(radio)
             has_url = bool(url)
             # Never re-enable Download during an in-progress operation; the
@@ -1038,6 +1234,12 @@ class FlasherFrame(wx.Frame):
                     t("button.download_versioned").format(version=version))
             else:
                 self.download_btn.SetLabel(t("button.download_latest"))
+        elif group_sel:
+            # A variant family is selected but not resolved ("I'm not sure" or
+            # unanswered): keep Download disabled until a variant is chosen.
+            if not self._busy:
+                self.download_btn.Enable(False)
+            self.download_btn.SetLabel(t("button.identify_first"))
 
         self._set_hint(self._compute_hint_state())
 
@@ -1051,6 +1253,11 @@ class FlasherFrame(wx.Frame):
     def on_download(self, event):
         if self._busy:
             return
+        # _get_selected_radio() returns None for an unresolved variant group
+        # (unanswered or "I'm not sure"), so this guard also refuses to start a
+        # download until the user has identified their hardware variant — belt
+        # and suspenders behind the disabled Download button. The app never
+        # guesses; the concrete member id resolves only after an explicit answer.
         radio = self._get_selected_radio()
         if not radio:
             return

@@ -1,31 +1,36 @@
 {
   "_comment": "Radio definitions for the KDH bootloader flasher. Community contributions welcome — add your radio and submit a PR. Set 'tested' to true only after confirming a successful flash.",
+  "_variant_groups_comment": "Hardware-variant groups. When one physical model ships as multiple non-interchangeable firmware variants behind a single vendor bundle, the sibling radio entries keep their own ids/urls/firmware_filename_pattern and each carries a 'variant_group' field naming its group. The top-level 'variant_groups' block describes each group: 'name' + 'manufacturer' (dropdown family label), 'firmware_page' (where to confirm hardware), 'question' + 'steps' (English identification prose, translated via variant_group.<group_id>.<field>), and an ordered 'options' list mapping each answer (options[].label, English; translated per-member via radio.<id>.variant_label) to exactly one member 'radio_id'. Ids are a compatibility surface — never rename or remove them.",
   "radios": [
     {
       "id": "bf-f8hp-pro",
       "name": "BTECH BF-F8HP Pro (NRF)",
       "manufacturer": "BTECH",
       "model_type": "H802",
+      "variant_group": "bf-f8hp-pro-family",
+      "variant_label": "Display shows NRF",
       "firmware_url": "https://baofengtech.com/wp-content/uploads/2026/01/F8HPPRO-V53-Update-Bundle.zip",
       "firmware_page": "https://baofengtech.com/product/bf-f8hp-pro/",
       "firmware_filename_pattern": "NRF_ONLY_*.kdhx",
       "bootloader_keys": "SK1 + SK2 (top and bottom side buttons, not PTT). Volume to max. Press cable connector firmly into radio and hold pressure during entire flash.",
       "connector": "K1 Kenwood 2-pin",
       "tested": true,
-      "notes": "The BF-F8HP Pro exists as two hardware versions, NRF and NRFB, and their firmware files are NOT interchangeable — flashing the wrong one can break the receiver. To check yours: with the radio OFF, hold the 8 key while turning it on; the display shows NRF or NRFB. If it shows NRFB, select 'BTECH BF-F8HP Pro (NRFB)' instead. Confirmed working on V0.53 firmware. The K1 connector may need firm pressure to maintain the data return contact on the 2.5mm ring. Keep steady pressure on the cable plug during the entire flash process."
+      "notes": "Confirmed working on V0.53 firmware. The K1 connector may need firm pressure to maintain the data return contact on the 2.5mm ring. Keep steady pressure on the cable plug during the entire flash process."
     },
     {
       "id": "bf-f8hp-pro-nrfb",
       "name": "BTECH BF-F8HP Pro (NRFB)",
       "manufacturer": "BTECH",
       "model_type": "H802",
+      "variant_group": "bf-f8hp-pro-family",
+      "variant_label": "Display shows NRFB",
       "firmware_url": "https://baofengtech.com/wp-content/uploads/2026/01/F8HPPRO-V53-Update-Bundle.zip",
       "firmware_page": "https://baofengtech.com/product/bf-f8hp-pro/",
       "firmware_filename_pattern": "NRFB_ONLY_*.kdhx",
       "bootloader_keys": "SK1 + SK2 (top and bottom side buttons, not PTT). Volume to max. Press cable connector firmly into radio and hold pressure during entire flash.",
       "connector": "K1 Kenwood 2-pin",
       "tested": false,
-      "notes": "The BF-F8HP Pro exists as two hardware versions, NRF and NRFB, and their firmware files are NOT interchangeable — flashing the wrong one can break the receiver. To check yours: with the radio OFF, hold the 8 key while turning it on; the display shows NRF or NRFB. If it shows NRF, select 'BTECH BF-F8HP Pro (NRF)' instead. The K1 connector may need firm pressure to maintain the data return contact on the 2.5mm ring. Keep steady pressure on the cable plug during the entire flash process."
+      "notes": "The K1 connector may need firm pressure to maintain the data return contact on the 2.5mm ring. Keep steady pressure on the cable plug during the entire flash process."
     },
     {
       "id": "uv-25-pro",
@@ -58,26 +63,30 @@
       "name": "Radtel RT-490",
       "manufacturer": "Radtel",
       "model_type": "WLT",
+      "variant_group": "rt-490-family",
+      "variant_label": "No channel-name editing (old PCB)",
       "firmware_url": "https://cdn.shopify.com/s/files/1/0564/8855/8800/files/Firmware_Version_1.03.zip",
       "firmware_page": "https://www.radtels.com/pages/software-download",
       "firmware_filename_pattern": "*.kdhx",
       "bootloader_keys": "Unknown — check manual",
       "connector": "K1 Kenwood 2-pin",
       "tested": false,
-      "notes": "Shares JJCC JC-8629 PCB. KDH bootloader. This URL is for the OLD PCB (v1.03). If your RT-490 has channel name editing, you have the new PCB — select 'Radtel RT-490 (New PCB)' instead."
+      "notes": "Shares the JJCC JC-8629 PCB, KDH bootloader. This URL is the OLD-PCB bundle (v1.03). Heads up: that bundle was found to contain four .kdhx files (GPS / No-GPS x hardware V1.0 / V2.0) with no known reliable way to tell them apart, so the automatic download stops safely at the multiple-firmware-files guard without flashing anything. Community help identifying these sub-variants is wanted — confirm which firmware fits your radio at https://www.radtels.com/pages/software-download before flashing."
     },
     {
       "id": "rt-490-new",
       "name": "Radtel RT-490 (New PCB)",
       "manufacturer": "Radtel",
       "model_type": "WLT",
+      "variant_group": "rt-490-family",
+      "variant_label": "Has channel-name editing (new PCB)",
       "firmware_url": null,
       "firmware_page": "https://www.radtels.com/pages/software-download",
       "firmware_filename_pattern": "*.kdhx",
       "bootloader_keys": "Unknown — check manual",
       "connector": "K1 Kenwood 2-pin",
       "tested": false,
-      "notes": "Radtel RT-490 with NEW PCB (supports channel name editing). Only use firmware v1.23a/v1.24a/v1.25a — do NOT use V2.11A or old-PCB firmware, it will brick the radio. Same JJCC JC-8629 platform. Download firmware from radtels.com or browse for a .kdhx file."
+      "notes": "Radtel RT-490 with the NEW PCB. Only use firmware v1.23a/v1.24a/v1.25a — do NOT use V2.11A or old-PCB firmware, it will brick the radio. Same JJCC JC-8629 platform. Download firmware from radtels.com or browse for a .kdhx file."
     },
     {
       "id": "socotran-jc8629",
@@ -197,5 +206,29 @@
       "tested": false,
       "notes": "Generic option for any radio using the KDH bootloader. Browse for a .kdhx firmware file you have downloaded from your manufacturer. Many radios based on KeDiHeng designs (Abbree, Hamgeek, Socotran, JJCC, etc.) use this bootloader."
     }
-  ]
+  ],
+  "variant_groups": {
+    "bf-f8hp-pro-family": {
+      "name": "BTECH BF-F8HP Pro",
+      "manufacturer": "BTECH",
+      "firmware_page": "https://baofengtech.com/product/bf-f8hp-pro/",
+      "question": "Which hardware version is your BF-F8HP Pro?",
+      "steps": "With the radio OFF, hold the 8 key while turning it on. The display shows either NRF or NRFB.",
+      "options": [
+        { "radio_id": "bf-f8hp-pro", "label": "Display shows NRF" },
+        { "radio_id": "bf-f8hp-pro-nrfb", "label": "Display shows NRFB" }
+      ]
+    },
+    "rt-490-family": {
+      "name": "Radtel RT-490",
+      "manufacturer": "Radtel",
+      "firmware_page": "https://www.radtels.com/pages/software-download",
+      "question": "Which PCB revision is your RT-490?",
+      "steps": "Check whether your RT-490 can edit channel names in its menu. The new PCB supports channel-name editing; the old PCB does not.",
+      "options": [
+        { "radio_id": "rt-490", "label": "No channel-name editing (old PCB)" },
+        { "radio_id": "rt-490-new", "label": "Has channel-name editing (new PCB)" }
+      ]
+    }
+  }
 }

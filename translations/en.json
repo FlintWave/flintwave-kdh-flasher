@@ -36,6 +36,7 @@
   "button.close": "Close",
   "button.submit": "Submit",
   "button.skip": "Skip",
+  "button.identify_first": "Identify Hardware First",
 
   "tooltip.refresh": "Re-scan serial ports and probe each one for a radio in bootloader mode.",
   "tooltip.select_all": "Check every detected handset.",
@@ -138,6 +139,10 @@
   "info.untested": "Untested with this tool",
   "info.latest_firmware": "Latest firmware: v{version}",
   "info.selected_radio_header": "— Selected radio —",
+  "info.variant_question": "Identify your hardware version:",
+  "info.variant_steps": "How to check:",
+  "info.variant_not_sure": "I'm not sure",
+  "info.variant_confirm_link": "Not sure? Confirm your hardware version here",
 
   "log.downloading_for": "Downloading firmware for {radio}...",
   "log.url": "URL: {url}",

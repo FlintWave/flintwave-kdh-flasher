@@ -44,6 +44,18 @@ verifies them, and drives the serial flash protocol, with a multilingual UI
   hardware-variant firmware files that are NOT interchangeable (BF-F8HP Pro
   NRF/NRFB; RT-490 old/new PCB). Flashing the wrong variant can brick a
   radio. Treat firmware selection as safety-critical.
+- Hardware variants are modelled as a first-class concept: sibling radio
+  entries that represent variants of one physical model share a
+  `variant_group` id and are described by a top-level `variant_groups` block
+  (`name`, `manufacturer`, `firmware_page`, identification `question`/`steps`,
+  and an ordered `options[]` mapping each answer to a member `radio_id`). The
+  UI collapses a group to one dropdown row and walks the user through
+  identifying their hardware before download; it refuses to guess and stops
+  safe (Download disabled + `firmware_page` link) on "I'm not sure". Group
+  `question`/`steps` translate through `variant_group.<group_id>.<field>`
+  (helper `t_variant_field`); per-answer labels translate through
+  `radio.<id>.variant_label` (helper `t_radio_field`). Member ids stay a
+  compatibility surface — never rename or remove them.
 - Many `radios.json` entries are `tested: false` — community test reports
   (GitHub issues) are how entries get confirmed.
 - Non-English catalogs are machine-translated until a native speaker reviews

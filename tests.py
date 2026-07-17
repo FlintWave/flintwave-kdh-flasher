@@ -17,6 +17,7 @@ import math
 import json
 import struct
 import tempfile
+import types
 import unittest
 
 import flash_firmware as fw
@@ -293,6 +294,8 @@ class TestRadioDefinitions(unittest.TestCase):
         with open(radios_path) as f:
             self.data = json.load(f)
         self.radios = self.data["radios"]
+        self.variant_groups = self.data.get("variant_groups", {})
+        self.ids = {r["id"] for r in self.radios}
 
     def test_has_radios(self):
         self.assertGreater(len(self.radios), 0)
@@ -323,6 +326,72 @@ class TestRadioDefinitions(unittest.TestCase):
     def test_tested_is_bool(self):
         for radio in self.radios:
             self.assertIsInstance(radio["tested"], bool)
+
+    # --- Variant-group integrity (additive schema) -------------------------
+
+    def test_member_variant_group_references_exist(self):
+        """Every member's variant_group names a real top-level group."""
+        for radio in self.radios:
+            gid = radio.get("variant_group")
+            if gid is None:
+                continue
+            self.assertIn(gid, self.variant_groups,
+                          f"Radio {radio['id']} references unknown "
+                          f"variant_group {gid!r}")
+
+    def test_variant_group_options_resolve_to_distinct_real_ids(self):
+        """Each group's options map to real, distinct radio ids."""
+        for gid, group in self.variant_groups.items():
+            options = group.get("options", [])
+            self.assertIsInstance(options, list,
+                                  f"{gid} options must be an ordered list")
+            option_ids = [o["radio_id"] for o in options]
+            for rid in option_ids:
+                self.assertIn(rid, self.ids,
+                              f"{gid} option radio_id {rid!r} is not a radio")
+            self.assertEqual(len(option_ids), len(set(option_ids)),
+                             f"{gid} has duplicate option radio_ids")
+
+    def test_variant_group_members_all_share_the_group(self):
+        """Every radio_id an option points at actually carries that group."""
+        group_of = {r["id"]: r.get("variant_group") for r in self.radios}
+        for gid, group in self.variant_groups.items():
+            for opt in group.get("options", []):
+                rid = opt["radio_id"]
+                self.assertEqual(group_of.get(rid), gid,
+                                 f"{rid} is an option of {gid} but its "
+                                 f"variant_group is {group_of.get(rid)!r}")
+
+
+class TestVariantGroups(unittest.TestCase):
+    """Validate the top-level variant_groups block: each group must carry the
+    identification prose, a confirm link, and at least two answer options so
+    the walkthrough is well-formed."""
+
+    def setUp(self):
+        radios_path = os.path.join(os.path.dirname(__file__), "radios.json")
+        with open(radios_path) as f:
+            self.data = json.load(f)
+        self.variant_groups = self.data.get("variant_groups", {})
+
+    def test_each_group_has_question_and_steps(self):
+        for gid, group in self.variant_groups.items():
+            for field in ("question", "steps"):
+                val = group.get(field)
+                self.assertIsInstance(val, str, f"{gid}.{field} must be a string")
+                self.assertTrue(val.strip(), f"{gid}.{field} must be non-empty")
+
+    def test_each_group_has_firmware_page(self):
+        for gid, group in self.variant_groups.items():
+            page = group.get("firmware_page")
+            self.assertIsInstance(page, str, f"{gid} needs a firmware_page")
+            self.assertTrue(page.startswith("https://"),
+                            f"{gid} firmware_page must be HTTPS")
+
+    def test_each_group_has_at_least_two_options(self):
+        for gid, group in self.variant_groups.items():
+            self.assertGreaterEqual(len(group.get("options", [])), 2,
+                                    f"{gid} needs at least two variant options")
 
 
 class TestDownloader(unittest.TestCase):
@@ -441,6 +510,51 @@ class TestFirmwareVariantSelection(unittest.TestCase):
                 ["NRF_ONLY_BF-F8HP-PRO_FIRMWARE_V0.53.kdhx"])
             self.assertEqual(sorted(dl.list_archive_kdhx(bundle)),
                              sorted(self.F8HP_BUNDLE_FILES))
+
+
+class TestVariantResolution(unittest.TestCase):
+    """The group-aware selection helpers in firmware_download: they must
+    resolve a chosen answer to a concrete member id and refuse to produce any
+    firmware id for the unknown / "I'm not sure" path."""
+
+    def setUp(self):
+        import firmware_download as dl
+        self.dl = dl
+        self.groups = dl.load_variant_groups()
+
+    def test_load_variant_groups_is_dict(self):
+        self.assertIsInstance(self.groups, dict)
+
+    def test_get_variant_group_unknown_is_none(self):
+        self.assertIsNone(self.dl.get_variant_group("does-not-exist"))
+        self.assertIsNone(self.dl.get_variant_group(None))
+
+    def test_variant_members_follow_option_order(self):
+        for gid, group in self.groups.items():
+            expected = [o["radio_id"] for o in group.get("options", [])]
+            self.assertEqual(self.dl.variant_members(gid), expected)
+
+    def test_variant_members_unknown_group_is_empty(self):
+        self.assertEqual(self.dl.variant_members("nope"), [])
+
+    def test_resolve_variant_returns_concrete_member(self):
+        for gid, group in self.groups.items():
+            for opt in group.get("options", []):
+                rid = opt["radio_id"]
+                resolved = self.dl.resolve_variant(gid, rid)
+                self.assertIsNotNone(resolved)
+                self.assertEqual(resolved["id"], rid)
+
+    def test_resolve_variant_unknown_or_not_sure_is_none(self):
+        # None (unanswered / "I'm not sure") and a foreign id both refuse to
+        # resolve — the caller gets no firmware id to act on.
+        for gid in self.groups:
+            self.assertIsNone(self.dl.resolve_variant(gid, None))
+            self.assertIsNone(self.dl.resolve_variant(gid, "generic"))
+            self.assertIsNone(self.dl.resolve_variant(gid, "__unsure__"))
+
+    def test_resolve_variant_unknown_group_is_none(self):
+        self.assertIsNone(self.dl.resolve_variant("nope", "bf-f8hp-pro"))
 
 
 class TestRadioBootloaderKeys(unittest.TestCase):
@@ -924,6 +1038,30 @@ class TestManifestSchema(unittest.TestCase):
         self.assertIn("manifest_version", self.manifest)
         self.assertIsInstance(self.manifest["manifest_version"], int)
 
+    def test_variant_migration_preserves_compat_surface(self):
+        """Simulated old-client path: the variant migration must not rename or
+        drop the ids the remote manifest is keyed by. All four migrated member
+        ids stay real radio ids AND stay resolvable through the unchanged,
+        id-keyed manifest shape (offline; BTECH ids don't scrape)."""
+        import firmware_download as dl
+        import firmware_manifest as fm_mod
+        migrated = ["bf-f8hp-pro", "bf-f8hp-pro-nrfb", "rt-490", "rt-490-new"]
+        radio_ids = {r["id"] for r in self.radios}
+        manifest_ids = set(self.manifest["radios"].keys())
+        for rid in migrated:
+            self.assertIn(rid, radio_ids, f"{rid} lost as a radio id")
+            self.assertIsNotNone(dl.get_radio_by_id(rid))
+            self.assertIn(rid, manifest_ids,
+                          f"{rid} lost as a manifest key (breaks old clients)")
+        # An old-shaped manifest keyed by these ids still resolves (no network:
+        # the two BTECH ids have no Radtel scrape path).
+        fake_manifest = {rid: {"firmware_version": "9.9",
+                               "firmware_url": "https://example.com/fw.zip"}
+                         for rid in ("bf-f8hp-pro", "bf-f8hp-pro-nrfb")}
+        for rid in fake_manifest:
+            info = fm_mod.get_radio_firmware_info(rid, fake_manifest)
+            self.assertEqual(info["firmware_version"], "9.9")
+
     def test_manifest_covers_radios_with_firmware(self):
         """Every radio with a firmware_url in radios.json should be in the manifest."""
         manifest_ids = set(self.manifest["radios"].keys())
@@ -1154,7 +1292,8 @@ class TestRadioStringTranslations(unittest.TestCase):
     drifting out of sync.
     """
     REQUIRED_LANGS = ["zh-CN", "fr", "de", "it", "es", "ar", "ru"]
-    TRANSLATABLE_FIELDS = ("bootloader_keys", "connector", "notes")
+    TRANSLATABLE_FIELDS = ("bootloader_keys", "connector", "notes",
+                           "variant_label")
 
     def setUp(self):
         import json, os
@@ -1198,6 +1337,56 @@ class TestRadioStringTranslations(unittest.TestCase):
         self.assertEqual(echoed, [],
                          f"{len(echoed)} translations identical to English "
                          f"source (model echo): {echoed[:5]}")
+
+
+class TestVariantGroupTranslations(unittest.TestCase):
+    """Mirror of TestRadioStringTranslations for group-level identification
+    strings. The question/steps of every variant group must have a
+    non-echoed translation in each shipped catalog, keyed
+    `variant_group.<group_id>.<field>`."""
+
+    REQUIRED_LANGS = ["zh-CN", "fr", "de", "it", "es", "ar", "ru"]
+    TRANSLATABLE_FIELDS = ("question", "steps")
+
+    def setUp(self):
+        import json, os
+        repo = os.path.dirname(__file__)
+        data = json.load(open(os.path.join(repo, "radios.json")))
+        self.groups = data.get("variant_groups", {})
+        self.catalogs = {}
+        for code in self.REQUIRED_LANGS:
+            path = os.path.join(repo, "translations", f"{code}.json")
+            self.catalogs[code] = json.load(open(path, encoding="utf-8"))
+
+    def test_every_group_field_translated_in_every_lang(self):
+        missing = []
+        for gid, group in self.groups.items():
+            for field in self.TRANSLATABLE_FIELDS:
+                src = group.get(field)
+                if not isinstance(src, str) or not src.strip():
+                    continue
+                key = f"variant_group.{gid}.{field}"
+                for code, cat in self.catalogs.items():
+                    if key not in cat:
+                        missing.append(f"{code}: {key}")
+        self.assertEqual(missing, [],
+                         f"{len(missing)} missing variant-group translations: "
+                         f"{missing[:5]}")
+
+    def test_group_translations_are_actually_translated(self):
+        echoed = []
+        for gid, group in self.groups.items():
+            for field in self.TRANSLATABLE_FIELDS:
+                src = group.get(field)
+                if not isinstance(src, str) or not src.strip():
+                    continue
+                key = f"variant_group.{gid}.{field}"
+                for code, cat in self.catalogs.items():
+                    if cat.get(key, "").strip() == src.strip():
+                        echoed.append(f"{code}: {key}")
+        self.assertEqual(echoed, [],
+                         f"{len(echoed)} variant-group translations identical "
+                         f"to English source (model echo): {echoed[:5]}")
 
 
 class TestEndToEndFlashKDH(unittest.TestCase):
@@ -1627,6 +1816,115 @@ class TestColumnsModule(unittest.TestCase):
         # Importable without wxPython; the column classes are defined in CI.
         for name in ("FirmwareColumn", "HandsetColumn", "FlashColumn"):
             self.assertTrue(hasattr(self.c, name))
+
+
+class TestVariantSelectionGating(unittest.TestCase):
+    """Exercise the FlasherFrame variant-selection logic headlessly.
+
+    The methods under test (_radio_rows / _selected_row / _get_selected_group /
+    _get_selected_radio) read only plain attributes off the frame, so we bind
+    them onto a lightweight stub with a fake combo instead of constructing a
+    wx.Frame (which needs a display). This asserts the Download gate: a family
+    row disables Download, resolving a variant enables it, and "I'm not sure"
+    keeps it disabled while still exposing the group (and its firmware_page)."""
+
+    def setUp(self):
+        import importlib
+        try:
+            self.gm = importlib.import_module("gui_main")
+        except ImportError:
+            self.skipTest("gui_main not importable in this environment")
+        import firmware_download as dl
+        self.dl = dl
+        # Locate the first variant-group family row in dropdown order, plus a
+        # plain (ungrouped) radio row, so the assertions are data-driven.
+        self.groups = dl.load_variant_groups()
+        self.assertTrue(self.groups, "expected at least one variant group")
+
+    class _StubCombo:
+        def __init__(self, idx):
+            self._idx = idx
+
+        def GetSelection(self):
+            return self._idx
+
+    def _make_frame(self, selection):
+        gm = self.gm
+        stub = types.SimpleNamespace()
+        stub.radios = self.dl.load_radios()
+        stub._variant_choice = {}
+        stub.VARIANT_UNSURE = gm.FlasherFrame.VARIANT_UNSURE
+        stub.radio_combo = self._StubCombo(selection)
+        # Bind the unbound methods so they run against the stub.
+        for name in ("_radio_rows", "_selected_row", "_get_selected_group",
+                     "_get_selected_radio"):
+            setattr(stub, name, getattr(gm.FlasherFrame, name).__get__(stub))
+        return stub
+
+    def _first_group_row_index(self, stub):
+        rows = stub._radio_rows()
+        for i, row in enumerate(rows):
+            if row["kind"] == "group":
+                return i + 1, row  # +1 for the placeholder at index 0
+        self.fail("no group row present in dropdown")
+
+    def test_rows_collapse_group_members_to_one_family_row(self):
+        stub = self._make_frame(0)
+        rows = stub._radio_rows()
+        # Every grouped member id appears behind exactly one family row.
+        group_rows = [r for r in rows if r["kind"] == "group"]
+        self.assertEqual(len(group_rows), len(self.groups))
+        # No grouped member leaks in as its own radio row.
+        grouped_ids = {o["radio_id"] for g in self.groups.values()
+                       for o in g["options"]}
+        radio_row_ids = {r["radio"]["id"] for r in rows if r["kind"] == "radio"}
+        self.assertEqual(grouped_ids & radio_row_ids, set())
+
+    def test_family_row_unresolved_selects_no_radio(self):
+        stub = self._make_frame(0)
+        idx, row = self._first_group_row_index(stub)
+        stub.radio_combo._idx = idx
+        # Family selected, no answer yet → the group is visible but no concrete
+        # radio resolves, so Download stays gated.
+        self.assertIsNotNone(stub._get_selected_group())
+        self.assertIsNone(stub._get_selected_radio())
+
+    def test_choosing_a_variant_resolves_and_enables(self):
+        stub = self._make_frame(0)
+        idx, row = self._first_group_row_index(stub)
+        stub.radio_combo._idx = idx
+        gid = row["group_id"]
+        member = self.dl.variant_members(gid)[0]
+        stub._variant_choice[gid] = member
+        resolved = stub._get_selected_radio()
+        self.assertIsNotNone(resolved)
+        self.assertEqual(resolved["id"], member)
+
+    def test_not_sure_keeps_gated_but_exposes_group_link(self):
+        stub = self._make_frame(0)
+        idx, row = self._first_group_row_index(stub)
+        stub.radio_combo._idx = idx
+        gid = row["group_id"]
+        stub._variant_choice[gid] = stub.VARIANT_UNSURE
+        # Still no concrete radio (Download disabled) ...
+        self.assertIsNone(stub._get_selected_radio())
+        # ... but the group — and its confirm link — remain available.
+        group_sel = stub._get_selected_group()
+        self.assertIsNotNone(group_sel)
+        self.assertTrue(group_sel[1].get("firmware_page", "").startswith("https://"))
+
+    def test_ungrouped_radio_row_resolves_directly(self):
+        stub = self._make_frame(0)
+        rows = stub._radio_rows()
+        for i, r in enumerate(rows):
+            if r["kind"] == "radio":
+                stub.radio_combo._idx = i + 1
+                self.assertIsNone(stub._get_selected_group())
+                self.assertEqual(stub._get_selected_radio()["id"],
+                                 r["radio"]["id"])
+                break
+        else:
+            self.fail("no ungrouped radio row present")
 
 
 class TestHandsetPortEnumeration(unittest.TestCase):
