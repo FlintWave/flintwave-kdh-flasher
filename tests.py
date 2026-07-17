@@ -605,9 +605,10 @@ class TestHintCopy(unittest.TestCase):
 
 class TestHandsetStatusConstants(unittest.TestCase):
     """Verify all per-handset status strings used by the batch flash flow are
-    defined in gui_main. After the i18n migration these constants are
-    translation keys (e.g. "status.ready") rather than English literals;
-    the rendering layer translates them at write-time."""
+    defined in gui_handset (the source of truth since the handset behavior was
+    extracted there). These constants are translation keys (e.g. "status.ready")
+    rather than English literals; the rendering layer translates them at
+    write-time."""
 
     EXPECTED_KEYS = {
         "STATUS_UNKNOWN": "status.unknown",
@@ -623,12 +624,12 @@ class TestHandsetStatusConstants(unittest.TestCase):
     def test_status_constants_defined(self):
         import importlib
         try:
-            gm = importlib.import_module("gui_main")
+            gh = importlib.import_module("gui_handset")
         except ImportError:
-            self.skipTest("gui_main not importable in this environment")
+            self.skipTest("gui_handset not importable in this environment")
         for name, expected_key in self.EXPECTED_KEYS.items():
-            self.assertTrue(hasattr(gm, name), f"Missing status constant: {name}")
-            self.assertEqual(getattr(gm, name), expected_key,
+            self.assertTrue(hasattr(gh, name), f"Missing status constant: {name}")
+            self.assertEqual(getattr(gh, name), expected_key,
                              f"{name} should be the i18n key '{expected_key}'")
 
     def test_status_keys_resolve(self):
