@@ -2402,5 +2402,228 @@ class TestHintPresenterModule(unittest.TestCase):
         self.assertTrue(hasattr(gm.FlasherFrame, "_RADIO_INFO_STATES"))
 
 
+class TestDownloadController(unittest.TestCase):
+    """Headless coverage of the extracted DownloadController (gui_download).
+
+    The controller drives widgets only through the frame, so we bind it to a
+    lightweight stub with fake widgets / plumbing instead of a wx.Frame (which
+    needs a display). This exercises the firmware-discovery resolution (manifest
+    vs radios.json, variant-gated Download label/state) and the download worker's
+    progress scaling / terminal-state transitions with a fake ``dl``. No display,
+    no network, no pyserial — following the enumerate_serial_ports /
+    format_radio_info precedent."""
+
+    def setUp(self):
+        try:
+            import gui_download
+            import i18n
+        except ImportError:
+            self.skipTest("gui_download / i18n not importable")
+        i18n.load_bundled_en()
+        self.gd = gui_download
+        self.i18n = i18n
+
+    # -- small fakes ----------------------------------------------------- #
+    class _FakeButton:
+        def __init__(self):
+            self.enabled = None
+            self.label = None
+
+        def Enable(self, flag=True):
+            self.enabled = flag
+
+        def SetLabel(self, text):
+            self.label = text
+
+    class _FakeText:
+        def __init__(self):
+            self.value = None
+
+        def SetValue(self, v):
+            self.value = v
+
+        def Clear(self):
+            self.value = ""
+
+    def _stub_frame(self, **overrides):
+        """A SimpleNamespace frame with the collaborators the controller reads.
+
+        Records log lines, progress values, set_buttons calls and hint states so
+        assertions can inspect what the worker posted."""
+        f = types.SimpleNamespace()
+        f._closing = False
+        f._busy = False
+        f._busy_state = None
+        f._terminal_state = "sentinel"
+        f.download_btn = self._FakeButton()
+        f.file_path = self._FakeText()
+        f.log = self._FakeText()
+        f.progress_values = []
+        f.log_lines = []
+        f.set_buttons_calls = []
+        f.hint_states = []
+        f.set_progress = lambda pct: f.progress_values.append(pct)
+        f.log_msg = lambda msg: f.log_lines.append(msg)
+        f.set_buttons = lambda enabled: f.set_buttons_calls.append(enabled)
+        f._set_hint = lambda state: f.hint_states.append(state)
+        f._compute_hint_state = lambda: "computed"
+        f._update_workflow_gating = lambda: None
+        f._render_variant_options = lambda *a: setattr(f, "rendered_group", a)
+        f._clear_variant_panel = lambda: setattr(f, "variant_cleared", True)
+        f._get_selected_radio = lambda: None
+        f._get_selected_group = lambda: None
+        for k, v in overrides.items():
+            setattr(f, k, v)
+        return f
+
+    class _FakeCallAfterWx:
+        """Stand-in for the wx module: CallAfter runs synchronously so the
+        headless test can assert on the resulting widget writes."""
+        @staticmethod
+        def CallAfter(func, *args, **kwargs):
+            func(*args, **kwargs)
+
+    def _controller(self, frame):
+        dc = self.gd.DownloadController(frame)
+        return dc
+
+    # -- module surface / delegators ------------------------------------- #
+    def test_module_exposes_controller(self):
+        self.assertTrue(hasattr(self.gd, "DownloadController"))
+
+    def test_frame_keeps_same_named_delegators(self):
+        import importlib
+        try:
+            gm = importlib.import_module("gui_main")
+        except ImportError:
+            self.skipTest("gui_main not importable in this environment")
+        for name in ("on_download", "on_browse", "on_radio_changed",
+                     "_update_radio_info", "_get_firmware_url_and_version",
+                     "_download_thread", "_fetch_manifest", "_check_update",
+                     "_notify_update", "_show_update_link"):
+            self.assertTrue(hasattr(gm.FlasherFrame, name),
+                            f"frame lost delegator {name}")
+        # manifest is a property shim over the controller (not a plain attr).
+        self.assertIsInstance(gm.FlasherFrame.manifest, property)
+
+    # -- firmware discovery ---------------------------------------------- #
+    def test_manifest_url_and_version_win_over_radios_json(self):
+        dc = self._controller(self._stub_frame())
+        dc.manifest = {"acme-x1": {"firmware_version": "1.2",
+                                   "firmware_url": "https://example.com/new.zip"}}
+        radio = {"id": "acme-x1",
+                 "firmware_url": "https://example.com/old.zip"}
+        url, version = dc.get_firmware_url_and_version(radio)
+        self.assertEqual(url, "https://example.com/new.zip")
+        self.assertEqual(version, "1.2")
+
+    def test_falls_back_to_radios_json_without_manifest(self):
+        dc = self._controller(self._stub_frame())
+        dc.manifest = None
+        radio = {"id": "acme-x1",
+                 "firmware_url": "https://example.com/old.zip"}
+        url, version = dc.get_firmware_url_and_version(radio)
+        self.assertEqual(url, "https://example.com/old.zip")
+        self.assertIsNone(version)
+
+    # -- update_radio_info: variant-gated + concrete paths --------------- #
+    def test_update_radio_info_gates_unresolved_variant_group(self):
+        t = self.i18n.t
+        group = ("acme-family", {"name": "Acme Fam", "manufacturer": "Acme"})
+        frame = self._stub_frame(
+            _get_selected_radio=lambda: None,
+            _get_selected_group=lambda: group,
+        )
+        dc = self._controller(frame)
+        dc.update_radio_info()
+        # Family answer controls are (re)rendered, Download stays disabled with
+        # the "identify first" label, and the hint is refreshed.
+        self.assertEqual(frame.rendered_group, group)
+        self.assertFalse(frame.download_btn.enabled)
+        self.assertEqual(frame.download_btn.label, t("button.identify_first"))
+        self.assertEqual(frame.hint_states[-1], "computed")
+
+    def test_update_radio_info_enables_download_for_concrete_radio(self):
+        t = self.i18n.t
+        radio = {"id": "acme-x1", "name": "Acme X1",
+                 "firmware_url": "https://example.com/fw.zip"}
+        frame = self._stub_frame(
+            _get_selected_radio=lambda: radio,
+            _get_selected_group=lambda: None,
+        )
+        dc = self._controller(frame)
+        dc.manifest = {"acme-x1": {"firmware_version": "3.1",
+                                   "firmware_url": "https://example.com/fw.zip"}}
+        dc.update_radio_info()
+        self.assertTrue(frame.variant_cleared)
+        self.assertTrue(frame.download_btn.enabled)
+        self.assertEqual(frame.download_btn.label,
+                         t("button.download_versioned").format(version="3.1"))
+
+    def test_update_radio_info_bails_while_closing(self):
+        frame = self._stub_frame(_closing=True)
+        dc = self._controller(frame)
+        dc.update_radio_info()  # must not touch widgets
+        self.assertIsNone(frame.download_btn.label)
+        self.assertEqual(frame.hint_states, [])
+
+    # -- download worker: progress scaling + terminal state -------------- #
+    def test_download_thread_scales_progress_and_completes(self):
+        frame = self._stub_frame()
+        dc = self._controller(frame)
+        radio = {"id": "acme-x1", "name": "Acme X1",
+                 "firmware_url": "https://example.com/fw.zip"}
+
+        def fake_extract(radio_id, progress_callback=None, url_override=None,
+                         expected_sha256=None):
+            progress_callback(50)   # mid-download
+            return ("/tmp/acme.kdhx", None)
+
+        saved_dl = self.gd.dl
+        saved_wx = self.gd.wx
+        try:
+            self.gd.dl = types.SimpleNamespace(download_and_extract=fake_extract)
+            self.gd.wx = self._FakeCallAfterWx
+            dc.download_thread(radio, url="https://example.com/fw.zip")
+        finally:
+            self.gd.dl = saved_dl
+            self.gd.wx = saved_wx
+
+        # 50% download progress is scaled to 80% of the bar (50 * 0.8 == 40),
+        # then the extract step drives it to 100.
+        self.assertIn(40.0, frame.progress_values)
+        self.assertEqual(frame.progress_values[-1], 100)
+        self.assertEqual(frame.file_path.value, "/tmp/acme.kdhx")
+        self.assertIsNone(frame._terminal_state)   # cleared on success
+        self.assertFalse(frame._busy)
+        self.assertEqual(frame.set_buttons_calls[-1], True)
+
+    def test_download_thread_marks_failure(self):
+        frame = self._stub_frame()
+        dc = self._controller(frame)
+        radio = {"id": "acme-x1", "name": "Acme X1",
+                 "firmware_url": "https://example.com/fw.zip",
+                 "firmware_page": "https://example.com/page"}
+
+        def boom(*a, **k):
+            raise RuntimeError("No direct download URL for this radio")
+
+        saved_dl = self.gd.dl
+        saved_wx = self.gd.wx
+        try:
+            self.gd.dl = types.SimpleNamespace(download_and_extract=boom)
+            self.gd.wx = self._FakeCallAfterWx
+            dc.download_thread(radio, url="https://example.com/fw.zip")
+        finally:
+            self.gd.dl = saved_dl
+            self.gd.wx = saved_wx
+
+        self.assertEqual(frame._terminal_state, "failed")
+        self.assertFalse(frame._busy)
+        self.assertEqual(frame.set_buttons_calls[-1], True)
+        # The firmware_page is surfaced when the URL is missing.
+        self.assertTrue(any("example.com/page" in line for line in frame.log_lines))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
