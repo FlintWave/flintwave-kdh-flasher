@@ -1444,12 +1444,14 @@ class TestDialogReportTranslations(unittest.TestCase):
 
     def setUp(self):
         repo = os.path.dirname(__file__)
-        self.en = json.load(
-            open(os.path.join(repo, "translations", "en.json"), encoding="utf-8"))
+        with open(os.path.join(repo, "translations", "en.json"),
+                  encoding="utf-8") as f:
+            self.en = json.load(f)
         self.catalogs = {}
         for code in self.REQUIRED_LANGS:
             path = os.path.join(repo, "translations", f"{code}.json")
-            self.catalogs[code] = json.load(open(path, encoding="utf-8"))
+            with open(path, encoding="utf-8") as f:
+                self.catalogs[code] = json.load(f)
         self.report_keys = [k for k in self.en if k.startswith("dialog.report.")]
 
     def test_dont_ask_again_key_exists(self):

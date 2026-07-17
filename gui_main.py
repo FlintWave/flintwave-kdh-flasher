@@ -1788,6 +1788,9 @@ class FlasherFrame(wx.Frame):
             try:
                 fm.mark_test_report(radio_id, file_version, status)
             except Exception:
+                # Recording the suppression state is best-effort: a corrupt or
+                # unwritable state file must not turn a successful flash into
+                # an error dialog. Worst case the user is asked again next time.
                 pass
         if success:
             self._offer_firmware_cleanup(firmware_path)
