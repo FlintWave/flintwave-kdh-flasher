@@ -75,6 +75,8 @@ Click the **Firmware** column dropdown (default: *— Select your radio —*) an
 
 If your radio isn't listed, select **"Other KDH Radio"** — it works with any radio that uses the KDH bootloader. You'll need to browse for a `.kdhx` firmware file manually.
 
+**Hardware variants.** Some models (e.g. the BTECH BF-F8HP Pro, the Radtel RT-490) ship as a single family entry that covers several non-interchangeable hardware versions — flashing the wrong firmware can brick the radio. Selecting the family shows an identification question and steps in the Instructions panel, with one option per variant plus **"I'm not sure."** The **Download** button stays disabled until you pick a specific variant. If you're unsure, the app stops and links you to the manufacturer's page to confirm your hardware version before you download — it never guesses for you.
+
 ### Step 2: Get the firmware file
 
 **Option A — Automatic download:**

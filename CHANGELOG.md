@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Hardware variants
+
+- **Guided hardware-variant identification.** Radios that ship as non-interchangeable hardware versions behind one vendor bundle (BTECH BF-F8HP Pro NRF/NRFB, Radtel RT-490 old/new PCB) now appear as a single family row in the radio picker. Selecting the family walks the user through identifying their version (e.g. "radio off, hold 8 while powering on") with one option per variant and an explicit "I'm not sure" that fails safe — Download stays disabled with a link to the vendor page instead of risking a wrong-variant flash. Fully translated in all 7 catalogs; radio ids, the remote manifest shape, and the post-download multi-match guard are unchanged, so released clients are unaffected.
+- The RT-490 old-PCB bundle's own 4-file split (GPS/NoGPS × HW V1.0/V2.0) still stops safely at the multiple-files guard — there is no known reliable identification procedure for those sub-variants; community info is requested in the radio's notes.
+
 ### Translations
 
 - **Community translation review process.** All 7 non-English catalogs are machine-translated; a new CONTRIBUTING.md documents how native speakers review them — safety-critical strings first (bootloader key sequences, hardware-variant warnings, confirm/untested dialogs) — with per-language tracking issues labeled `translation-review`. The language picker now marks unreviewed languages ("machine translated, help review", localized) via a new `i18n.is_reviewed()` helper reading the catalog's `_meta.reviewed` flag, and tests enforce the `_meta.reviewed` convention plus the localized picker hint.

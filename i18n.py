@@ -9,6 +9,8 @@ edited without invalidating every locale.
 
 Public API:
     t(key)                            — look up a string, with EN fallback
+    t_radio_field(id, field, fb)      — per-radio string, EN-source fallback
+    t_variant_field(gid, field, fb)   — variant-group string, EN-source fallback
     LANGUAGES                         — ordered (code, native_label) list
     load_bundled_en()                 — load translations/en.json at startup
     set_language_sync_if_cached(code) — load a cached locale synchronously
@@ -251,6 +253,23 @@ def t_radio_field(radio_id: str, field: str, fallback: str) -> str:
     # Translations are keyed `radio.<id>.<field>` in translations/*.json; we
     # fall back to the radios.json English value when no override exists.
     key = f"radio.{radio_id}.{field}"
+    val = _catalog.get(key)
+    if val is None:
+        val = _en_catalog.get(key)
+    return fallback if val is None else val
+
+
+def t_variant_field(group_id: str, field: str, fallback: str) -> str:
+    # Sibling of t_radio_field for hardware-variant *group* strings (the
+    # identification question and steps shared across a group's members).
+    # English source lives under `variant_groups.<id>.<field>` in radios.json;
+    # translations are keyed `variant_group.<group_id>.<field>` in
+    # translations/*.json. Falls back to the English source (passed as
+    # `fallback`) when no override exists, so a missing translation degrades to
+    # English rather than a raw key. Per-member answer labels are NOT handled
+    # here — those belong to a radio and go through t_radio_field with the
+    # `variant_label` field.
+    key = f"variant_group.{group_id}.{field}"
     val = _catalog.get(key)
     if val is None:
         val = _en_catalog.get(key)

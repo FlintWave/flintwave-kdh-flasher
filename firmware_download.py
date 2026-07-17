@@ -86,6 +86,54 @@ def get_radio_by_id(radio_id):
     return None
 
 
+def load_variant_groups():
+    """Return the top-level ``variant_groups`` mapping from radios.json.
+
+    Empty dict when the block is absent, so callers can treat "no groups" and
+    "old radios.json" identically. Each value describes one hardware-variant
+    family (``name``, ``manufacturer``, ``firmware_page``, ``question``,
+    ``steps``, and an ordered ``options`` list mapping answers to member ids).
+    """
+    with open(RADIOS_FILE) as f:
+        data = json.load(f)
+    groups = data.get("variant_groups")
+    return groups if isinstance(groups, dict) else {}
+
+
+def get_variant_group(group_id):
+    """Return one variant group dict by id, or None if unknown/absent."""
+    if not group_id:
+        return None
+    return load_variant_groups().get(group_id)
+
+
+def variant_members(group_id):
+    """Return the member radio ids of a group in option (presentation) order.
+
+    Empty list for an unknown group. The order mirrors ``options`` so the
+    walkthrough presents answers deterministically.
+    """
+    group = get_variant_group(group_id)
+    if not group:
+        return []
+    return [o["radio_id"] for o in group.get("options", []) if o.get("radio_id")]
+
+
+def resolve_variant(group_id, radio_id):
+    """Resolve a chosen variant answer to its concrete member radio dict.
+
+    Returns the radio dict only when ``radio_id`` is a real member of
+    ``group_id``; returns None otherwise (unknown group, unknown/"not sure"
+    answer). A None result MUST stop the caller before any firmware is
+    selected — the app never guesses a variant.
+    """
+    if radio_id is None:
+        return None
+    if radio_id not in variant_members(group_id):
+        return None
+    return get_radio_by_id(radio_id)
+
+
 def validate_url(url):
     """Ensure URL is HTTPS and from an allowed domain."""
     parsed = urlparse(url)
