@@ -2231,5 +2231,176 @@ class TestHandsetPortEnumeration(unittest.TestCase):
             self.assertTrue(hasattr(self.h, name))
 
 
+class TestRadioInfoFormatting(unittest.TestCase):
+    """Pure per-radio info / variant-prompt string-building from the
+    HintPresenter (gui_hints).
+
+    Runs with no display and no pyserial: ``format_radio_info(radio,
+    firmware_version)`` and ``format_variant_prompt(group_id, group)`` take plain
+    dicts and return the instructions text, so the name / bootloader-keys /
+    connector / tested / latest-firmware / notes composition is testable in
+    isolation, following the ``format_radio_info`` / ``compute_hint_state``
+    precedent. Assertions build the expected line through ``i18n.t`` so they stay
+    byte-identical to what the GUI renders."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import gui_hints
+            import i18n
+        except ImportError:
+            raise unittest.SkipTest("gui_hints / i18n not importable")
+        i18n.load_bundled_en()
+        cls.gh = gui_hints
+        cls.i18n = i18n
+
+    def _lines(self, radio, version):
+        return self.gh.format_radio_info(radio, version).split("\n")
+
+    def test_ungrouped_radio_renders_all_fields(self):
+        t = self.i18n.t
+        radio = {
+            "id": "acme-x1",
+            "name": "Acme X1",
+            "manufacturer": "Acme",
+            "bootloader_keys": "SK1 + SK2",
+            "connector": "K1 Kenwood 2-pin",
+            "tested": True,
+            "notes": "Works on V1.0.",
+        }
+        lines = self._lines(radio, "1.0.3")
+        # radio_display_name dedups: "Acme X1" already starts with "Acme", so
+        # the manufacturer is not double-stamped.
+        self.assertEqual(lines[0],
+                         t("info.radio_label").format(name="Acme X1"))
+        self.assertIn(t("info.bootloader_keys").format(keys="SK1 + SK2"), lines)
+        self.assertIn(
+            t("info.connector").format(connector="K1 Kenwood 2-pin"), lines)
+        self.assertIn(t("info.tested"), lines)
+        self.assertNotIn(t("info.untested"), lines)
+        self.assertIn(
+            t("info.latest_firmware").format(version="1.0.3"), lines)
+        # Notes are preceded by a blank spacer line and rendered last.
+        self.assertEqual(lines[-1], "Works on V1.0.")
+        self.assertEqual(lines[-2], "")
+
+    def test_untested_radio_shows_untested_and_omits_optional_fields(self):
+        t = self.i18n.t
+        radio = {"id": "bare", "name": "Bare Radio", "tested": False}
+        lines = self._lines(radio, None)
+        self.assertIn(t("info.untested"), lines)
+        self.assertNotIn(t("info.tested"), lines)
+        # No bootloader keys / connector / version / notes provided → those
+        # lines are absent; only the name label + tested flag remain.
+        joined = "\n".join(lines)
+        self.assertNotIn("info.bootloader_keys", joined)
+        self.assertNotIn(t("info.latest_firmware").format(version=""), joined)
+        self.assertEqual(
+            lines, [t("info.radio_label").format(name="Bare Radio"),
+                    t("info.untested")])
+
+    def test_no_version_omits_latest_firmware_line(self):
+        t = self.i18n.t
+        radio = {"id": "r", "name": "R", "tested": True}
+        with_ver = self.gh.format_radio_info(radio, "9.9")
+        without_ver = self.gh.format_radio_info(radio, None)
+        self.assertIn(t("info.latest_firmware").format(version="9.9"),
+                      with_ver)
+        self.assertNotIn("info.latest_firmware", without_ver)
+
+    def test_grouped_variant_member_formats_like_a_concrete_radio(self):
+        # A resolved variant member is just a concrete radio dict; its info
+        # renders identically to an ungrouped radio (the group only matters
+        # while unresolved — see the variant-prompt test below).
+        t = self.i18n.t
+        with open("radios.json") as f:
+            rows = json.load(f)
+        rows = rows["radios"] if isinstance(rows, dict) else rows
+        member = next(r for r in rows if r.get("variant_group"))
+        lines = self.gh.format_radio_info(member, None).split("\n")
+        # First line is always the name label; tested flag is always present.
+        from gui_columns import radio_display_name
+        self.assertEqual(
+            lines[0],
+            t("info.radio_label").format(name=radio_display_name(
+                member.get("name", ""), member.get("manufacturer", ""))))
+        self.assertIn(t("info.tested") if member.get("tested")
+                      else t("info.untested"), lines)
+        if member.get("bootloader_keys"):
+            self.assertIn(
+                t("info.bootloader_keys").format(
+                    keys=self.i18n.t_radio_field(
+                        member["id"], "bootloader_keys",
+                        member["bootloader_keys"])), lines)
+
+    def test_variant_prompt_renders_question_and_steps(self):
+        t = self.i18n.t
+        group = {
+            "name": "Widget Pro",
+            "manufacturer": "Acme",
+            "question": "Which board revision?",
+            "steps": "Open the battery door and read the label.",
+        }
+        out = self.gh.format_variant_prompt("widget-pro-family", group)
+        lines = out.split("\n")
+        # Name doesn't start with the manufacturer, so it's prefixed.
+        self.assertEqual(
+            lines[0],
+            t("info.radio_label").format(name="Acme Widget Pro"))
+        self.assertIn(t("info.variant_question"), lines)
+        self.assertIn("Which board revision?", lines)
+        self.assertIn(t("info.variant_steps"), lines)
+        self.assertIn("Open the battery door and read the label.", lines)
+
+    def test_variant_prompt_from_real_group(self):
+        with open("radios.json") as f:
+            radios = json.load(f)
+        groups = radios.get("variant_groups", {}) if isinstance(radios, dict) \
+            else {}
+        if not groups:
+            self.skipTest("no variant_groups in radios.json")
+        gid, group = next(iter(groups.items()))
+        out = self.gh.format_variant_prompt(gid, group)
+        # Non-empty and includes the group's identification question text.
+        self.assertTrue(out)
+        if group.get("question"):
+            self.assertIn(group["question"], out)
+
+
+class TestHintPresenterModule(unittest.TestCase):
+    """The gui_hints module exposes the presenter + pure helpers under the
+    names the frame delegators and tests rely on."""
+
+    def setUp(self):
+        try:
+            import gui_hints
+        except ImportError:
+            self.skipTest("gui_hints not importable")
+        self.gh = gui_hints
+
+    def test_module_exposes_presenter_and_pure_helpers(self):
+        self.assertTrue(hasattr(self.gh, "HintPresenter"))
+        self.assertTrue(callable(self.gh.format_radio_info))
+        self.assertTrue(callable(self.gh.format_variant_prompt))
+
+    def test_frame_keeps_same_named_delegators(self):
+        # Extraction must not rename the call-site surface: the frame still
+        # exposes _set_hint / _compute_hint_state / _get_hint_copy /
+        # _format_radio_info / _on_state_change and the HINT_STATES /
+        # _RADIO_INFO_STATES class attributes (workers, retranslate_ui and
+        # HandsetController call these by name).
+        import importlib
+        try:
+            gm = importlib.import_module("gui_main")
+        except ImportError:
+            self.skipTest("gui_main not importable in this environment")
+        for name in ("_set_hint", "_compute_hint_state", "_get_hint_copy",
+                     "_format_radio_info", "_on_state_change"):
+            self.assertTrue(hasattr(gm.FlasherFrame, name),
+                            f"frame lost delegator {name}")
+        self.assertTrue(hasattr(gm.FlasherFrame, "HINT_STATES"))
+        self.assertTrue(hasattr(gm.FlasherFrame, "_RADIO_INFO_STATES"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Architecture
+
+- **Hint/info rendering extracted from the main frame** (`gui_hints.py`, decomposition slice 1 of 3). The hint state machine and per-radio info panel — including the hardware-variant prompt text — now live in a `HintPresenter` with pure, headlessly tested formatting functions; the frame keeps thin same-named delegators so worker threads and sibling components are untouched. `gui_main.py` drops to ~1,978 lines. Behavior unchanged.
+
 ### Test reports
 
 - **The post-flash test-report offer no longer nags.** A new "don't ask again for this radio + firmware version" checkbox suppresses the prompt per (radio, version) — recorded in the state file — while a plain Skip keeps asking next time, and a new firmware version re-opens the offer. The report URL/body builders were extracted from the dialog into pure functions with real tests (URL-length budget included), replacing tests that re-derived the logic by hand. Reports keep the `test-report` label + `Radio:` body-line convention maintainers use to flip `tested` flags.
