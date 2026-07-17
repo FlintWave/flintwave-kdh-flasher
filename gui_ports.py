@@ -2,8 +2,15 @@
 Serial port detection and programming cable identification.
 """
 
-import serial
-import serial.tools.list_ports
+# pyserial is optional at import time so this module's cable constants
+# (KNOWN_CABLES / FTDI_VID_PID) can be imported in a headless / test
+# environment. The functions below need it at call time and will raise if it
+# isn't installed.
+try:
+    import serial
+    import serial.tools.list_ports
+except ImportError:
+    serial = None
 
 # Known USB VID:PID pairs for compatible programming cables
 KNOWN_CABLES = {

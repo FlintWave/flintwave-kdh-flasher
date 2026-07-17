@@ -22,7 +22,6 @@ from i18n import t, t_radio_field
 import updater
 import serial
 
-from gui_ports import list_serial_ports, find_programming_cable, KNOWN_CABLES, FTDI_VID_PID
 from gui_dialogs import (
     show_about_dialog,
     show_test_report_dialog,
@@ -39,23 +38,17 @@ from gui_statusbar import StatusBar, theme_toggle_glyph
 from gui_columns import (
     FirmwareColumn, HandsetColumn, FlashColumn, radio_display_name,
 )
+from gui_handset import (
+    HandsetController,
+    # Flash-worker status values (i18n keys) — comparisons use these symbolic
+    # constants; only the on-screen text runs through t(). The full status
+    # vocabulary lives in gui_handset alongside the controller that emits it.
+    STATUS_FLASHING, STATUS_DONE, STATUS_FAILED, STATUS_SKIPPED,
+)
 
 VERSION = "26.07.0"
 
 FONT_SIZES = [9, 11, 12, 14, 16]
-
-# Handset list status values are i18n keys; the rendering layer calls t() on
-# them whenever a status cell is written. Status comparisons throughout the
-# module continue to use these symbolic constants verbatim — only the on-screen
-# representation runs through the translation table.
-STATUS_UNKNOWN = "status.unknown"
-STATUS_PROBING = "status.probing"
-STATUS_READY = "status.ready"
-STATUS_NO_RESP = "status.no_response"
-STATUS_FLASHING = "status.flashing"
-STATUS_DONE = "status.done"
-STATUS_FAILED = "status.failed"
-STATUS_SKIPPED = "status.skipped"
 
 
 class FlasherFrame(wx.Frame):
@@ -92,11 +85,11 @@ class FlasherFrame(wx.Frame):
         self.current_theme = "mocha"
         self.current_theme_palette = MOCHA_PALETTE
         self._busy = False
-        self._probing = False        # True while _probe_thread is walking ports
         self._closing = False        # set on EVT_CLOSE so bg loops can stop
         self._terminal_state = None  # set to "complete"/"failed" by threads
-        self._handset_ports = []     # list of dicts: device, cable, vid_pid, status, progress
-        self._port_poll_signature = None  # last (device,cable,vid_pid) tuple for change detection
+        # Handset-column behavior (port discovery, probe, poll, selection) lives
+        # in HandsetController; the frame exposes thin delegators below.
+        self.handset = HandsetController(self)
         self._update_url = None       # set by _check_update when an update is detected
 
         # Window icon
@@ -285,7 +278,7 @@ class FlasherFrame(wx.Frame):
         # Background: update check, manifest fetch, port-change polling
         threading.Thread(target=self._check_update, daemon=True).start()
         threading.Thread(target=self._fetch_manifest, daemon=True).start()
-        threading.Thread(target=self._port_poll_loop, daemon=True).start()
+        threading.Thread(target=self.handset.port_poll_loop, daemon=True).start()
 
     # ------------------------------------------------------------------
     # i18n helpers
@@ -312,29 +305,6 @@ class FlasherFrame(wx.Frame):
     def _resolve_direction(self):
         return (wx.Layout_RightToLeft if i18n.is_rtl()
                 else wx.Layout_LeftToRight)
-
-    def _apply_handset_columns(self):
-        """Insert / rebuild the handset table column headers in the active language.
-
-        Column header alignment doesn't auto-mirror under SetLayoutDirection, so
-        we re-create the columns with the right format whenever the language
-        changes.
-        """
-        if not hasattr(self, "handset_list"):
-            return
-        fmt = (wx.LIST_FORMAT_RIGHT if i18n.is_rtl()
-               else wx.LIST_FORMAT_LEFT)
-        # Stash existing widths so we don't lose user resize state.
-        had_columns = self.handset_list.GetColumnCount() > 0
-        widths = ([self.handset_list.GetColumnWidth(i) for i in range(4)]
-                  if had_columns else [110, 140, 110, 50])
-        self.handset_list.ClearAll()
-        for idx, (key, width) in enumerate(zip(
-                ("handset.col_port", "handset.col_cable",
-                 "handset.col_status", "handset.col_percent"),
-                widths)):
-            self.handset_list.InsertColumn(idx, t(key),
-                                           width=width, format=fmt)
 
     def _language_button_label(self):
         """Status-bar text for the language button — native label of the
@@ -569,203 +539,41 @@ class FlasherFrame(wx.Frame):
     # Handset list management (port discovery, probe, checkboxes)
     # ------------------------------------------------------------------
 
-    def _enumerate_serial_ports(self):
-        """Return list of dicts describing currently visible USB serial ports.
+    # --- Handset column: behavior delegated to HandsetController (gui_handset)
+    # These thin wrappers keep the existing call sites (flash workers,
+    # workflow gating, gui_columns, retranslate_ui) unchanged while the logic
+    # lives in the controller.
 
-        We filter out non-USB serial ports (motherboard 16550 /dev/ttyS*) since
-        all known KDH programming cables are USB-attached. Showing 30+ unused
-        UARTs would also balloon probe time (each port takes ~1.5s).
-        """
-        import serial.tools.list_ports
-        out = []
-        for p in serial.tools.list_ports.comports():
-            if not (p.vid and p.pid):
-                continue  # skip non-USB ports
-            vid_pid = (p.vid, p.pid)
-            cable = KNOWN_CABLES.get(vid_pid, p.description or "")
-            out.append({
-                "device": p.device,
-                "cable": cable,
-                "vid_pid": vid_pid,
-                "status": STATUS_UNKNOWN,
-                "progress": "",
-                "is_pc03": vid_pid == FTDI_VID_PID,
-            })
-        return out
+    @property
+    def _handset_ports(self):
+        return self.handset.ports
+
+    def _apply_handset_columns(self):
+        self.handset.apply_columns()
 
     def _refresh_handset_ports(self, probe=False, preserve_checks=False):
-        """Re-enumerate ports and rebuild the handset list.
-
-        If probe=True, sends a CMD_HANDSHAKE to each port in a background thread
-        and updates Status. PC03 cables are auto-checked unless preserve_checks
-        is True (used by the polling loop so we don't fight the user).
-        """
-        if self._busy or self._probing:
-            # Don't reshape the list while flashing, or while a probe thread is
-            # posting status updates keyed by row index — a rebuild here would
-            # invalidate those indices and land results on the wrong rows.
-            return
-
-        previously_checked = set()
-        if preserve_checks:
-            for i in range(self.handset_list.GetItemCount()):
-                if self._is_handset_checked(i):
-                    previously_checked.add(self._handset_ports[i]["device"])
-
-        new_ports = self._enumerate_serial_ports()
-        self.handset_list.DeleteAllItems()
-        self._handset_ports = new_ports
-
-        for entry in new_ports:
-            # Show only the device basename (e.g. "ttyUSB0") — the full path
-            # is kept in entry["device"] for serial.Serial calls.
-            display_port = os.path.basename(entry["device"]) or entry["device"]
-            idx = self.handset_list.InsertItem(
-                self.handset_list.GetItemCount(), display_port)
-            self.handset_list.SetItem(idx, 1, entry["cable"])
-            self.handset_list.SetItem(idx, 2, t(entry["status"]))
-            self.handset_list.SetItem(idx, 3, entry["progress"])
-
-            should_check = (
-                entry["device"] in previously_checked
-                or (not preserve_checks and entry["is_pc03"])
-            )
-            if should_check:
-                self._set_handset_check(idx, True)
-
-        self._refresh_handset_summary()
-
-        if probe and new_ports:
-            self.refresh_btn.Disable()
-            self._probing = True
-            threading.Thread(target=self._probe_thread, daemon=True).start()
-
-    def _probe_thread(self):
-        """Send the protocol-appropriate handshake to every listed port; update
-        Status as we go. The handshake is dispatched on the selected radio's
-        protocol — KDH ("BOOTLOADER" handshake) or BTF (cmd 0x42 probe).
-
-        If the very first probe hits PermissionError (Linux dialout), surface
-        the hint once and abort instead of marking every port "No response".
-        """
-        driver = self._driver_for(self._get_selected_radio())
-        permission_blocked = False
-        try:
-            for idx, entry in enumerate(list(self._handset_ports)):
-                wx.CallAfter(self._set_handset_status, idx, STATUS_PROBING)
-                try:
-                    ready = driver.probe_port(entry["device"], timeout=1.5)
-                except PermissionError:
-                    permission_blocked = True
-                    wx.CallAfter(self._log_dialout_hint, entry["device"])
-                    # Mark this port and all remaining ones as Unknown rather
-                    # than No response — they may well be radios.
-                    for remaining_idx in range(idx, len(self._handset_ports)):
-                        wx.CallAfter(self._set_handset_status,
-                                     remaining_idx, STATUS_UNKNOWN)
-                    break
-                except Exception:
-                    # A non-permission failure (port vanished, busy, I/O error)
-                    # still needs a terminal status, otherwise the row is left
-                    # showing "Probing…" forever.
-                    wx.CallAfter(self._set_handset_status, idx, STATUS_NO_RESP)
-                else:
-                    new_status = STATUS_READY if ready else STATUS_NO_RESP
-                    wx.CallAfter(self._set_handset_status, idx, new_status)
-                    if ready:
-                        wx.CallAfter(self._set_handset_check, idx, True)
-        finally:
-            # Always clear the in-flight flag, even on an unexpected error, so
-            # the port-poll loop isn't blocked from refreshing forever.
-            self._probing = False
-        wx.CallAfter(self.refresh_btn.Enable)
-        if not permission_blocked:
-            wx.CallAfter(lambda: self._set_hint(self._compute_hint_state()))
-
-    def _port_poll_loop(self):
-        """Background thread: detect plug/unplug events and trigger refresh.
-
-        Polls every 2 seconds; when the set of visible ports changes (and we
-        aren't busy), refresh the list while preserving user-made checkbox state.
-        """
-        import time
-        while not self._closing:
-            time.sleep(2.0)
-            if self._closing:
-                break
-            try:
-                ports = self._enumerate_serial_ports()
-                signature = tuple(sorted(p["device"] for p in ports))
-                if signature != self._port_poll_signature:
-                    self._port_poll_signature = signature
-                    if not self._busy:
-                        wx.CallAfter(
-                            self._refresh_handset_ports,
-                            False, True
-                        )
-            except Exception:
-                pass
-
-    # --- Handset list helpers ---
-
-    def _set_handset_status(self, idx, status):
-        if 0 <= idx < len(self._handset_ports):
-            self._handset_ports[idx]["status"] = status
-            try:
-                self.handset_list.SetItem(idx, 2, t(status))
-            except Exception:
-                pass
-            self._refresh_handset_summary()
-
-    def _set_handset_progress(self, idx, text):
-        if 0 <= idx < len(self._handset_ports):
-            self._handset_ports[idx]["progress"] = text
-            try:
-                self.handset_list.SetItem(idx, 3, text)
-            except Exception:
-                pass
-
-    def _set_handset_check(self, idx, checked):
-        if not (0 <= idx < self.handset_list.GetItemCount()):
-            return
-        if self._handset_checkboxes_supported:
-            self.handset_list.CheckItem(idx, checked)
-        else:
-            self.handset_list.Select(idx, on=1 if checked else 0)
-        self._refresh_handset_summary()
-
-    def _is_handset_checked(self, idx):
-        if not (0 <= idx < self.handset_list.GetItemCount()):
-            return False
-        if self._handset_checkboxes_supported:
-            return self.handset_list.IsItemChecked(idx)
-        return self.handset_list.IsSelected(idx)
-
-    def _set_all_handsets_checked(self, checked):
-        for idx in range(self.handset_list.GetItemCount()):
-            self._set_handset_check(idx, checked)
-
-    def _on_handset_check_changed(self, event):
-        self._refresh_handset_summary()
-        self._terminal_state = None
-        self._set_hint(self._compute_hint_state())
-        self._update_workflow_gating()
-        if event:
-            event.Skip()
+        self.handset.refresh_ports(probe=probe, preserve_checks=preserve_checks)
 
     def _refresh_handset_summary(self):
-        total = self.handset_list.GetItemCount()
-        sel = sum(1 for i in range(total) if self._is_handset_checked(i))
-        self.handset_summary.SetLabel(
-            t("handset.summary").format(selected=sel, total=total))
+        self.handset.refresh_summary()
+
+    def _set_handset_status(self, idx, status):
+        self.handset.set_status(idx, status)
+
+    def _set_handset_progress(self, idx, text):
+        self.handset.set_progress(idx, text)
+
+    def _set_all_handsets_checked(self, checked):
+        self.handset.set_all_checked(checked)
+
+    def _on_handset_check_changed(self, event):
+        self.handset.on_check_changed(event)
 
     def _selected_handset_indices(self):
-        return [i for i in range(self.handset_list.GetItemCount())
-                if self._is_handset_checked(i)]
+        return self.handset.selected_indices()
 
     def _selected_handset_devices(self):
-        return [self._handset_ports[i]["device"]
-                for i in self._selected_handset_indices()]
+        return self.handset.selected_devices()
 
     # ------------------------------------------------------------------
     # Workflow gating: enforce Firmware → Handset → Flash order

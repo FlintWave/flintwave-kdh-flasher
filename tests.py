@@ -1493,5 +1493,78 @@ class TestColumnsModule(unittest.TestCase):
             self.assertTrue(hasattr(self.c, name))
 
 
+class TestHandsetPortEnumeration(unittest.TestCase):
+    """Pure port-discovery logic from the HandsetController (gui_handset).
+
+    Runs with no pyserial and no display: enumerate_serial_ports takes an
+    injectable comports() so the USB filtering / cable-naming / PC03 detection
+    is testable in isolation, and poll_signature is pure. The threaded/widget
+    parts of the controller are verified against real hardware.
+    """
+
+    class FakePort:
+        def __init__(self, device, vid, pid, description=""):
+            self.device, self.vid, self.pid = device, vid, pid
+            self.description = description
+
+    def setUp(self):
+        import gui_handset
+        self.h = gui_handset
+
+    def _comports(self, *ports):
+        return lambda: list(ports)
+
+    def test_filters_non_usb_ports(self):
+        # A port with no vid/pid (motherboard UART) is dropped.
+        comports = self._comports(
+            self.FakePort("/dev/ttyUSB0", 0x1A86, 0x7523),
+            self.FakePort("/dev/ttyS0", None, None, "onboard"),
+        )
+        ports = self.h.enumerate_serial_ports(comports=comports)
+        self.assertEqual([p["device"] for p in ports], ["/dev/ttyUSB0"])
+
+    def test_names_known_cable_and_flags_pc03(self):
+        comports = self._comports(
+            self.FakePort("/dev/ttyUSB0", 0x0403, 0x6015),   # PC03
+            self.FakePort("/dev/ttyUSB1", 0x1A86, 0x7523),   # CH340
+        )
+        ports = self.h.enumerate_serial_ports(comports=comports)
+        self.assertEqual(ports[0]["cable"], "FTDI FT231X (PC03)")
+        self.assertTrue(ports[0]["is_pc03"])
+        self.assertEqual(ports[1]["cable"], "CH340")
+        self.assertFalse(ports[1]["is_pc03"])
+
+    def test_unknown_cable_falls_back_to_description(self):
+        comports = self._comports(
+            self.FakePort("/dev/ttyUSB0", 0x1234, 0x5678, "Acme UART"))
+        ports = self.h.enumerate_serial_ports(comports=comports)
+        self.assertEqual(ports[0]["cable"], "Acme UART")
+
+    def test_initial_status_is_unknown(self):
+        comports = self._comports(self.FakePort("/dev/ttyUSB0", 0x1A86, 0x7523))
+        ports = self.h.enumerate_serial_ports(comports=comports)
+        self.assertEqual(ports[0]["status"], self.h.STATUS_UNKNOWN)
+        self.assertEqual(ports[0]["progress"], "")
+
+    def test_poll_signature_is_order_independent(self):
+        a = {"device": "/dev/ttyUSB0"}
+        b = {"device": "/dev/ttyUSB1"}
+        self.assertEqual(self.h.poll_signature([a, b]),
+                         self.h.poll_signature([b, a]))
+
+    def test_poll_signature_changes_on_plug_unplug(self):
+        one = [{"device": "/dev/ttyUSB0"}]
+        two = [{"device": "/dev/ttyUSB0"}, {"device": "/dev/ttyUSB1"}]
+        self.assertNotEqual(self.h.poll_signature(one),
+                            self.h.poll_signature(two))
+
+    def test_module_exposes_controller_and_statuses(self):
+        self.assertTrue(hasattr(self.h, "HandsetController"))
+        for name in ("STATUS_UNKNOWN", "STATUS_PROBING", "STATUS_READY",
+                     "STATUS_NO_RESP", "STATUS_FLASHING", "STATUS_DONE",
+                     "STATUS_FAILED", "STATUS_SKIPPED"):
+            self.assertTrue(hasattr(self.h, name))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
