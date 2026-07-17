@@ -1,0 +1,27 @@
+name: Lint Workflows
+
+# Schema, expression, and shellcheck-level linting of the workflow files
+# themselves. This is intentionally separate from and non-duplicative of the
+# CodeQL "Analyze (actions)" job: CodeQL's actions analysis is a security
+# scan (untrusted-input flows, script injection, excessive permissions) and
+# does not validate workflow syntax, expression types, matrix/needs
+# references, or shell correctness — actionlint does.
+on:
+  push:
+    branches: [master]
+    paths: ['.github/workflows/**']
+  pull_request:
+    paths: ['.github/workflows/**']
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run actionlint
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color

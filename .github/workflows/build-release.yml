@@ -223,7 +223,7 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
         shell: bash
         run: |
-          ASSETS=""
+          ASSETS=()
           for f in \
             linux-packages/FlintWave-Flash-x86_64.AppImage \
             linux-packages/*.deb \
@@ -232,7 +232,7 @@ jobs:
             windows-packages/dist/FlintWave-Flash.exe \
             macos-packages/FlintWave-Flash.dmg \
           ; do
-            [ -f "$f" ] && ASSETS="$ASSETS $f"
+            [ -f "$f" ] && ASSETS+=("$f")
           done
           # Idempotent: if a previous workflow run already published this tag
           # (e.g. duplicate trigger, manual re-run, or the concurrency block
@@ -240,7 +240,7 @@ jobs:
           # place instead of failing with "release already exists".
           if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG_NAME exists; uploading assets with --clobber"
-            gh release upload "$TAG_NAME" $ASSETS \
+            gh release upload "$TAG_NAME" "${ASSETS[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
@@ -248,5 +248,5 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "$TAG_NAME" \
               --generate-notes \
-              $ASSETS
+              "${ASSETS[@]}"
           fi
