@@ -17,7 +17,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Use the system Python (3.12 on ubuntu-latest) together with the
       # apt-packaged dependencies — this mirrors the project's documented
