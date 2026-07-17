@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Build / CI
+
+- **Tests now run on Linux, Windows, and macOS.** The test workflow gained an OS matrix (`fail-fast: false`); Windows/macOS legs reuse the release build's setup-python + pip-wheel install path, so the wx GUI tests execute on the platforms most users run instead of Linux-only.
+- **Workflow linting.** An `actionlint` job now checks `.github/workflows/**` on every change — intentionally complementary to CodeQL's security-focused actions analysis. Its first run caught two unquoted-expansion bugs in the release script's asset handling (now fixed with a bash array).
+- **Weekly firmware-drift check.** A scheduled workflow re-downloads every pinned bundle and compares hashes, filing/updating a `firmware-drift` issue on verified drift and auto-closing it on recovery. Download failures are reported in the job summary but never as drift. This would have caught the 2026-07-10 silent repack within the week.
+
 ### Firmware integrity
 
 - **All firmware downloads are now SHA-256 pinned.** `uv-25-pro`, `rt-470`, and `rt-490` had null hashes in the manifest — the blind spot that let the 2026-07-10 silent bundle repack go undetected. All three bundles were downloaded, their contents verified, and their hashes pinned; a new manifest-schema test blocks any future entry from shipping with a `firmware_url` but no hash.

@@ -15,16 +15,22 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      # One flaky OS leg must not mask results from the others.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
 
-      # Use the system Python (3.12 on ubuntu-latest) together with the
+      # Linux uses the system Python (3.12 on ubuntu-latest) together with the
       # apt-packaged dependencies — this mirrors the project's documented
       # Linux install path (README) and avoids the setup-python / apt-wxPython
       # interpreter mismatch. With wxPython, pyserial, and requests all present
       # the GUI/theme/i18n tests actually run instead of self-skipping.
-      - name: Install dependencies
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -33,12 +39,34 @@ jobs:
             python3-requests \
             xvfb
 
+      # Windows/macOS mirror the release build's install path (build-release.yml):
+      # setup-python + pip wheels.
+      - name: Set up Python (Windows/macOS)
+        if: runner.os != 'Linux'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: python -m pip install pyserial requests wxPython --prefer-binary
+
+      # A broken wx install should fail here with one clear message, not as a
+      # wall of skipped-test noise later.
       - name: Show environment
+        shell: bash
         run: |
-          python3 --version
-          python3 -c "import wx, serial, requests; print('wx', wx.__version__)"
+          if [ "$RUNNER_OS" = "Linux" ]; then PY=python3; else PY=python; fi
+          "$PY" --version
+          "$PY" -c "import wx, serial, requests; print('wx', wx.__version__)"
 
       # gui_themes / gui_main import wx.adv, so a display must exist even to
-      # import them; xvfb-run supplies a headless one.
-      - name: Run test suite
+      # import them; xvfb-run supplies a headless one on Linux. Windows and
+      # macOS runners already have a display server.
+      - name: Run test suite (Linux)
+        if: runner.os == 'Linux'
         run: xvfb-run -a python3 tests.py
+
+      - name: Run test suite (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: python tests.py

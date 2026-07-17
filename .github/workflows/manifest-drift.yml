@@ -1,0 +1,87 @@
+name: Manifest Drift Check
+
+# Weekly check that every pinned firmware bundle in firmware_manifest.json
+# still hashes to its pinned SHA-256. Vendors silently repack bundles at
+# unchanged URLs (2026-07-10 BaofengTech incident went undetected for a
+# week); this surfaces that as a labeled issue within a week instead.
+#
+# Coverage tracks the manifest dynamically: every entry with both a
+# firmware_url and a firmware_sha256 is checked (all URL-bearing entries
+# are pinned as of the pin-firmware-hashes change, and a test gate keeps
+# it that way). "Download failed" is reported in the job summary only and
+# never as drift — vendor CDNs are flaky and a transient failure is not a
+# repack.
+on:
+  schedule:
+    - cron: '17 6 * * 1'   # Mondays 06:17 UTC; odd minute avoids load spikes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: manifest-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check pinned bundles for drift
+        run: python3 .github/scripts/check_manifest_drift.py | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: File, update, or close drift issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create firmware-drift \
+            --repo "$REPO" \
+            --color D93F0B \
+            --description "A pinned firmware bundle changed at its vendor URL" \
+            2>/dev/null || true
+
+          open_issue_for() {
+            gh issue list --repo "$REPO" \
+              --search "\"Firmware drift: $1\" in:title" \
+              --label firmware-drift --state open \
+              --json number --jq '.[0].number // empty'
+          }
+
+          # Verified drift: file a new issue or comment on the open one.
+          jq -c '.drifted[]' drift_result.json | while read -r row; do
+            rid=$(jq -r '.id' <<<"$row")
+            url=$(jq -r '.url' <<<"$row")
+            expected=$(jq -r '.expected' <<<"$row")
+            actual=$(jq -r '.actual' <<<"$row")
+            # Backticks in the body are markdown code spans, not command
+            # substitution — the format string is intentionally single-quoted.
+            # shellcheck disable=SC2016
+            body=$(printf 'The pinned bundle for `%s` no longer matches.\n\n- URL: %s\n- Expected SHA-256: `%s`\n- Actual SHA-256: `%s`\n- Detected by: %s\n\nNext step: download the bundle, verify its contents are legitimate (see openspec/changes/pin-firmware-hashes), then update the pin in `firmware_manifest.json` — or investigate if the change looks like tampering. Released clients are protected meanwhile: their downloads fail with an explicit hash mismatch.' \
+              "$rid" "$url" "$expected" "$actual" "$RUN_URL")
+            existing=$(open_issue_for "$rid")
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --repo "$REPO" --body "Still drifted as of the latest check.
+
+          $body"
+            else
+              gh issue create --repo "$REPO" \
+                --title "Firmware drift: $rid" \
+                --label firmware-drift \
+                --body "$body"
+            fi
+          done
+
+          # Recovery: a previously drifted entry matches again (pin was
+          # updated or the vendor restored the original) — close its issue.
+          jq -r '.ok[]' drift_result.json | while read -r rid; do
+            existing=$(open_issue_for "$rid")
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --repo "$REPO" \
+                --comment "The bundle for \`$rid\` matches its manifest pin again as of the latest check ($RUN_URL). Closing."
+            fi
+          done
