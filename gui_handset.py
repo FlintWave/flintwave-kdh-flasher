@@ -32,7 +32,6 @@ except ImportError:
     wx = None
 
 import i18n
-from i18n import t
 from gui_ports import KNOWN_CABLES, FTDI_VID_PID
 
 # Handset-list status values are i18n keys; the rendering layer calls t() on
@@ -114,7 +113,7 @@ class HandsetController:
                 ("handset.col_port", "handset.col_cable",
                  "handset.col_status", "handset.col_percent"),
                 widths)):
-            frame.handset_list.InsertColumn(idx, t(key), width=width, format=fmt)
+            frame.handset_list.InsertColumn(idx, i18n.t(key), width=width, format=fmt)
 
     # -- refresh / probe / poll ------------------------------------------ #
     def refresh_ports(self, probe=False, preserve_checks=False):
@@ -148,7 +147,7 @@ class HandsetController:
             idx = frame.handset_list.InsertItem(
                 frame.handset_list.GetItemCount(), display_port)
             frame.handset_list.SetItem(idx, 1, entry["cable"])
-            frame.handset_list.SetItem(idx, 2, t(entry["status"]))
+            frame.handset_list.SetItem(idx, 2, i18n.t(entry["status"]))
             frame.handset_list.SetItem(idx, 3, entry["progress"])
 
             should_check = (
@@ -226,6 +225,9 @@ class HandsetController:
                     if not frame._busy:
                         wx.CallAfter(self.refresh_ports, False, True)
             except Exception:
+                # Enumeration can fail transiently (a port vanishing mid-scan,
+                # a driver hiccup). Swallow it so the poll thread keeps running;
+                # the next tick re-scans.
                 pass
 
     # -- row / selection helpers ----------------------------------------- #
@@ -234,8 +236,11 @@ class HandsetController:
         if 0 <= idx < len(self.ports):
             self.ports[idx]["status"] = status
             try:
-                frame.handset_list.SetItem(idx, 2, t(status))
+                frame.handset_list.SetItem(idx, 2, i18n.t(status))
             except Exception:
+                # SetItem can race with a list rebuild or widget teardown; a
+                # failed status paint is cosmetic and safe to ignore (the model
+                # value is already updated above).
                 pass
             self.refresh_summary()
 
@@ -246,6 +251,8 @@ class HandsetController:
             try:
                 frame.handset_list.SetItem(idx, 3, text)
             except Exception:
+                # As in set_status: a transient SetItem failure during a row
+                # refresh or teardown is non-fatal; the model value is set.
                 pass
 
     def set_check(self, idx, checked):
@@ -285,7 +292,7 @@ class HandsetController:
         total = frame.handset_list.GetItemCount()
         sel = sum(1 for i in range(total) if self.is_checked(i))
         frame.handset_summary.SetLabel(
-            t("handset.summary").format(selected=sel, total=total))
+            i18n.t("handset.summary").format(selected=sel, total=total))
 
     def selected_indices(self):
         frame = self.frame
