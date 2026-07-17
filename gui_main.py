@@ -29,7 +29,6 @@ from gui_dialogs import (
 from gui_themes import apply_theme, THEME_PALETTES, MOCHA_PALETTE
 from gui_themes import _walk as _theme_walk, _style_widget as _theme_style_widget
 from gui_workflow import (
-    compute_hint_state,
     compute_gates,
     HINT_STATES as WORKFLOW_HINT_STATES,
     RADIO_INFO_STATES,
@@ -39,6 +38,7 @@ from gui_statusbar import StatusBar, theme_toggle_glyph
 from gui_columns import (
     FirmwareColumn, HandsetColumn, FlashColumn, radio_display_name,
 )
+from gui_hints import HintPresenter
 from gui_handset import (
     HandsetController,
     # Flash-worker status values (i18n keys) — comparisons use these symbolic
@@ -96,6 +96,9 @@ class FlasherFrame(wx.Frame):
         # Handset-column behavior (port discovery, probe, poll, selection) lives
         # in HandsetController; the frame exposes thin delegators below.
         self.handset = HandsetController(self)
+        # Instructions-panel presentation (hint state machine + per-radio info)
+        # lives in HintPresenter; the frame exposes thin delegators below.
+        self.hints = HintPresenter(self)
         self._update_url = None       # set by _check_update when an update is detected
 
         # Window icon
@@ -819,10 +822,8 @@ class FlasherFrame(wx.Frame):
     HINT_STATES = WORKFLOW_HINT_STATES
 
     def _get_hint_copy(self, state):
-        """Return (title, body) for a hint state in the active language."""
-        if state not in self.HINT_STATES:
-            return None
-        return (t(f"hint.{state}.title"), t(f"hint.{state}.body"))
+        # Delegates to HintPresenter; kept as a same-named thin wrapper.
+        return self.hints.get_hint_copy(state)
 
     # States during which it's useful to also show the per-radio info
     # (bootloader keys, connector type, notes from radios.json). Defined in
@@ -830,60 +831,9 @@ class FlasherFrame(wx.Frame):
     _RADIO_INFO_STATES = RADIO_INFO_STATES
 
     def _format_radio_info(self):
-        """Return per-radio instructions for the active radio, or empty string.
-
-        When an unresolved variant group is selected, returns the group's
-        identification question + steps instead (the selectable answers live in
-        the variant panel below, wired by _render_variant_options)."""
-        radio = self._get_selected_radio()
-        if not radio:
-            group_sel = self._get_selected_group()
-            if group_sel:
-                return self._format_variant_prompt(*group_sel)
-            return ""
-        bits = []
-        rid = radio.get("id", "")
-        keys = radio.get("bootloader_keys")
-        connector = radio.get("connector")
-        tested = radio.get("tested")
-        # Same dedup rule as the dropdown (shared helper), so the manufacturer
-        # isn't double-stamped when the name already starts with it.
-        full_name = radio_display_name(radio.get("name", ""),
-                                       radio.get("manufacturer", ""))
-        bits.append(t("info.radio_label").format(name=full_name))
-        if keys:
-            bits.append(t("info.bootloader_keys").format(
-                keys=t_radio_field(rid, "bootloader_keys", keys)))
-        if connector:
-            bits.append(t("info.connector").format(
-                connector=t_radio_field(rid, "connector", connector)))
-        bits.append(t("info.tested") if tested else t("info.untested"))
-        _, version = self._get_firmware_url_and_version(radio)
-        if version:
-            bits.append(t("info.latest_firmware").format(version=version))
-        notes = radio.get("notes")
-        if notes:
-            bits.append("")
-            bits.append(t_radio_field(rid, "notes", notes))
-        return "\n".join(bits)
-
-    def _format_variant_prompt(self, group_id, group):
-        """Text block for an unresolved variant group: family name, then the
-        translated identification question and steps."""
-        name = radio_display_name(
-            t_variant_field(group_id, "name", group.get("name", group_id)),
-            group.get("manufacturer", ""))
-        bits = [t("info.radio_label").format(name=name), ""]
-        question = t_variant_field(group_id, "question", group.get("question", ""))
-        steps = t_variant_field(group_id, "steps", group.get("steps", ""))
-        if question:
-            bits.append(t("info.variant_question"))
-            bits.append(question)
-        if steps:
-            bits.append("")
-            bits.append(t("info.variant_steps"))
-            bits.append(steps)
-        return "\n".join(bits)
+        # Delegates to HintPresenter; the pure string-building lives in
+        # gui_hints.format_radio_info / format_variant_prompt.
+        return self.hints.radio_info()
 
     def _clear_variant_panel(self):
         """Empty and hide the variant walkthrough controls."""
@@ -956,64 +906,18 @@ class FlasherFrame(wx.Frame):
         self._update_workflow_gating()
 
     def _set_hint(self, state):
-        copy = self._get_hint_copy(state)
-        if copy is None:
-            return
-        title, body = copy
-        # In idle / pre-flash states, append the per-radio instructions so the
-        # user has bootloader keys / connector / notes visible while choosing
-        # firmware and prepping the radio.
-        if state in self._RADIO_INFO_STATES:
-            radio_info = self._format_radio_info()
-            if radio_info:
-                body = f"{body}\n\n{t('info.selected_radio_header')}\n{radio_info}"
-        # Render into the rich-text TextCtrl: bold title on its own line, blank
-        # line, then body. SetDefaultStyle + AppendText is more reliable than
-        # SetStyle on GTK (where the underlying GtkTextView has its own
-        # attribute system that wx.TextAttr doesn't always reach via SetStyle).
-        self.hint_text.Freeze()
-        try:
-            self.hint_text.Clear()
-            bold = wx.Font(self.font_size, wx.FONTFAMILY_DEFAULT,
-                           wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-            normal = wx.Font(self.font_size, wx.FONTFAMILY_DEFAULT,
-                             wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL)
-            bold_attr = wx.TextAttr()
-            bold_attr.SetFont(bold)
-            normal_attr = wx.TextAttr()
-            normal_attr.SetFont(normal)
-
-            self.hint_text.SetDefaultStyle(bold_attr)
-            self.hint_text.AppendText(title + "\n\n")
-            self.hint_text.SetDefaultStyle(normal_attr)
-            self.hint_text.AppendText(body)
-
-            self.hint_text.SetInsertionPoint(0)
-            self.hint_text.ShowPosition(0)
-        finally:
-            self.hint_text.Thaw()
+        # Delegates to HintPresenter; kept as a same-named thin wrapper so
+        # worker wx.CallAfter chains, retranslate_ui and HandsetController keep
+        # calling frame._set_hint unchanged.
+        self.hints.set_hint(state)
 
     def _compute_hint_state(self):
-        # Pure decision logic lives in gui_workflow.compute_hint_state; this
-        # method only reads the current values off the frame. _firmware_ready()
-        # checks path-present AND file-exists so the hint can't advance to
-        # "ready to flash" while the Flash button stays disabled because the
-        # referenced file is missing/deleted.
-        return compute_hint_state(
-            terminal_state=self._terminal_state,
-            busy=self._busy,
-            firmware_ready=self._firmware_ready(),
-            handset_count=len(self._selected_handset_indices()),
-            busy_state=getattr(self, "_busy_state", "flashing"),
-        )
+        # Delegates to HintPresenter (pure decision logic in gui_workflow).
+        return self.hints.compute_hint_state()
 
     def _on_state_change(self, event):
-        # User-initiated change clears any sticky terminal state
-        self._terminal_state = None
-        self._set_hint(self._compute_hint_state())
-        self._update_workflow_gating()
-        if event:
-            event.Skip()
+        # Delegates to HintPresenter.
+        self.hints.on_state_change(event)
 
     # ------------------------------------------------------------------
     # Menu / status bar action handlers (preserved)
