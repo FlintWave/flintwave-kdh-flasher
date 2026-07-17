@@ -360,12 +360,87 @@ class TestDownloader(unittest.TestCase):
         import firmware_download as dl
         radio = dl.get_radio_by_id("bf-f8hp-pro")
         self.assertIsNotNone(radio)
-        self.assertEqual(radio["name"], "BTECH BF-F8HP Pro")
+        self.assertEqual(radio["name"], "BTECH BF-F8HP Pro (NRF)")
 
     def test_get_radio_by_id_unknown(self):
         import firmware_download as dl
         radio = dl.get_radio_by_id("nonexistent-radio")
         self.assertIsNone(radio)
+
+
+class TestFirmwareVariantSelection(unittest.TestCase):
+    """Hardware-variant firmware safety: vendors ship bundles containing
+    several non-interchangeable .kdhx files (BF-F8HP Pro NRF vs NRFB), so the
+    downloader must resolve a radio's pattern to exactly one file and refuse
+    to guess otherwise.
+    """
+
+    # The actual contents of BaofengTech's F8HPPRO-V53-Update-Bundle.zip
+    # after the 2026-07 repack that split the firmware per hardware version.
+    F8HP_BUNDLE_FILES = [
+        "NRF_ONLY_BF-F8HP-PRO_FIRMWARE_V0.53.kdhx",
+        "NRFB_ONLY_BF-F8HP-PRO_FIRMWARE_V0.53.kdhx",
+    ]
+
+    def test_f8hp_variant_patterns_each_match_exactly_one_file(self):
+        import fnmatch
+        import firmware_download as dl
+        for radio_id, expected in (
+            ("bf-f8hp-pro", "NRF_ONLY_BF-F8HP-PRO_FIRMWARE_V0.53.kdhx"),
+            ("bf-f8hp-pro-nrfb", "NRFB_ONLY_BF-F8HP-PRO_FIRMWARE_V0.53.kdhx"),
+        ):
+            radio = dl.get_radio_by_id(radio_id)
+            self.assertIsNotNone(radio, f"{radio_id} missing from radios.json")
+            pattern = radio["firmware_filename_pattern"]
+            matches = [f for f in self.F8HP_BUNDLE_FILES
+                       if fnmatch.fnmatch(f, pattern)]
+            self.assertEqual(matches, [expected],
+                             f"{radio_id} pattern {pattern!r} must match "
+                             f"exactly its own variant file")
+
+    def test_select_single_match_returns_it(self):
+        import firmware_download as dl
+        path = "/tmp/NRF_ONLY_BF-F8HP-PRO_FIRMWARE_V0.53.kdhx"
+        self.assertEqual(dl.select_firmware_file([path], "NRF_ONLY_*.kdhx"), path)
+
+    def test_select_multiple_matches_raises_and_names_files(self):
+        import firmware_download as dl
+        paths = ["/tmp/" + f for f in self.F8HP_BUNDLE_FILES]
+        with self.assertRaises(ValueError) as ctx:
+            dl.select_firmware_file(paths, "*.kdhx")
+        msg = str(ctx.exception)
+        for f in self.F8HP_BUNDLE_FILES:
+            self.assertIn(f, msg)
+        self.assertIn("NOT", msg)  # non-interchangeable warning present
+
+    def test_select_no_match_raises_and_lists_bundle_contents(self):
+        import firmware_download as dl
+        with self.assertRaises(ValueError) as ctx:
+            dl.select_firmware_file([], "BTECH_V*.kdhx",
+                                    available=self.F8HP_BUNDLE_FILES)
+        msg = str(ctx.exception)
+        for f in self.F8HP_BUNDLE_FILES:
+            self.assertIn(f, msg)
+
+    def test_extract_zip_with_variant_pattern(self):
+        """End-to-end through the real zip extractor: a bundle holding both
+        variants plus junk yields exactly the requested variant."""
+        import tempfile
+        import zipfile as zf_mod
+        import firmware_download as dl
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = os.path.join(tmp, "bundle.zip")
+            with zf_mod.ZipFile(bundle, "w") as zf:
+                for name in self.F8HP_BUNDLE_FILES:
+                    zf.writestr(f"F8HPPRO_V53_Update_Bundle/{name}", b"fw")
+                zf.writestr("F8HPPRO_V53_Update_Bundle/.DS_Store", b"junk")
+                zf.writestr("F8HPPRO_V53_Update_Bundle/manual.pdf", b"junk")
+            extracted = dl.extract_kdhx(bundle, "NRF_ONLY_*.kdhx")
+            self.assertEqual(
+                [os.path.basename(p) for p in extracted],
+                ["NRF_ONLY_BF-F8HP-PRO_FIRMWARE_V0.53.kdhx"])
+            self.assertEqual(sorted(dl.list_archive_kdhx(bundle)),
+                             sorted(self.F8HP_BUNDLE_FILES))
 
 
 class TestRadioBootloaderKeys(unittest.TestCase):
