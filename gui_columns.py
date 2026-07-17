@@ -80,6 +80,9 @@ if wx is not None:
                 try:
                     self.radio_combo.Popup()
                 except Exception:
+                    # Best-effort UX: Popup() is unsupported on some wx
+                    # backends. Falling through still lets the native arrow
+                    # open the list, so a failure here is non-fatal.
                     pass
                 event.Skip()
             self.radio_combo.Bind(wx.EVT_LEFT_DOWN, _open_combo)

@@ -654,8 +654,8 @@ class TestRadioNameDedup(unittest.TestCase):
     def _full_name(manufacturer, name):
         # Delegates to the real production helper (gui_columns.radio_display_name),
         # shared by the firmware dropdown and the frame's per-radio info panel.
-        from gui_columns import radio_display_name
-        return radio_display_name(name, manufacturer)
+        import gui_columns
+        return gui_columns.radio_display_name(name, manufacturer)
 
     def test_name_already_starts_with_manufacturer(self):
         self.assertEqual(self._full_name("BTECH", "BTECH BF-F8HP Pro"),
