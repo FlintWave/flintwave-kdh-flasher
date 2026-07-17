@@ -1062,5 +1062,214 @@ class TestRadioStringTranslations(unittest.TestCase):
                          f"source (model echo): {echoed[:5]}")
 
 
+class TestEndToEndFlashKDH(unittest.TestCase):
+    """Drive flash_firmware.flash_to_port end-to-end against a mock radio.
+
+    These exercise the full send/receive state machine — handshake, chunk-count
+    announce, per-chunk streaming, retry-on-error, finalize — which the framing
+    tests above never touch. The mock is a strict bootloader: it verifies CRCs,
+    enforces command ordering, and reassembles the bytes it was sent so we can
+    assert the radio received exactly the firmware, padded, in order.
+    """
+
+    def setUp(self):
+        import mock_bootloader as mb
+        self.flash_firmware = fw
+        self.mb = mb
+
+    def _firmware(self, size):
+        header = struct.pack("<II", 0x200078E0, 0x08001185)
+        return header + bytes((i * 7) & 0xFF for i in range(size - len(header)))
+
+    def _padded(self, firmware):
+        pad = (-len(firmware)) % 1024
+        return firmware + b"\x00" * pad
+
+    def _flash(self, engine, firmware):
+        logs, prog = [], []
+        with self.mb.patch_serial(self.flash_firmware, engine=engine):
+            self.flash_firmware.flash_to_port(
+                "/dev/mock", firmware,
+                log_cb=logs.append, progress_cb=prog.append)
+        return logs, prog
+
+    def test_full_flash_delivers_exact_bytes(self):
+        firmware = self._firmware(3 * 1024 + 200)   # 4 chunks, last padded
+        engine = self.mb.KDHBootloader()
+        _, prog = self._flash(engine, firmware)
+        self.assertTrue(engine.finished)
+        self.assertEqual(len(engine.received_chunks), 4)
+        self.assertEqual(engine.reassembled_firmware(), self._padded(firmware))
+        self.assertAlmostEqual(prog[-1], 100.0)
+
+    def test_command_sequence_and_order(self):
+        firmware = self._firmware(2 * 1024)
+        engine = self.mb.KDHBootloader()
+        self._flash(engine, firmware)
+        cmds = engine.commands_seen()
+        # Handshake first, then announce, then the data chunks, then end.
+        self.assertEqual(cmds[0], fw.CMD_HANDSHAKE)
+        self.assertEqual(cmds[1], fw.CMD_UPDATE_DATA_PACKAGES)
+        self.assertEqual(cmds[-1], fw.CMD_UPDATE_END)
+        self.assertEqual(cmds.count(fw.CMD_UPDATE), 2)
+
+    def test_announced_chunk_count_matches_data(self):
+        firmware = self._firmware(5 * 1024)
+        engine = self.mb.KDHBootloader()
+        self._flash(engine, firmware)
+        self.assertEqual(engine.expected_chunks, 5)
+        self.assertEqual(len(engine.received_chunks), engine.expected_chunks)
+
+    def test_retryable_error_recovers(self):
+        # Chunk 1 NAKs once (0xE2) then succeeds; the flasher must resend it and
+        # still deliver every byte in order.
+        firmware = self._firmware(3 * 1024)
+        engine = self.mb.KDHBootloader(chunk_nak_once={1})
+        self._flash(engine, firmware)
+        self.assertTrue(engine.finished)
+        self.assertEqual(len(engine.received_chunks), 3)
+        self.assertEqual(engine.reassembled_firmware(), self._padded(firmware))
+
+    def test_fatal_error_aborts(self):
+        firmware = self._firmware(3 * 1024)
+        engine = self.mb.KDHBootloader(chunk_fatal=(1, 0xE4))  # flash write error
+        with self.assertRaises(RuntimeError):
+            self._flash(engine, firmware)
+        self.assertFalse(engine.finished)
+
+    def test_bad_handshake_aborts_before_streaming(self):
+        firmware = self._firmware(2 * 1024)
+        engine = self.mb.KDHBootloader(bad_handshake=True)
+        with self.assertRaises(RuntimeError):
+            self._flash(engine, firmware)
+        self.assertEqual(len(engine.received_chunks), 0)
+
+    def test_probe_port_detects_bootloader(self):
+        engine = self.mb.KDHBootloader()
+        with self.mb.patch_serial(self.flash_firmware, engine=engine):
+            self.assertTrue(self.flash_firmware.probe_port("/dev/mock"))
+
+    def test_out_of_order_command_rejected(self):
+        # Directly poke the state machine: a data chunk before the count
+        # announce must be refused with 0xE5 (command error), so a flasher that
+        # skipped the announce step would fail here instead of on a radio.
+        engine = self.mb.KDHBootloader()
+        engine.state = "handshaked"          # handshaked but no chunk count yet
+        pkt = fw.build_packet(fw.CMD_UPDATE, 0, b"\x00" * 1024)
+        resp = engine.handle(pkt)
+        # response args byte carries the error code
+        self.assertEqual(resp[2], 0xE5)
+
+
+class TestEndToEndFlashBTF(unittest.TestCase):
+    """Drive flash_btf.flash_to_port end-to-end against a mock RT-950 Pro."""
+
+    def setUp(self):
+        import flash_btf
+        import mock_bootloader as mb
+        self.flash_btf = flash_btf
+        self.mb = mb
+
+    def _btf(self, data_chunks):
+        size = self.flash_btf.BTF_KEY_OFFSET + self.flash_btf.BTF_KEY_SIZE \
+            + data_chunks * 1024
+        blob = bytearray(struct.pack("<II", 0x20001000, 0x08003185))
+        blob += bytes((i * 3) & 0xFF for i in range(size - 8))
+        sig = b"RT950PRO\x00"
+        blob[self.flash_btf.BTF_MODEL_OFFSET:
+             self.flash_btf.BTF_MODEL_OFFSET + len(sig)] = sig
+        return bytes(blob)
+
+    def _padded(self, blob):
+        pad = (-len(blob)) % 1024
+        return blob + b"\x00" * pad
+
+    def _flash(self, engine, blob):
+        import contextlib
+        import io
+        logs = []
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.mb.patch_serial(self.flash_btf, engine=engine):
+                self.flash_btf.flash_to_port(
+                    "/dev/mock", blob, log_cb=logs.append)
+        return logs
+
+    def test_full_btf_flash_delivers_exact_bytes(self):
+        blob = self._btf(3)
+        engine = self.mb.BTFBootloader()
+        self._flash(engine, blob)
+        self.assertTrue(engine.finished)
+        self.assertEqual(engine.reassembled_firmware(), self._padded(blob))
+
+    def test_btf_command_sequence(self):
+        blob = self._btf(2)
+        engine = self.mb.BTFBootloader()
+        self._flash(engine, blob)
+        import flash_btf as b
+        cmds = engine.commands_seen()
+        self.assertEqual(cmds[0], b.CMD_PROBE)
+        self.assertIn(b.CMD_VERSION, cmds)
+        self.assertIn(b.CMD_MODEL, cmds)
+        self.assertIn(b.CMD_PKG_COUNT, cmds)
+        self.assertEqual(cmds[-1], b.CMD_END)
+
+    def test_btf_pkg_count_is_chunks_minus_one(self):
+        blob = self._btf(4)
+        total = math.ceil(len(blob) / 1024)
+        engine = self.mb.BTFBootloader()
+        self._flash(engine, blob)
+        # flash_btf announces (total_chunks - 1); the radio decodes it back to
+        # the full count and receives exactly that many chunks.
+        self.assertEqual(engine.expected_chunks, total)
+        self.assertEqual(len(engine.received_chunks), total)
+
+    def test_btf_retryable_error_recovers(self):
+        blob = self._btf(3)
+        engine = self.mb.BTFBootloader(chunk_nak_once={1})
+        self._flash(engine, blob)
+        self.assertTrue(engine.finished)
+        self.assertEqual(engine.reassembled_firmware(), self._padded(blob))
+
+    def test_btf_model_mismatch_aborts(self):
+        blob = self._btf(2)
+        engine = self.mb.BTFBootloader(model_mismatch=True)
+        with self.assertRaises(RuntimeError):
+            self._flash(engine, blob)
+        self.assertEqual(len(engine.received_chunks), 0)
+
+    def test_btf_probe_port_detects_bootloader(self):
+        engine = self.mb.BTFBootloader()
+        with self.mb.patch_serial(self.flash_btf, engine=engine):
+            self.assertTrue(self.flash_btf.probe_port("/dev/mock"))
+
+    def test_btf_end_nonack_is_tolerated(self):
+        # The radio may reset mid-END and reply with a non-ACK status; the
+        # flasher treats that as still-successful (logs, does not raise).
+        blob = self._btf(2)
+        engine = self.mb.BTFBootloader(end_status=0xE5)
+        logs = self._flash(engine, blob)
+        self.assertTrue(engine.finished)
+        self.assertTrue(any("complete" in m.lower() for m in logs))
+
+
+class TestBatchFlashRouting(unittest.TestCase):
+    """Multiple ports route to independent mock radios (batch-flash shape)."""
+
+    def test_two_ports_flash_independently(self):
+        import mock_bootloader as mb
+        firmware = struct.pack("<II", 0x200078E0, 0x08001185) + b"\x5A" * (2 * 1024 - 8)
+        eng_a = mb.KDHBootloader()
+        eng_b = mb.KDHBootloader()
+        registry = {"/dev/ttyUSB0": eng_a, "/dev/ttyUSB1": eng_b}
+        with mb.patch_serial(fw, registry=registry):
+            for port in registry:
+                fw.flash_to_port(port, firmware)
+        self.assertTrue(eng_a.finished)
+        self.assertTrue(eng_b.finished)
+        pad = firmware + b"\x00" * ((-len(firmware)) % 1024)
+        self.assertEqual(eng_a.reassembled_firmware(), pad)
+        self.assertEqual(eng_b.reassembled_firmware(), pad)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
