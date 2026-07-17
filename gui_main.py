@@ -34,6 +34,7 @@ from gui_workflow import (
     HINT_STATES as WORKFLOW_HINT_STATES,
     RADIO_INFO_STATES,
 )
+from gui_titlebar import TitleBar
 
 VERSION = "26.07.0"
 
@@ -104,7 +105,7 @@ class FlasherFrame(wx.Frame):
         root_sizer = wx.BoxSizer(wx.VERTICAL)
 
         # ---- Custom title bar (replaces OS chrome) ----
-        self.title_bar = self._build_title_bar(panel)
+        self.title_bar = TitleBar(panel, self)
         root_sizer.Add(self.title_bar, 0, wx.EXPAND)
 
         # ---- Top row: three columns separated by ">" arrows ----
@@ -433,9 +434,11 @@ class FlasherFrame(wx.Frame):
             self.SetTitle(t("app.title"))
         except Exception:
             pass
-        if hasattr(self, "title_label") and self.title_label is not None:
+        title_bar = getattr(self, "title_bar", None)
+        title_label = getattr(title_bar, "title_label", None)
+        if title_label is not None:
             try:
-                self.title_label.SetLabel(t("app.title"))
+                title_label.SetLabel(t("app.title"))
             except Exception:
                 pass
 
@@ -678,96 +681,6 @@ class FlasherFrame(wx.Frame):
         col.SetSizer(sizer)
         self._rtl_targets.append(col)
         return col
-
-    def _build_title_bar(self, parent):
-        """Custom borderless title bar with app title + minimize/close.
-
-        We removed the OS title bar so the chrome themes consistently with the
-        rest of the app. Drag the title bar (or title label / icon) to move
-        the window. No maximize button (per user preference).
-        """
-        bar = wx.Panel(parent)
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        # App icon at far left (small, scaled from icon_128).
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 "icon_128.png")
-        if os.path.exists(icon_path):
-            img = wx.Image(icon_path).Rescale(20, 20, wx.IMAGE_QUALITY_HIGH)
-            self._title_icon = wx.StaticBitmap(bar, bitmap=wx.Bitmap(img))
-            sizer.Add(self._title_icon, 0,
-                      wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 8)
-        else:
-            self._title_icon = None
-
-        self.title_label = wx.StaticText(bar, label=self.GetTitle())
-        title_font = wx.Font(self.font_size, wx.FONTFAMILY_DEFAULT,
-                             wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-        self.title_label.SetFont(title_font)
-        sizer.Add(self.title_label, 0,
-                  wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
-
-        sizer.AddStretchSpacer(1)
-
-        # The language picker used to live here as a wx.Choice dropdown; it
-        # was moved to the status bar in v26.05.5 so the title bar stays
-        # focused on identity (icon + title) and window controls only.
-
-        def make_chrome_btn(label, tooltip_key, handler):
-            b = wx.StaticText(bar, label=label)
-            b.SetCursor(wx.Cursor(wx.CURSOR_HAND))
-            b.SetToolTip(t(tooltip_key))
-            self._tr_tooltip(b, tooltip_key)
-            b.Bind(wx.EVT_LEFT_DOWN, lambda e: handler())
-            chrome_font = wx.Font(self.font_size + 2, wx.FONTFAMILY_DEFAULT,
-                                  wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-            b.SetFont(chrome_font)
-            return b
-
-        self._minimize_btn = make_chrome_btn("—", "titlebar.minimize_tooltip", self.Iconize)
-        self._close_btn = make_chrome_btn("✕", "titlebar.close_tooltip", self.Close)
-        sizer.Add(self._minimize_btn, 0,
-                  wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
-        sizer.Add(self._close_btn, 0,
-                  wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
-
-        bar.SetSizer(sizer)
-        bar.SetMinSize(wx.Size(-1, 36))
-        self._rtl_targets.append(bar)
-
-        # Drag-to-move on title bar background, the title label, and the icon.
-        for w in (bar, self.title_label):
-            w.Bind(wx.EVT_LEFT_DOWN, self._on_titlebar_press)
-            w.Bind(wx.EVT_MOTION, self._on_titlebar_drag)
-            w.Bind(wx.EVT_LEFT_UP, self._on_titlebar_release)
-        if self._title_icon is not None:
-            self._title_icon.Bind(wx.EVT_LEFT_DOWN, self._on_titlebar_press)
-            self._title_icon.Bind(wx.EVT_MOTION, self._on_titlebar_drag)
-            self._title_icon.Bind(wx.EVT_LEFT_UP, self._on_titlebar_release)
-
-        self._drag_offset = None
-        return bar
-
-    def _on_titlebar_press(self, event):
-        """Start a drag-to-move from the title bar."""
-        # Capture the offset between mouse and window's top-left so we can
-        # subtract it from each subsequent mouse position to compute the
-        # window's new origin.
-        self._drag_offset = wx.GetMousePosition() - self.GetPosition()
-        w = event.GetEventObject()
-        if not w.HasCapture():
-            w.CaptureMouse()
-
-    def _on_titlebar_drag(self, event):
-        if (event.Dragging() and event.LeftIsDown()
-                and self._drag_offset is not None):
-            self.Move(wx.GetMousePosition() - self._drag_offset)
-
-    def _on_titlebar_release(self, event):
-        w = event.GetEventObject()
-        if w.HasCapture():
-            w.ReleaseMouse()
-        self._drag_offset = None
 
     def _build_status_bar(self, parent):
         """Borderless status bar with text/icon click-targets (no button frames)."""

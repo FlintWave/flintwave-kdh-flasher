@@ -1353,5 +1353,93 @@ class TestWorkflowStateMachine(unittest.TestCase):
         self.assertIs(g.flash, True)
 
 
+class TestWindowDragger(unittest.TestCase):
+    """Drag-to-move math extracted from the title bar (window_drag).
+
+    Pure arithmetic, no wxWidgets — driven here with plain vector objects and a
+    fake window so the borderless-window drag behavior is testable headlessly.
+    """
+
+    class Vec:
+        __slots__ = ("x", "y")
+
+        def __init__(self, x, y):
+            self.x, self.y = x, y
+
+        def __add__(self, o):
+            return TestWindowDragger.Vec(self.x + o.x, self.y + o.y)
+
+        def __sub__(self, o):
+            return TestWindowDragger.Vec(self.x - o.x, self.y - o.y)
+
+        def __eq__(self, o):
+            return isinstance(o, TestWindowDragger.Vec) and (self.x, self.y) == (o.x, o.y)
+
+        def __repr__(self):
+            return f"Vec({self.x}, {self.y})"
+
+    class FakeWindow:
+        def __init__(self, pos):
+            self.pos = pos
+            self.move_calls = 0
+
+        def GetPosition(self):
+            return self.pos
+
+        def Move(self, p):
+            self.pos = p
+            self.move_calls += 1
+
+    def setUp(self):
+        from window_drag import WindowDragger
+        self.WindowDragger = WindowDragger
+        self.mouse = self.Vec(0, 0)
+        self.win = self.FakeWindow(self.Vec(100, 100))
+        self.dragger = WindowDragger(self.win, lambda: self.mouse)
+
+    def test_inactive_until_begin(self):
+        self.assertFalse(self.dragger.active)
+
+    def test_drag_follows_pointer_delta(self):
+        self.mouse = self.Vec(120, 110)     # grab 20,10 into the window
+        self.dragger.begin()
+        self.assertTrue(self.dragger.active)
+        self.mouse = self.Vec(150, 115)     # pointer moves +30,+5
+        self.dragger.drag()
+        self.assertEqual(self.win.pos, self.Vec(130, 105))
+        self.mouse = self.Vec(90, 90)       # pointer moves to a new spot
+        self.dragger.drag()
+        self.assertEqual(self.win.pos, self.Vec(70, 80))
+
+    def test_drag_before_begin_is_noop(self):
+        self.mouse = self.Vec(500, 500)
+        self.dragger.drag()
+        self.assertEqual(self.win.move_calls, 0)
+        self.assertEqual(self.win.pos, self.Vec(100, 100))
+
+    def test_drag_after_end_is_noop(self):
+        self.mouse = self.Vec(120, 110)
+        self.dragger.begin()
+        self.dragger.end()
+        self.assertFalse(self.dragger.active)
+        calls_before = self.win.move_calls
+        self.mouse = self.Vec(999, 999)
+        self.dragger.drag()
+        self.assertEqual(self.win.move_calls, calls_before)
+
+
+class TestTitleBarModule(unittest.TestCase):
+    """gui_titlebar import contract (component tested via wx in CI)."""
+
+    def test_module_imports_and_exposes_titlebar(self):
+        # Importable even without wxPython; TitleBar is a class when wx is
+        # present (CI) and None otherwise (headless dev). WindowDragger is
+        # re-usable regardless.
+        import gui_titlebar
+        self.assertTrue(hasattr(gui_titlebar, "TitleBar"))
+        from window_drag import WindowDragger
+        self.assertIs(gui_titlebar.WindowDragger, WindowDragger)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
