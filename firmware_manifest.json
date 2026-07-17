@@ -16,22 +16,22 @@
       "release_notes": "V0.53: smarter scanning, better airband, more control (NRFB hardware)"
     },
     "uv-25-pro": {
-      "firmware_version": "0.20",
+      "firmware_version": "0.23",
       "firmware_url": "https://baofeng.s3.amazonaws.com/Baofeng_UV-25_Plus_Firware_Update_Guide_20250526.zip",
-      "firmware_sha256": null,
-      "release_notes": "V0.20: fixed GPS radar distance display after location sharing"
+      "firmware_sha256": "60f25178ad65fb91ec381f841c02b3a2fc0fc5f8861412fef2788b0dc4305179",
+      "release_notes": "V0.23: current vendor bundle (UV25Pro_NRF_401+_V0.23, 2025-05-22 build; bundle URL unchanged since V0.20)"
     },
     "rt-470": {
       "firmware_version": "2.13C",
       "firmware_url": "https://cdn.shopify.com/s/files/1/0564/8855/8800/files/RT-470_RT470X_RT470L_NEW_PCB_8.33KHZ_V2.13C_20240425.rar",
-      "firmware_sha256": null,
+      "firmware_sha256": "35c6f69d617c371b3042c10ec414278f7c5e430f5c255558ec7d1f6cc9f76fef",
       "release_notes": "V2.13C: AM/FM modulation switch 18MHz-1000MHz, 8.33kHz air band (470X/470/470L, new PCB)"
     },
     "rt-490": {
       "firmware_version": "1.03",
       "firmware_url": "https://cdn.shopify.com/s/files/1/0564/8855/8800/files/Firmware_Version_1.03.zip",
-      "firmware_sha256": null,
-      "release_notes": "V1.03: old PCB firmware"
+      "firmware_sha256": "5b6bd65b8fd2754fb2c45b7e8a2db4133b9fedbf68c799f632968ab7d98e32bb",
+      "release_notes": "V1.03: old PCB firmware. Bundle ships 4 hardware-variant files (GPS/NoGPS x HW V1.0/V2.0); variant selection is pending the generalize-hardware-variants change"
     },
     "rt-490-new": {
       "firmware_version": "1.25a",

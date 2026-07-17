@@ -933,6 +933,26 @@ class TestManifestSchema(unittest.TestCase):
             self.assertIn(radio["id"], manifest_ids,
                           f"Radio {radio['id']} missing from manifest")
 
+    def test_all_entries_with_url_must_have_hash(self):
+        """Every manifest entry with a firmware_url must pin a SHA-256.
+
+        Null hashes are the blind spot that let a vendor silently repack a
+        bundle at an unchanged URL undetected (2026-07-10 BaofengTech
+        incident). This gate keeps future entries from shipping unpinned.
+        """
+        for radio_id, info in self.manifest["radios"].items():
+            if not info.get("firmware_url"):
+                continue
+            sha = info.get("firmware_sha256")
+            self.assertIsInstance(
+                sha, str,
+                f"Radio {radio_id} has firmware_url but no firmware_sha256 — "
+                f"download the bundle, verify its contents, and pin the hash")
+            self.assertRegex(
+                sha, r"^[0-9a-f]{64}$",
+                f"Radio {radio_id} firmware_sha256 is not a lowercase "
+                f"hex SHA-256")
+
     def test_manifest_urls_are_valid(self):
         import firmware_download as dl
         for radio_id, info in self.manifest["radios"].items():
