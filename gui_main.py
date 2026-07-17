@@ -19,7 +19,6 @@ import firmware_manifest as fm
 import firmware_version as fv
 import i18n
 from i18n import t, t_radio_field, t_variant_field
-import updater
 import serial
 
 from gui_dialogs import (
@@ -39,6 +38,7 @@ from gui_columns import (
     FirmwareColumn, HandsetColumn, FlashColumn, radio_display_name,
 )
 from gui_hints import HintPresenter
+from gui_download import DownloadController
 from gui_handset import (
     HandsetController,
     # Flash-worker status values (i18n keys) — comparisons use these symbolic
@@ -99,7 +99,11 @@ class FlasherFrame(wx.Frame):
         # Instructions-panel presentation (hint state machine + per-radio info)
         # lives in HintPresenter; the frame exposes thin delegators below.
         self.hints = HintPresenter(self)
-        self._update_url = None       # set by _check_update when an update is detected
+        # Firmware acquisition + update notification (download worker, firmware
+        # discovery, updater/manifest background tasks) lives in
+        # DownloadController; the frame exposes thin delegators below and a
+        # `manifest` property shim over the controller.
+        self.download = DownloadController(self)
 
         # Window icon
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon_128.png")
@@ -117,8 +121,9 @@ class FlasherFrame(wx.Frame):
         # ---- Top row: three columns separated by ">" arrows ----
         top_row = wx.BoxSizer(wx.HORIZONTAL)
 
-        # Manifest state (must be set before _update_radio_info)
-        self.manifest = None
+        # Manifest state is owned by DownloadController (constructed above, so
+        # it's resolvable before the first _update_radio_info) and exposed here
+        # via the `manifest` property shim.
         self.radios = dl.load_radios()
         # Hardware-variant groups collapse their sibling members into one
         # dropdown "family" row. _variant_choice maps a group id to the
@@ -947,60 +952,22 @@ class FlasherFrame(wx.Frame):
         event.Skip()
 
     # ------------------------------------------------------------------
-    # Background tasks
+    # Background tasks — behavior in DownloadController (gui_download).
+    # These thin wrappers keep the __init__ daemon-thread targets and the
+    # wx.CallAfter update-notification chain calling the same names.
     # ------------------------------------------------------------------
 
     def _fetch_manifest(self):
-        try:
-            self.manifest = fm.fetch_manifest()
-            wx.CallAfter(self._update_radio_info)
-        except Exception:
-            pass
+        self.download.fetch_manifest()
 
     def _check_update(self):
-        """Background check for a newer release; surface as a status-bar link.
-
-        We deliberately don't try to apply the update in-app — auto-update on
-        Linux git installs has historically been unreliable. Instead, when a
-        newer version is detected we show a clickable link in the status bar
-        that opens the GitHub releases page in the user's default browser.
-        """
-        import time
-        time.sleep(2)  # Let the UI finish rendering before touching the status bar
-        try:
-            has_update, local_info, remote_info = updater.check_for_update()
-            if has_update:
-                wx.CallAfter(self._notify_update, local_info, remote_info)
-        except Exception:
-            pass
+        self.download.check_update()
 
     def _notify_update(self, local_info, remote_info):
-        """An update is available — show the Update Available link in the status bar."""
-        if self._closing or not self:
-            return
-        url = updater.get_releases_url()
-        self._update_url = url
-        try:
-            self.update_link.SetURL(url)
-            self.update_link.SetToolTip(
-                t("statusbar.update_tooltip").format(
-                    local=VERSION, remote=remote_info)
-            )
-            self._show_update_link()
-        except Exception:
-            pass
+        self.download.notify_update(local_info, remote_info)
 
     def _show_update_link(self):
-        # The link was added to the sizer while hidden, which caches a 0-width
-        # slot and clips the label on Show(). Re-pin the min size to the
-        # current best size so longer translations (e.g. "Mise à jour disponible")
-        # render in full.
-        self.update_link.Show()
-        try:
-            self.update_link.SetMinSize(self.update_link.GetBestSize())
-        except Exception:
-            pass
-        self.status_bar_panel.Layout()
+        self.download.show_update_link()
 
     def _radio_rows(self):
         """Ordered dropdown rows, one per line the combo shows (excluding the
@@ -1089,153 +1056,34 @@ class FlasherFrame(wx.Frame):
         proto = (radio or {}).get("protocol", "kdh")
         return fw_btf if proto == "btf" else fw
 
+    # --- Firmware discovery + download worker + updater: behavior delegated to
+    # DownloadController (gui_download). These thin wrappers keep the existing
+    # call sites (gui_columns bindings, hint presenter, flash workers,
+    # retranslate_ui, __init__) calling the same names while the logic lives in
+    # the controller. `manifest` is a property shim over the controller, exactly
+    # as `_handset_ports` shims `handset.ports`.
+
+    @property
+    def manifest(self):
+        return self.download.manifest
+
     def _get_firmware_url_and_version(self, radio):
-        """Get the best firmware URL and version for a radio.
-
-        Checks manifest first (may have newer URL), falls back to radios.json.
-        Returns (url, version) where either may be None.
-        """
-        manifest_info = fm.get_radio_firmware_info(radio["id"], self.manifest)
-        manifest_url = manifest_info.get("firmware_url") if manifest_info else None
-        manifest_ver = manifest_info.get("firmware_version") if manifest_info else None
-
-        url = manifest_url or radio.get("firmware_url")
-        version = manifest_ver
-        return url, version
+        return self.download.get_firmware_url_and_version(radio)
 
     def _update_radio_info(self):
-        """Refresh the Download button label/state for the selected radio.
-
-        Per-radio info (bootloader keys, connector, notes) is rendered inline
-        in the hints panel via _set_hint(); this method owns the Download
-        button, the hint refresh, and the variant walkthrough panel.
-        """
-        # May be posted from the background manifest fetch after the frame has
-        # started closing — bail rather than touch destroyed widgets.
-        if self._closing or not self:
-            return
-        radio = self._get_selected_radio()
-        group_sel = self._get_selected_group()
-        # A variant family row keeps its answer controls visible (so the user
-        # can correct a mis-click) whether or not the variant is resolved yet.
-        if group_sel:
-            self._render_variant_options(*group_sel)
-        else:
-            self._clear_variant_panel()
-
-        if radio:
-            # Concrete radio (plain row, or a group with a resolved variant).
-            url, version = self._get_firmware_url_and_version(radio)
-            has_url = bool(url)
-            # Never re-enable Download during an in-progress operation; the
-            # busy-end gating pass will restore the correct state.
-            if not self._busy:
-                self.download_btn.Enable(has_url)
-            if not has_url:
-                self.download_btn.SetLabel(t("button.no_direct_url"))
-            elif version:
-                self.download_btn.SetLabel(
-                    t("button.download_versioned").format(version=version))
-            else:
-                self.download_btn.SetLabel(t("button.download_latest"))
-        elif group_sel:
-            # A variant family is selected but not resolved ("I'm not sure" or
-            # unanswered): keep Download disabled until a variant is chosen.
-            if not self._busy:
-                self.download_btn.Enable(False)
-            self.download_btn.SetLabel(t("button.identify_first"))
-
-        self._set_hint(self._compute_hint_state())
+        self.download.update_radio_info()
 
     def on_radio_changed(self, event):
-        # Picking a different radio clears any sticky terminal state so the
-        # hint panel doesn't keep showing the previous flash's completion copy.
-        self._terminal_state = None
-        self._update_radio_info()
-        self._update_workflow_gating()
+        self.download.on_radio_changed(event)
 
     def on_download(self, event):
-        if self._busy:
-            return
-        # _get_selected_radio() returns None for an unresolved variant group
-        # (unanswered or "I'm not sure"), so this guard also refuses to start a
-        # download until the user has identified their hardware variant — belt
-        # and suspenders behind the disabled Download button. The app never
-        # guesses; the concrete member id resolves only after an explicit answer.
-        radio = self._get_selected_radio()
-        if not radio:
-            return
-
-        if not radio.get("tested"):
-            dlg = wx.MessageDialog(self,
-                t("dialog.untested_body").format(radio=radio['name']),
-                t("dialog.untested_title"), wx.YES_NO | wx.ICON_WARNING)
-            if dlg.ShowModal() != wx.ID_YES:
-                dlg.Destroy()
-                return
-            dlg.Destroy()
-
-        url, _ = self._get_firmware_url_and_version(radio)
-
-        # Get expected SHA-256 from manifest if available
-        manifest_info = fm.get_radio_firmware_info(radio["id"], self.manifest)
-        expected_sha256 = manifest_info.get("firmware_sha256") if manifest_info else None
-
-        self.log.Clear()
-        self.progress.SetValue(0)
-        self._busy = True
-        self._busy_state = "downloading"
-        self._terminal_state = None
-        self.set_buttons(False)
-        self._set_hint("downloading")
-        threading.Thread(target=self._download_thread,
-                         args=(radio, url, expected_sha256), daemon=True).start()
+        self.download.on_download(event)
 
     def _download_thread(self, radio, url=None, expected_sha256=None):
-        try:
-            self.log_msg(t("log.downloading_for").format(radio=radio['name']))
-            self.log_msg(t("log.url").format(url=url or radio.get('firmware_url', 'N/A')))
-            self.log_msg("")
-
-            def on_progress(pct):
-                self.set_progress(pct * 0.8)  # 80% for download
-
-            # Use url as override if it differs from the hardcoded one
-            url_override = url if url != radio.get("firmware_url") else None
-            kdhx_path, _ = dl.download_and_extract(
-                radio["id"], progress_callback=on_progress,
-                url_override=url_override,
-                expected_sha256=expected_sha256,
-            )
-
-            self.set_progress(100)
-            self.log_msg(t("log.firmware_extracted").format(path=kdhx_path))
-            self.log_msg("")
-            self.log_msg(t("log.firmware_ready"))
-
-            wx.CallAfter(self.file_path.SetValue, kdhx_path)
-            self._terminal_state = None  # path change will recompute hint
-
-        except Exception as e:
-            self.log_msg(t("log.error_prefix").format(message=e))
-            if "No direct download URL" in str(e):
-                page = radio.get("firmware_page", "")
-                if page:
-                    self.log_msg(t("log.visit_page").format(url=page))
-            self._terminal_state = "failed"
-        finally:
-            self._busy = False
-            self.set_buttons(True)
+        self.download.download_thread(radio, url, expected_sha256)
 
     def on_browse(self, event):
-        dlg = wx.FileDialog(self, t("filedlg.select_firmware"),
-                            wildcard=t("filedlg.wildcard"),
-                            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
-        if dlg.ShowModal() == wx.ID_OK:
-            self.file_path.SetValue(dlg.GetPath())
-        dlg.Destroy()
-        self._terminal_state = None
-        self._set_hint(self._compute_hint_state())
+        self.download.on_browse(event)
 
     def log_msg(self, msg):
         wx.CallAfter(self.log.AppendText, msg + "\n")

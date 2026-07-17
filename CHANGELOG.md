@@ -4,6 +4,7 @@
 
 ### Architecture
 
+- **Firmware download and update-check extracted from the main frame** (`gui_download.py`, decomposition slice 2 of 3). The download worker, firmware discovery (manifest + variant gating), and the updater/manifest background tasks now live in a `DownloadController` with headless tests over a stub frame and fake downloader; the frame keeps same-named delegators and a read-only `manifest` property shim. `gui_main.py` drops to ~1,826 lines. Behavior unchanged.
 - **Hint/info rendering extracted from the main frame** (`gui_hints.py`, decomposition slice 1 of 3). The hint state machine and per-radio info panel — including the hardware-variant prompt text — now live in a `HintPresenter` with pure, headlessly tested formatting functions; the frame keeps thin same-named delegators so worker threads and sibling components are untouched. `gui_main.py` drops to ~1,978 lines. Behavior unchanged.
 
 ### Test reports
