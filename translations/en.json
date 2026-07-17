@@ -3,7 +3,8 @@
     "language": "en",
     "language_label": "English",
     "reviewed": true,
-    "source": "canonical"
+    "source": "canonical",
+    "_comment": "reviewed=true means all strings, especially safety-critical ones (radio.<id>.bootloader_keys, radio.<id>.notes variant warnings, dialog.confirm_*, dialog.untested_*), were checked by a native speaker. See CONTRIBUTING.md > Translations."
   },
 
   "app.title": "FlintWave Flash",
@@ -77,6 +78,7 @@
 
   "dialog.language.title": "Choose language",
   "dialog.language.prompt": "Pick the interface language. Non-English catalogs download the first time you select them.",
+  "dialog.language.unreviewed": "machine translated, help review",
   "dialog.about.license_text": "FlintWave Flash\nCopyright (C) 2026 FlintWave Radio Tools\n\nThis program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.\n\nThis program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.\n\nYou should have received a copy of the GNU General Public License along with this program.  If not, see <https://www.gnu.org/licenses/>.\n\nThe full GPL v3.0 license text ships with the source distribution in the LICENSE file at the root of the repository.",
 
   "dialog.report.title": "Submit Test Report",

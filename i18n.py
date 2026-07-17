@@ -264,6 +264,27 @@ def is_rtl(code: str | None = None) -> bool:
     return code in RTL_LANGUAGES
 
 
+def is_reviewed(code: str) -> bool:
+    """True if the catalog for `code` has been native-speaker reviewed.
+
+    Reads `_meta.reviewed` from the bundled catalog (falling back to the
+    download cache). The convention: `reviewed: true` means all strings —
+    especially the safety-critical ones (`radio.<id>.bootloader_keys`,
+    `radio.<id>.notes` hardware-variant warnings, `dialog.confirm_*`,
+    `dialog.untested_*`) — have been checked by a native speaker;
+    `reviewed: false` means machine-translated, awaiting community review
+    (tracked in per-language GitHub issues labeled `translation-review`).
+    English is the canonical source and always counts as reviewed.
+    """
+    if code == "en":
+        return True
+    for directory in (_bundled_translations_dir(), _cache_translations_dir()):
+        data = _read_json_file(os.path.join(directory, f"{code}.json"))
+        if data is not None:
+            return bool((data.get("_meta") or {}).get("reviewed", False))
+    return False
+
+
 def current_code() -> str:
     """Return the currently active language code."""
     return _current_code

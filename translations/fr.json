@@ -244,5 +244,6 @@
   "radio.rt-950-pro.notes": "Microcontrôleur AT32F403A avec conteneur de micrologiciel .BTF. Le fichier BTF est envoyé au module radio tel quel ; le programme de démarrage intégré au module radio le déchiffre à l'aide de la clé XOR de 16 octets intégrée au décalage de fichier 0x400. Le fournisseur distribue le micrologiciel via le groupe Facebook des propriétaires de RT-950 Pro ; une copie est disponible sur https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware. NON TESTÉ sur du matériel réel ; une confirmation de la communauté est demandée avant de l'utiliser pour une mise à jour de production.",
   "tooltip.language": "Modifier la langue de l'interface.",
   "dialog.language.title": "Choisissez la langue.",
-  "dialog.language.prompt": "Choisissez la langue de l’interface. Les catalogues autres que ceux en anglais se téléchargent la première fois que vous les sélectionnez."
+  "dialog.language.prompt": "Choisissez la langue de l’interface. Les catalogues autres que ceux en anglais se téléchargent la première fois que vous les sélectionnez.",
+  "dialog.language.unreviewed": "traduction automatique, aidez à la relire"
 }

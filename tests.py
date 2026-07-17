@@ -1107,6 +1107,46 @@ class TestBtfProtocol(unittest.TestCase):
                              f"BTF radio {r['id']} should match *.BTF")
 
 
+class TestTranslationReviewMeta(unittest.TestCase):
+    """The _meta.reviewed convention (CONTRIBUTING.md > Translations):
+    a boolean tracking native-speaker review, surfaced in the language
+    picker via i18n.is_reviewed()."""
+
+    ALL_LANGS = ["en", "zh-CN", "fr", "de", "it", "es", "ar", "ru"]
+
+    def _catalog(self, code):
+        path = os.path.join(os.path.dirname(__file__),
+                            "translations", f"{code}.json")
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_meta_reviewed_is_bool_everywhere(self):
+        for code in self.ALL_LANGS:
+            reviewed = self._catalog(code).get("_meta", {}).get("reviewed")
+            self.assertIsInstance(
+                reviewed, bool,
+                f"{code}: _meta.reviewed must be a bool, got {reviewed!r}")
+
+    def test_english_is_always_reviewed(self):
+        import i18n
+        self.assertTrue(i18n.is_reviewed("en"))
+        self.assertTrue(self._catalog("en")["_meta"]["reviewed"])
+
+    def test_is_reviewed_reflects_meta(self):
+        import i18n
+        for code in self.ALL_LANGS[1:]:
+            expected = self._catalog(code)["_meta"]["reviewed"]
+            self.assertEqual(i18n.is_reviewed(code), expected, code)
+
+    def test_unreviewed_hint_key_translated_everywhere(self):
+        en_val = self._catalog("en")["dialog.language.unreviewed"]
+        for code in self.ALL_LANGS[1:]:
+            val = self._catalog(code).get("dialog.language.unreviewed")
+            self.assertIsInstance(val, str, f"{code}: missing picker hint key")
+            self.assertNotEqual(val.strip(), en_val.strip(),
+                                f"{code}: hint echoes English")
+
+
 class TestRadioStringTranslations(unittest.TestCase):
     """Verify per-radio strings (bootloader_keys, connector, notes) have
     coverage in every shipped translation catalog. Catches contributors

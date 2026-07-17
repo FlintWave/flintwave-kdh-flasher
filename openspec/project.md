@@ -46,3 +46,7 @@ verifies them, and drives the serial flash protocol, with a multilingual UI
   radio. Treat firmware selection as safety-critical.
 - Many `radios.json` entries are `tested: false` — community test reports
   (GitHub issues) are how entries get confirmed.
+- Non-English catalogs are machine-translated until a native speaker reviews
+  them (`_meta.reviewed`, per-language `translation-review` issues,
+  CONTRIBUTING.md → Translations). Safety-critical strings (bootloader keys,
+  variant warnings, confirm/untested dialogs) get review priority.

@@ -327,7 +327,13 @@ class FlasherFrame(wx.Frame):
         prompt = wx.StaticText(dlg, label=t("dialog.language.prompt"))
         sizer.Add(prompt, 0, wx.ALL, 12)
 
-        labels = [label for _, label in i18n.LANGUAGES]
+        # Unreviewed (machine-translated) catalogs get a "help review" tag so
+        # native speakers know where help is wanted (see CONTRIBUTING.md).
+        labels = [
+            label if i18n.is_reviewed(code)
+            else f"{label} — {t('dialog.language.unreviewed')}"
+            for code, label in i18n.LANGUAGES
+        ]
         listbox = wx.ListBox(dlg, choices=labels, style=wx.LB_SINGLE)
         try:
             listbox.SetSelection(i18n.index_of(i18n.current_code()))
