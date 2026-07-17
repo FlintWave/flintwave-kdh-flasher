@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Only the latest push per branch/PR needs to run; cancel superseded runs.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use the system Python (3.12 on ubuntu-latest) together with the
+      # apt-packaged dependencies — this mirrors the project's documented
+      # Linux install path (README) and avoids the setup-python / apt-wxPython
+      # interpreter mismatch. With wxPython, pyserial, and requests all present
+      # the GUI/theme/i18n tests actually run instead of self-skipping.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-wxgtk4.0 \
+            python3-serial \
+            python3-requests \
+            xvfb
+
+      - name: Show environment
+        run: |
+          python3 --version
+          python3 -c "import wx, serial, requests; print('wx', wx.__version__)"
+
+      # gui_themes / gui_main import wx.adv, so a display must exist even to
+      # import them; xvfb-run supplies a headless one.
+      - name: Run test suite
+        run: xvfb-run -a python3 tests.py
