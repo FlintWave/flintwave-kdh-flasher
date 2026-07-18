@@ -1570,6 +1570,73 @@ class TestOfferTestReportSuppression(unittest.TestCase):
         self.assertEqual(len(calls), 1, "a new firmware version must prompt again")
 
 
+class TestCatalogCacheOverlay(unittest.TestCase):
+    """A downloaded catalog cached by an OLDER app version predates keys this
+    build ships; the loader must overlay the cache on the bundled catalog so
+    those keys resolve to their bundled translation instead of silently
+    falling back to English (found in visual QA: a stale Arabic cache left
+    the variant walkthrough in English while the rest of the UI was Arabic).
+    """
+
+    def test_stale_cache_overlaid_on_bundled(self):
+        import tempfile
+        import i18n
+        with tempfile.TemporaryDirectory() as tmp:
+            # Simulate an old cache: German catalog with ONE overridden key
+            # and (crucially) missing a key the bundled catalog ships.
+            stale = {"_meta": {"language": "de"},
+                     "app.title": "COMMUNITY-REFRESHED TITLE"}
+            with open(os.path.join(tmp, "de.json"), "w",
+                      encoding="utf-8") as f:
+                json.dump(stale, f)
+            orig = i18n._cache_translations_dir
+            i18n._cache_translations_dir = lambda: tmp
+            try:
+                merged = i18n._load_cached("de")
+            finally:
+                i18n._cache_translations_dir = orig
+        self.assertIsNotNone(merged)
+        # Cache wins for keys it has...
+        self.assertEqual(merged["app.title"], "COMMUNITY-REFRESHED TITLE")
+        # ...bundled fills what the stale cache predates.
+        self.assertIn("info.variant_pointer", merged)
+        self.assertIn("dialog.language.unreviewed", merged)
+
+    def test_missing_both_returns_none(self):
+        import tempfile
+        import i18n
+        with tempfile.TemporaryDirectory() as tmp:
+            orig_cache = i18n._cache_translations_dir
+            orig_bundled = i18n._bundled_translations_dir
+            i18n._cache_translations_dir = lambda: tmp
+            i18n._bundled_translations_dir = lambda: tmp
+            try:
+                self.assertIsNone(i18n._load_cached("de"))
+            finally:
+                i18n._cache_translations_dir = orig_cache
+                i18n._bundled_translations_dir = orig_bundled
+
+
+class TestVariantPointerTranslations(unittest.TestCase):
+    """The Instructions panel's pointer to the relocated variant walkthrough
+    must exist, translated, in every catalog."""
+
+    LANGS = ["zh-CN", "fr", "de", "it", "es", "ar", "ru"]
+
+    def test_pointer_key_translated_everywhere(self):
+        repo = os.path.dirname(__file__)
+        with open(os.path.join(repo, "translations", "en.json"),
+                  encoding="utf-8") as f:
+            en_val = json.load(f)["info.variant_pointer"]
+        for code in self.LANGS:
+            with open(os.path.join(repo, "translations", f"{code}.json"),
+                      encoding="utf-8") as f:
+                val = json.load(f).get("info.variant_pointer")
+            self.assertIsInstance(val, str, f"{code}: missing pointer key")
+            self.assertNotEqual(val.strip(), en_val.strip(),
+                                f"{code}: pointer echoes English")
+
+
 class TestVariantGroupTranslations(unittest.TestCase):
     """Mirror of TestRadioStringTranslations for group-level identification
     strings. The question/steps of every variant group must have a

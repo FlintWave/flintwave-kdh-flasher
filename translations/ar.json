@@ -118,6 +118,7 @@
   "info.variant_question": "حدّد إصدار العتاد لديك:",
   "info.variant_steps": "كيفية التحقق:",
   "info.variant_not_sure": "لست متأكدًا",
+  "info.variant_pointer": "أجب عن سؤال إصدار العتاد أسفل قائمة اختيار الراديو (على اليسار) لتفعيل التنزيل.",
   "info.variant_confirm_link": "لست متأكدًا؟ أكّد إصدار العتاد لديك من هنا",
   "log.downloading_for": "جاري تنزيل البرنامج الثابت لـ {radio}...",
   "log.url": "الرابط: {url}",

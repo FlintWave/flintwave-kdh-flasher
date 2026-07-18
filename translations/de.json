@@ -117,6 +117,7 @@
   "info.variant_question": "Bestimmen Sie Ihre Hardware-Version:",
   "info.variant_steps": "So prüfen Sie:",
   "info.variant_not_sure": "Ich bin nicht sicher",
+  "info.variant_pointer": "Beantworten Sie die Frage zur Hardware-Version unter der Funkgeräte-Auswahl (links), um den Download freizuschalten.",
   "info.variant_confirm_link": "Nicht sicher? Bestätigen Sie hier Ihre Hardware-Version",
   "log.downloading_for": "Firmware für {radio} wird heruntergeladen...",
   "log.url": "URL: {url}",

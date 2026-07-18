@@ -143,6 +143,7 @@
   "info.variant_question": "Identify your hardware version:",
   "info.variant_steps": "How to check:",
   "info.variant_not_sure": "I'm not sure",
+  "info.variant_pointer": "Answer the hardware-version question under the radio picker (left) to unlock Download.",
   "info.variant_confirm_link": "Not sure? Confirm your hardware version here",
 
   "log.downloading_for": "Downloading firmware for {radio}...",

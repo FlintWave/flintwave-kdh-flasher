@@ -94,14 +94,18 @@ def format_radio_info(radio, firmware_version):
     return "\n".join(bits)
 
 
-def format_variant_prompt(group_id, group):
-    """Text block for an unresolved variant group: family name, then the
-    translated identification question and steps. Pure — no widget access.
+def format_variant_prompt(group_id, group, include_name=True):
+    """Text block for an unresolved variant group: family name (optional),
+    then the translated identification question and steps. Pure — no widget
+    access. The Firmware column's walkthrough passes include_name=False
+    because it renders directly under the picker that already shows the name.
     """
-    name = radio_display_name(
-        t_variant_field(group_id, "name", group.get("name", group_id)),
-        group.get("manufacturer", ""))
-    bits = [t("info.radio_label").format(name=name), ""]
+    bits = []
+    if include_name:
+        name = radio_display_name(
+            t_variant_field(group_id, "name", group.get("name", group_id)),
+            group.get("manufacturer", ""))
+        bits = [t("info.radio_label").format(name=name), ""]
     question = t_variant_field(group_id, "question", group.get("question", ""))
     steps = t_variant_field(group_id, "steps", group.get("steps", ""))
     if question:
@@ -129,17 +133,19 @@ class HintPresenter:
     def radio_info(self):
         """Per-radio instructions for the active selection, or empty string.
 
-        When an unresolved variant group is selected (no concrete radio), returns
-        the group's identification question + steps instead (the selectable
-        answers live in the frame's variant panel, wired by
-        ``_render_variant_options``).
+        When an unresolved variant group is selected (no concrete radio), the
+        full identification walkthrough (question, steps, answers) renders in
+        the Firmware column's variant panel where it is always visible; the
+        Instructions text just points there. Embedding the whole prompt here
+        buried it below the fold of the small Instructions box (found in
+        hardware testing).
         """
         frame = self.frame
         radio = frame._get_selected_radio()
         if not radio:
             group_sel = frame._get_selected_group()
             if group_sel:
-                return format_variant_prompt(*group_sel)
+                return t("info.variant_pointer")
             return ""
         _, version = frame._get_firmware_url_and_version(radio)
         return format_radio_info(radio, version)

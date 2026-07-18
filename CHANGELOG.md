@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### UX / UI
+
+- **The hardware-variant walkthrough moved into the Firmware column**, directly under the radio picker, where it is fully visible at every window size. It previously rendered below the Instructions text, where the directions were scrolled out of view and the answer options were squeezed to zero height at the default window size (found in hardware + screenshot testing). The Instructions panel now shows a translated one-line pointer instead, no answer appears pre-selected before the user actually picks one (hidden GTK group anchor), and the question/steps text compresses before the answer buttons ever would.
+- **Stale translation caches can no longer hide new strings.** Downloaded catalogs cached by an older app version predate newly shipped keys; the loader now overlays the cache on the bundled catalog so every key this build knows about resolves to at least its bundled translation. Previously a stale cache left just the new strings (e.g. the variant walkthrough) in English while the rest of the UI was translated.
+
 ### Architecture
 
 - **Firmware download and update-check extracted from the main frame** (`gui_download.py`, decomposition slice 2 of 3). The download worker, firmware discovery (manifest + variant gating), and the updater/manifest background tasks now live in a `DownloadController` with headless tests over a stub frame and fake downloader; the frame keeps same-named delegators and a read-only `manifest` property shim. `gui_main.py` drops to ~1,826 lines. Behavior unchanged.

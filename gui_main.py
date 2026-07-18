@@ -37,7 +37,7 @@ from gui_statusbar import StatusBar, theme_toggle_glyph
 from gui_columns import (
     FirmwareColumn, HandsetColumn, FlashColumn, radio_display_name,
 )
-from gui_hints import HintPresenter
+from gui_hints import HintPresenter, format_variant_prompt
 from gui_download import DownloadController
 from gui_handset import (
     HandsetController,
@@ -203,18 +203,10 @@ class FlasherFrame(wx.Frame):
 
         outer_sizer.Add(self.hints_panel, 1, wx.EXPAND)
 
-        # Hardware-variant walkthrough controls. Live directly under the
-        # instructions text: when an unresolved variant group is selected,
-        # _render_variant_options() fills this panel with one radio button per
-        # variant answer + "I'm not sure" (and a confirm link when unsure).
-        # Hidden whenever a concrete radio or the placeholder is selected.
-        self._variant_panel = wx.Panel(self._instructions_outer)
-        self._variant_panel.SetSizer(wx.BoxSizer(wx.VERTICAL))
-        self._variant_panel.Hide()
-        outer_sizer.Add(self._variant_panel, 0,
-                        wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
-        self._rtl_targets.append(self._variant_panel)
-
+        # (The hardware-variant walkthrough used to render here, under the
+        # instructions text; it now lives in the Firmware column, directly
+        # under the radio picker — see FirmwareColumn, which exposes it as
+        # self._variant_panel.)
         self._instructions_outer.SetSizer(outer_sizer)
 
         # Log panel (right half) — heading + textarea
@@ -849,13 +841,17 @@ class FlasherFrame(wx.Frame):
         panel.GetSizer().Clear()
         if panel.IsShown():
             panel.Hide()
-            self._instructions_outer.Layout()
+            panel.GetParent().Layout()
 
     def _render_variant_options(self, group_id, group):
-        """(Re)build the variant answer controls for a selected group: one
-        radio button per member (translated variant_label) + an "I'm not sure"
-        option, plus a firmware_page confirm link when unsure. Choosing an
-        option resolves (or unresolves) the group and re-runs _update_radio_info.
+        """(Re)build the variant walkthrough in the Firmware column: the
+        translated identification question and steps, one radio button per
+        member (translated variant_label), an "I'm not sure" option, and a
+        firmware_page confirm link when unsure. Choosing an option resolves
+        (or unresolves) the group and re-runs _update_radio_info.
+
+        Idempotent and translation-aware: retranslate_ui re-invokes it (via
+        _update_radio_info) so a language switch rebuilds every label.
         """
         panel = self._variant_panel
         panel.DestroyChildren()
@@ -866,20 +862,41 @@ class FlasherFrame(wx.Frame):
         label_by_id = {o.get("radio_id"): o.get("label", "")
                        for o in group.get("options", [])}
 
-        first = True
+        # Question + steps in a borderless read-only TextCtrl: word-wraps at
+        # any column width and compresses (scrolls) when the window is small,
+        # so the answer buttons below are never pushed out of view — they are
+        # the actionable part. The name line is omitted; the picker above
+        # already shows it.
+        prompt = format_variant_prompt(group_id, group, include_name=False)
+        prompt_text = wx.TextCtrl(
+            panel, value=prompt,
+            style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_BESTWRAP |
+            wx.BORDER_NONE)
+        try:
+            prompt_text.SetCanFocus(False)  # no GTK focus ring on click
+        except Exception:
+            pass
+        sizer.Add(prompt_text, 1, wx.EXPAND | wx.BOTTOM, 6)
+
+        # Hidden group anchor: GTK force-selects the first button of a radio
+        # group, which made the unanswered state *look* like the first variant
+        # was chosen while Download stayed locked. The hidden anchor absorbs
+        # "no answer yet" so no visible option shows selected until the user
+        # actually picks one.
+        anchor = wx.RadioButton(panel, style=wx.RB_GROUP)
+        anchor.Hide()
+        anchor.SetValue(True)
+
         for radio_id in dl.variant_members(group_id):
             label = t_radio_field(radio_id, "variant_label",
                                   label_by_id.get(radio_id, radio_id))
-            rb = wx.RadioButton(panel, label=label,
-                                style=wx.RB_GROUP if first else 0)
-            first = False
+            rb = wx.RadioButton(panel, label=label)
             rb.SetValue(current == radio_id)
             rb.Bind(wx.EVT_RADIOBUTTON,
                     lambda e, rid=radio_id: self._on_variant_chosen(group_id, rid))
             sizer.Add(rb, 0, wx.BOTTOM, 4)
 
-        rb_unsure = wx.RadioButton(panel, label=t("info.variant_not_sure"),
-                                   style=wx.RB_GROUP if first else 0)
+        rb_unsure = wx.RadioButton(panel, label=t("info.variant_not_sure"))
         rb_unsure.SetValue(current == self.VARIANT_UNSURE)
         rb_unsure.Bind(
             wx.EVT_RADIOBUTTON,
@@ -901,7 +918,7 @@ class FlasherFrame(wx.Frame):
             _theme_style_widget(w, palette)
 
         panel.Show()
-        self._instructions_outer.Layout()
+        panel.GetParent().Layout()
 
     def _on_variant_chosen(self, group_id, choice):
         """Record a variant answer and refresh the panel + Download gating."""

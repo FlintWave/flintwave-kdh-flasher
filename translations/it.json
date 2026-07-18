@@ -117,6 +117,7 @@
   "info.variant_question": "Identifica la tua versione hardware:",
   "info.variant_steps": "Come verificare:",
   "info.variant_not_sure": "Non sono sicuro",
+  "info.variant_pointer": "Rispondi alla domanda sulla versione hardware sotto il selettore della radio (a sinistra) per sbloccare il download.",
   "info.variant_confirm_link": "Non sei sicuro? Conferma qui la tua versione hardware",
   "log.downloading_for": "Download del firmware per {radio} in corso...",
   "log.url": "URL: {url}",

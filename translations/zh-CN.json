@@ -117,6 +117,7 @@
   "info.variant_question": "确认您的硬件版本：",
   "info.variant_steps": "检查方法：",
   "info.variant_not_sure": "我不确定",
+  "info.variant_pointer": "请在左侧无线电选择框下方回答硬件版本问题，以解锁下载。",
   "info.variant_confirm_link": "不确定？点击此处确认您的硬件版本",
   "log.downloading_for": "正在为 {radio} 下载固件...",
   "log.url": "URL:{url}",

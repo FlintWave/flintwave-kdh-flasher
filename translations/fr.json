@@ -117,6 +117,7 @@
   "info.variant_question": "Identifiez votre version matérielle :",
   "info.variant_steps": "Comment vérifier :",
   "info.variant_not_sure": "Je ne suis pas sûr(e)",
+  "info.variant_pointer": "Répondez à la question sur la version matérielle sous le sélecteur de radio (à gauche) pour débloquer le téléchargement.",
   "info.variant_confirm_link": "Pas sûr(e) ? Confirmez votre version matérielle ici",
   "log.downloading_for": "Téléchargement du micrologiciel pour {radio}...",
   "log.url": "URL : {url}",
