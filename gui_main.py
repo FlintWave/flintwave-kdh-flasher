@@ -83,6 +83,7 @@ class FlasherFrame(wx.Frame):
         self.current_theme = "mocha"
         self.current_theme_palette = MOCHA_PALETTE
         self._busy = False
+        self._restore_rect = None    # pre-maximize rect (emulated maximize)
         self._closing = False        # set on EVT_CLOSE so bg loops can stop
         self._terminal_state = None  # set to "complete"/"failed" by threads
         # Handset-column behavior (port discovery, probe, poll, selection) lives
@@ -172,6 +173,7 @@ class FlasherFrame(wx.Frame):
         top_row.Add(self.arrow2, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 4)
         top_row.Add(col_flash, 1, wx.EXPAND | wx.ALL, 8)
         top_panel.SetSizer(top_row)
+        self._top_panel = top_panel
 
         # ---- Bottom half: instructions | log behind their own draggable
         # sash (the main splitter's sash replaces the old decorative
@@ -180,6 +182,12 @@ class FlasherFrame(wx.Frame):
             self._main_split, style=wx.SP_LIVE_UPDATE | wx.SP_NOBORDER)
         self._bottom_split.SetMinimumPaneSize(220)
         self._bottom_split.SetSashGravity(0.5)
+        # The Log pane never grows wider than Instructions (reading the
+        # workflow guidance beats scrollback width); enforced on drags and
+        # re-clamped after resizes, mirroring the main sash.
+        self._bottom_split.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGING,
+                                self._on_bottom_sash_changing)
+        self._bottom_split.Bind(wx.EVT_SIZE, self._on_bottom_split_size)
 
         # Instructions panel (left half). Use a read-only wx.TextCtrl with
         # rich-text styling for the body; native multi-line TextCtrl gives us
@@ -256,6 +264,27 @@ class FlasherFrame(wx.Frame):
         root_sizer.Add(self.status_bar_panel, 0, wx.EXPAND)
 
         panel.SetSizer(root_sizer)
+
+        # Manual edge-resize for the borderless window: compositors often
+        # ignore wx.RESIZE_BORDER without OS decorations, so the margin band
+        # of every edge-touching widget drives window_drag.resize_geometry.
+        from window_drag import EdgeResizeController
+        self._edge_resizer = EdgeResizeController(self)
+        self._edge_resizer.attach(
+            panel, self.title_bar, self.status_bar_panel, self._top_panel,
+            self._main_split, self._bottom_split,
+            self._instructions_outer, self.log_panel)
+
+        # Keep the title bar's maximize/restore glyph honest for WM-initiated
+        # changes (double-click restore, tiling, taskbar actions).
+        def _on_frame_size(event):
+            event.Skip()
+            try:
+                self.title_bar.update_maximize_glyph()
+            except Exception:
+                pass
+        self.Bind(wx.EVT_SIZE, _on_frame_size)
+
         self.Centre()
 
         # Bind change events that update hint state
@@ -783,6 +812,55 @@ class FlasherFrame(wx.Frame):
 
         wx.CallAfter(_reclamp)
 
+    def toggle_maximize(self):
+        """Maximize or restore the window.
+
+        Manual implementation: window managers commonly refuse maximize
+        hints for borderless windows (wx.Frame.Maximize is a no-op here), so
+        we emulate it — remember the normal rect, size to the display's work
+        area, and restore the saved rect on toggle. The splitters reflow via
+        their gravity + re-clamp size handlers.
+        """
+        if self._restore_rect is not None:
+            rect, self._restore_rect = self._restore_rect, None
+            self.SetSize(rect)
+        else:
+            self._restore_rect = self.GetRect()
+            display = wx.Display(max(0, wx.Display.GetFromWindow(self)))
+            self.SetSize(display.GetClientArea())
+        try:
+            self.title_bar.update_maximize_glyph()
+        except Exception:
+            pass
+
+    def is_app_maximized(self):
+        """True when maximized — ours (emulated) or the WM's, either way."""
+        return self._restore_rect is not None or self.IsMaximized()
+
+    def _clamp_bottom_sash(self, position):
+        """Instructions keeps at least half the width (Log <= Instructions),
+        and Log keeps at least the splitter's 220px minimum."""
+        width = max(1, self._bottom_split.GetClientSize().width)
+        lower = max(width // 2, 220)
+        upper = max(lower, width - 220)
+        return max(lower, min(int(position), upper))
+
+    def _on_bottom_sash_changing(self, event):
+        event.SetSashPosition(self._clamp_bottom_sash(event.GetSashPosition()))
+
+    def _on_bottom_split_size(self, event):
+        event.Skip()
+        if not self._bottom_split.IsSplit():
+            return
+
+        def _reclamp():
+            clamped = self._clamp_bottom_sash(
+                self._bottom_split.GetSashPosition())
+            if clamped != self._bottom_split.GetSashPosition():
+                self._bottom_split.SetSashPosition(clamped)
+
+        wx.CallAfter(_reclamp)
+
     def _apply_sash_ratios(self):
         """Set both splitter sashes from persisted ratios (or defaults).
 
@@ -806,7 +884,8 @@ class FlasherFrame(wx.Frame):
         width = max(1, self._bottom_split.GetClientSize().width)
         self._main_split.SetSashPosition(
             self._clamp_main_sash(height * _ratio("main", 0.60)))
-        self._bottom_split.SetSashPosition(int(width * _ratio("bottom", 0.50)))
+        self._bottom_split.SetSashPosition(
+            self._clamp_bottom_sash(width * _ratio("bottom", 0.50)))
 
     def _on_sash_changed(self, event):
         """Persist sash ratios after a user drag (best-effort)."""

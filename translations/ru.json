@@ -10,6 +10,7 @@
   "app.about_blurb": "Прошивайте файлы .kdhx на радиостанции BTECH, Baofeng, Radtel\nи другие с загрузчиком KDH из любой ОС.",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
   "titlebar.minimize_tooltip": "Свернуть",
+  "titlebar.maximize_tooltip": "Развернуть / восстановить",
   "titlebar.close_tooltip": "Закрыть",
   "titlebar.language_tooltip": "Сменить язык",
   "column.firmware": "Прошивка",

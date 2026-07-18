@@ -10,6 +10,7 @@
   "app.about_blurb": "Flashez des micrologiciels .kdhx sur les radios BTECH, Baofeng, Radtel\net les autres radios à bootloader KDH, depuis n'importe quel OS.",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
   "titlebar.minimize_tooltip": "Réduire",
+  "titlebar.maximize_tooltip": "Agrandir / restaurer",
   "titlebar.close_tooltip": "Fermer",
   "titlebar.language_tooltip": "Changer de langue",
   "column.firmware": "Micrologiciel",

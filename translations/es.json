@@ -10,6 +10,7 @@
   "app.about_blurb": "Flashea firmware .kdhx en radios BTECH, Baofeng, Radtel\ny otras radios con bootloader KDH, desde cualquier sistema operativo.",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
   "titlebar.minimize_tooltip": "Minimizar",
+  "titlebar.maximize_tooltip": "Maximizar / restaurar",
   "titlebar.close_tooltip": "Cerrar",
   "titlebar.language_tooltip": "Cambiar idioma",
   "column.firmware": "Firmware",

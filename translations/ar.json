@@ -11,6 +11,7 @@
   "app.about_blurb": "برمجة ملفات .kdhx على أجهزة BTECH وBaofeng وRadtel\nوغيرها من أجهزة الراديو ذات بوت-لودر KDH، من أي نظام تشغيل.",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
   "titlebar.minimize_tooltip": "تصغير",
+  "titlebar.maximize_tooltip": "تكبير / استعادة",
   "titlebar.close_tooltip": "إغلاق",
   "titlebar.language_tooltip": "تغيير اللغة",
   "column.firmware": "البرنامج الثابت",
