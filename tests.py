@@ -2255,6 +2255,47 @@ class TestWorkflowStateMachine(unittest.TestCase):
         self.assertIs(g.flash, True)
 
 
+class TestEdgeResize(unittest.TestCase):
+    """Pure geometry for the borderless window's manual edge-resize."""
+
+    def test_hit_test_zones(self):
+        from window_drag import hit_test_edge
+        w, h = 200, 100
+        self.assertEqual(hit_test_edge(3, 3, w, h), "topleft")
+        self.assertEqual(hit_test_edge(197, 3, w, h), "topright")
+        self.assertEqual(hit_test_edge(3, 97, w, h), "bottomleft")
+        self.assertEqual(hit_test_edge(197, 97, w, h), "bottomright")
+        self.assertEqual(hit_test_edge(3, 50, w, h), "left")
+        self.assertEqual(hit_test_edge(197, 50, w, h), "right")
+        self.assertEqual(hit_test_edge(100, 3, w, h), "top")
+        self.assertEqual(hit_test_edge(100, 97, w, h), "bottom")
+        self.assertIsNone(hit_test_edge(100, 50, w, h))
+        self.assertIsNone(hit_test_edge(9, 50, w, h, margin=8))
+
+    def test_resize_right_bottom_grows_in_place(self):
+        from window_drag import resize_geometry
+        pos, size = resize_geometry("bottomright", (10, 20), (400, 300),
+                                    (410, 320), (460, 350), (100, 100))
+        self.assertEqual(pos, (10, 20))       # origin anchored
+        self.assertEqual(size, (450, 330))
+
+    def test_resize_left_top_anchors_opposite_edge(self):
+        from window_drag import resize_geometry
+        pos, size = resize_geometry("topleft", (100, 100), (400, 300),
+                                    (100, 100), (130, 120), (100, 100))
+        self.assertEqual(size, (370, 280))
+        # bottom-right corner stays at (500, 400)
+        self.assertEqual((pos[0] + size[0], pos[1] + size[1]), (500, 400))
+
+    def test_resize_clamps_to_min_without_sliding(self):
+        from window_drag import resize_geometry
+        pos, size = resize_geometry("left", (100, 100), (400, 300),
+                                    (100, 100), (900, 100), (150, 100))
+        self.assertEqual(size, (150, 300))
+        # right edge must not move even though the drag overshot the minimum
+        self.assertEqual(pos[0] + size[0], 500)
+
+
 class TestWindowDragger(unittest.TestCase):
     """Drag-to-move math extracted from the title bar (window_drag).
 

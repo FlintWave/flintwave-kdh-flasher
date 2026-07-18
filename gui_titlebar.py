@@ -67,9 +67,12 @@ if wx is not None:
             # controls only.
             self._minimize_btn = self._make_chrome_btn(
                 "—", "titlebar.minimize_tooltip", frame.Iconize)
+            self._maximize_btn = self._make_chrome_btn(
+                "□", "titlebar.maximize_tooltip", self._toggle_maximize)
             self._close_btn = self._make_chrome_btn(
                 "✕", "titlebar.close_tooltip", frame.Close)
             sizer.Add(self._minimize_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
+            sizer.Add(self._maximize_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
             sizer.Add(self._close_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
 
             self.SetSizer(sizer)
@@ -94,10 +97,32 @@ if wx is not None:
             b.SetFont(chrome_font)
             return b
 
+        def _toggle_maximize(self):
+            # The frame owns maximize (emulated — WMs refuse the hint for
+            # borderless windows); fall back to wx for exotic embeddings.
+            toggle = getattr(self._frame, "toggle_maximize", None)
+            if toggle is not None:
+                toggle()
+            else:
+                self._frame.Maximize(not self._frame.IsMaximized())
+            self.update_maximize_glyph()
+
+        def update_maximize_glyph(self):
+            """Reflect the frame's maximized state in the chrome glyph.
+
+            Also called from the frame's EVT_SIZE handler, since a restore
+            (or a WM-initiated maximize) doesn't come through our button.
+            """
+            is_max = getattr(self._frame, "is_app_maximized",
+                             self._frame.IsMaximized)()
+            self._maximize_btn.SetLabel("❐" if is_max else "□")
+
         def _bind_drag(self, w):
             w.Bind(wx.EVT_LEFT_DOWN, self._on_press)
             w.Bind(wx.EVT_MOTION, self._on_drag)
             w.Bind(wx.EVT_LEFT_UP, self._on_release)
+            # Platform-conventional: double-click the bar toggles maximize.
+            w.Bind(wx.EVT_LEFT_DCLICK, lambda e: self._toggle_maximize())
 
         def _on_press(self, event):
             self._dragger.begin()

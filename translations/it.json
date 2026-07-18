@@ -10,6 +10,7 @@
   "app.about_blurb": "Esegui il flashing di firmware .kdhx su radio BTECH, Baofeng, Radtel\ne altre radio con bootloader KDH, da qualsiasi sistema operativo.",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
   "titlebar.minimize_tooltip": "Riduci a icona",
+  "titlebar.maximize_tooltip": "Ingrandisci / ripristina",
   "titlebar.close_tooltip": "Chiudi",
   "titlebar.language_tooltip": "Cambia lingua",
   "column.firmware": "Firmware",

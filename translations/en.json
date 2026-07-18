@@ -12,6 +12,7 @@
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
 
   "titlebar.minimize_tooltip": "Minimize",
+  "titlebar.maximize_tooltip": "Maximize / restore",
   "titlebar.close_tooltip": "Close",
   "titlebar.language_tooltip": "Change language",
 

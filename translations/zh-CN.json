@@ -10,6 +10,7 @@
   "app.about_blurb": "在任何操作系统上为 BTECH、Baofeng、Radtel\n等使用 KDH bootloader 的电台刷写 .kdhx 固件。",
   "app.copyright": "(c) 2026 FlintWave Radio Tools",
   "titlebar.minimize_tooltip": "最小化",
+  "titlebar.maximize_tooltip": "最大化 / 还原",
   "titlebar.close_tooltip": "关闭",
   "titlebar.language_tooltip": "切换语言",
   "column.firmware": "固件",
