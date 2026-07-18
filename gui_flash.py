@@ -216,7 +216,6 @@ class FlashController:
         """
         frame = self.frame
         radio = frame._get_selected_radio()
-        radio_name = radio["name"] if radio else t("fallback.radio_unknown")
 
         # Validate firmware once up front
         driver = frame._driver_for(radio)
@@ -315,7 +314,10 @@ class FlashController:
         # delegate to the BTF-specific path. The KDH inline flow below stays
         # unchanged so existing translations and behavior are preserved.
         if (radio or {}).get("protocol") == "btf":
-            return self.flash_thread_btf(port, firmware_path, handset_idx, radio)
+            # Workers don't return values; call-then-return keeps the exits
+            # uniform instead of propagating the BTF worker's None.
+            self.flash_thread_btf(port, firmware_path, handset_idx, radio)
+            return
 
         # Derive once, up front, so both the success and failure paths pass the
         # same identity to record_flash and to the test-report nag suppression.
@@ -383,6 +385,9 @@ class FlashController:
                     self.log_msg(t("log.recorded_flash").format(
                         version=file_version, radio=radio_name))
                 except Exception:
+                    # Recording flash history is bookkeeping: a corrupt or
+                    # unwritable state file must not fail a flash that already
+                    # succeeded on the radio.
                     pass
                 # Compare against latest known
                 _, latest_ver = frame._get_firmware_url_and_version(radio)
@@ -473,6 +478,8 @@ class FlashController:
                     self.log_msg(t("log.recorded_flash").format(
                         version=file_version, radio=radio_name))
                 except Exception:
+                    # Same as the KDH path: history bookkeeping is best-effort
+                    # and must not fail an already-successful flash.
                     pass
 
             frame._terminal_state = "complete"
@@ -565,6 +572,8 @@ class FlashController:
                     frame._update_workflow_gating()
             dlg.Destroy()
         except Exception:
+            # The cleanup offer is a courtesy prompt after the flash finished;
+            # any dialog/filesystem hiccup here is not worth surfacing.
             pass
 
     # ------------------------------------------------------------------
