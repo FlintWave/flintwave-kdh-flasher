@@ -101,6 +101,8 @@ def resize_geometry(zone, start_pos, start_size, start_mouse, mouse, min_size):
     (and the anchored edge absorbs the clamp, so the window never slides).
     Pure arithmetic — unit-tested without a display.
     """
+    if zone not in _ZONES:
+        raise ValueError(f"unknown resize zone: {zone!r}")
     dx = mouse[0] - start_mouse[0]
     dy = mouse[1] - start_mouse[1]
     x, y = start_pos

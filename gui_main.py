@@ -282,6 +282,8 @@ class FlasherFrame(wx.Frame):
             try:
                 self.title_bar.update_maximize_glyph()
             except Exception:
+                # Size events fire during construction/teardown when the
+                # title bar may not exist yet; the glyph is cosmetic.
                 pass
         self.Bind(wx.EVT_SIZE, _on_frame_size)
 
@@ -831,6 +833,8 @@ class FlasherFrame(wx.Frame):
         try:
             self.title_bar.update_maximize_glyph()
         except Exception:
+            # Cosmetic: a glyph update must never break the maximize itself
+            # (e.g. during teardown when the title bar is already gone).
             pass
 
     def is_app_maximized(self):
