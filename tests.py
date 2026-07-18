@@ -1494,18 +1494,20 @@ class TestDialogReportTranslations(unittest.TestCase):
 
 
 class TestOfferTestReportSuppression(unittest.TestCase):
-    """FlasherFrame._offer_test_report must not show the dialog once a report
+    """FlashController.offer_test_report must not show the dialog once a report
     was submitted or explicitly skipped for a given radio+version, and must
-    persist the dialog's outcome otherwise. Bound onto a lightweight stub so it
-    runs headlessly (no wx.Frame / display), the pattern the variant-gating
-    tests use. The report dialog itself is monkeypatched out."""
+    persist the dialog's outcome otherwise. Bound onto a lightweight controller
+    stub (with a fake ``frame``) so it runs headlessly (no wx.Frame / display),
+    the pattern the variant-gating tests use. The report dialog itself is
+    monkeypatched out. Repointed from FlasherFrame to gui_flash when the flash
+    workers were extracted into FlashController (slice 3)."""
 
     def setUp(self):
         import importlib
         try:
-            self.gm = importlib.import_module("gui_main")
+            self.gf = importlib.import_module("gui_flash")
         except ImportError:
-            self.skipTest("gui_main not importable in this environment")
+            self.skipTest("gui_flash not importable in this environment")
         import firmware_manifest as fm_mod
         self.fm = fm_mod
         self._orig_state_file = fm_mod.STATE_FILE
@@ -1513,12 +1515,12 @@ class TestOfferTestReportSuppression(unittest.TestCase):
         self._tmpdir = tempfile.mkdtemp()
         fm_mod.STATE_FILE = os.path.join(self._tmpdir, "state.json")
         fm_mod.STATE_DIR = self._tmpdir
-        self._orig_dialog = self.gm.show_test_report_dialog
+        self._orig_dialog = self.gf.show_test_report_dialog
 
     def tearDown(self):
         self.fm.STATE_FILE = self._orig_state_file
         self.fm.STATE_DIR = self._orig_state_dir
-        self.gm.show_test_report_dialog = self._orig_dialog
+        self.gf.show_test_report_dialog = self._orig_dialog
         import shutil
         shutil.rmtree(self._tmpdir, ignore_errors=True)
 
@@ -1529,56 +1531,58 @@ class TestOfferTestReportSuppression(unittest.TestCase):
             calls.append(args)
             return dialog_return
 
-        self.gm.show_test_report_dialog = fake_dialog
+        self.gf.show_test_report_dialog = fake_dialog
+        frame = types.SimpleNamespace()
+        frame.log = types.SimpleNamespace(GetValue=lambda: "log text")
         stub = types.SimpleNamespace()
-        stub.log = types.SimpleNamespace(GetValue=lambda: "log text")
-        stub._offer_firmware_cleanup = lambda path: None
-        stub._offer_test_report = \
-            self.gm.FlasherFrame._offer_test_report.__get__(stub)
+        stub.frame = frame
+        stub.offer_firmware_cleanup = lambda path: None
+        stub.offer_test_report = \
+            self.gf.FlashController.offer_test_report.__get__(stub)
         return stub, calls
 
     def test_suppressed_after_submitted(self):
         self.fm.mark_test_report("radio-x", "1.0", "submitted")
         stub, calls = self._stub(None)
-        stub._offer_test_report("Radio X", "/tmp/fw.kdhx", True, "",
-                                radio_id="radio-x", file_version="1.0")
+        stub.offer_test_report("Radio X", "/tmp/fw.kdhx", True, "",
+                               radio_id="radio-x", file_version="1.0")
         self.assertEqual(calls, [], "dialog must not be shown when suppressed")
 
     def test_suppressed_after_skipped(self):
         self.fm.mark_test_report("radio-x", "1.0", "skipped")
         stub, calls = self._stub(None)
-        stub._offer_test_report("Radio X", "/tmp/fw.kdhx", False, "boom",
-                                radio_id="radio-x", file_version="1.0")
+        stub.offer_test_report("Radio X", "/tmp/fw.kdhx", False, "boom",
+                               radio_id="radio-x", file_version="1.0")
         self.assertEqual(calls, [])
 
     def test_shown_when_not_recorded_and_plain_skip_does_not_persist(self):
         stub, calls = self._stub(None)  # dialog returns None => plain Skip
-        stub._offer_test_report("Radio Y", "/tmp/fw.kdhx", True, "",
-                                radio_id="radio-y", file_version="1.0")
+        stub.offer_test_report("Radio Y", "/tmp/fw.kdhx", True, "",
+                               radio_id="radio-y", file_version="1.0")
         self.assertEqual(len(calls), 1)
         # Plain Skip persists nothing, so a future flash still prompts.
         self.assertIsNone(self.fm.get_test_report_status("radio-y", "1.0"))
 
     def test_submit_outcome_persisted(self):
         stub, calls = self._stub("submitted")
-        stub._offer_test_report("Radio Z", "/tmp/fw.kdhx", True, "",
-                                radio_id="radio-z", file_version="2.0")
+        stub.offer_test_report("Radio Z", "/tmp/fw.kdhx", True, "",
+                               radio_id="radio-z", file_version="2.0")
         self.assertEqual(len(calls), 1)
         self.assertEqual(
             self.fm.get_test_report_status("radio-z", "2.0"), "submitted")
 
     def test_skip_with_checkbox_persisted(self):
         stub, calls = self._stub("skipped")
-        stub._offer_test_report("Radio W", "/tmp/fw.kdhx", False, "boom",
-                                radio_id="radio-w", file_version="3.0")
+        stub.offer_test_report("Radio W", "/tmp/fw.kdhx", False, "boom",
+                               radio_id="radio-w", file_version="3.0")
         self.assertEqual(
             self.fm.get_test_report_status("radio-w", "3.0"), "skipped")
 
     def test_new_version_prompts_again(self):
         self.fm.mark_test_report("radio-x", "1.0", "submitted")
         stub, calls = self._stub(None)
-        stub._offer_test_report("Radio X", "/tmp/fw.kdhx", True, "",
-                                radio_id="radio-x", file_version="2.0")
+        stub.offer_test_report("Radio X", "/tmp/fw.kdhx", True, "",
+                               radio_id="radio-x", file_version="2.0")
         self.assertEqual(len(calls), 1, "a new firmware version must prompt again")
 
 

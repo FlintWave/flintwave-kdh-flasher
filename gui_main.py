@@ -16,14 +16,11 @@ import flash_firmware as fw
 import flash_btf as fw_btf
 import firmware_download as dl
 import firmware_manifest as fm
-import firmware_version as fv
 import i18n
 from i18n import t, t_radio_field, t_variant_field
-import serial
 
 from gui_dialogs import (
     show_about_dialog,
-    show_test_report_dialog,
 )
 from gui_themes import apply_theme, THEME_PALETTES, MOCHA_PALETTE
 from gui_themes import _walk as _theme_walk, _style_widget as _theme_style_widget
@@ -39,13 +36,8 @@ from gui_columns import (
 )
 from gui_hints import HintPresenter, format_variant_prompt
 from gui_download import DownloadController
-from gui_handset import (
-    HandsetController,
-    # Flash-worker status values (i18n keys) — comparisons use these symbolic
-    # constants; only the on-screen text runs through t(). The full status
-    # vocabulary lives in gui_handset alongside the controller that emits it.
-    STATUS_FLASHING, STATUS_DONE, STATUS_FAILED, STATUS_SKIPPED,
-)
+from gui_flash import FlashController
+from gui_handset import HandsetController
 
 VERSION = "26.07.0"
 
@@ -104,6 +96,12 @@ class FlasherFrame(wx.Frame):
         # DownloadController; the frame exposes thin delegators below and a
         # `manifest` property shim over the controller.
         self.download = DownloadController(self)
+        # Serial operation workers (flash / dry-run / diagnostics) plus their
+        # log/progress/button plumbing live in FlashController; the frame
+        # exposes thin delegators below (on_flash / on_dry_run / on_diag bound
+        # by gui_columns, log_msg / set_progress / set_buttons reused by the
+        # download worker).
+        self.flash = FlashController(self)
 
         # Window icon
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon_128.png")
@@ -1185,425 +1183,42 @@ class FlasherFrame(wx.Frame):
     def on_browse(self, event):
         self.download.on_browse(event)
 
+    # ------------------------------------------------------------------
+    # Serial operation workers — behavior in FlashController (gui_flash).
+    # These thin wrappers keep the gui_columns button bindings (on_flash /
+    # on_dry_run / on_diag), the DownloadController plumbing calls (log_msg /
+    # set_progress / set_buttons) and the internal thread targets calling the
+    # same names while the logic lives in the controller.
+    # ------------------------------------------------------------------
+
     def log_msg(self, msg):
-        wx.CallAfter(self.log.AppendText, msg + "\n")
+        self.flash.log_msg(msg)
 
     def set_progress(self, pct):
-        wx.CallAfter(self.progress.SetValue, int(pct))
+        self.flash.set_progress(pct)
 
     def set_buttons(self, enabled):
-        wx.CallAfter(self.flash_btn.Enable, enabled)
-        wx.CallAfter(self.dryrun_btn.Enable, enabled)
-        wx.CallAfter(self.diag_btn.Enable, enabled)
-        wx.CallAfter(self.download_btn.Enable, enabled)
-        wx.CallAfter(self.refresh_btn.Enable, enabled)
-        wx.CallAfter(self.select_all_btn.Enable, enabled)
-        wx.CallAfter(self.select_none_btn.Enable, enabled)
-        # Also lock the firmware inputs so a radio switch, path edit, or
-        # Browse can't fire mid-operation (which would let a second worker
-        # thread start on the same serial port). Re-enabled by the gating
-        # pass below on completion.
-        for w in ("radio_combo", "file_path", "browse_btn"):
-            widget = getattr(self, w, None)
-            if widget is not None:
-                wx.CallAfter(widget.Enable, enabled)
-        if enabled:
-            wx.CallAfter(self._update_radio_info)
-            # Recompute hint AFTER the thread has set _terminal_state
-            wx.CallAfter(lambda: self._set_hint(self._compute_hint_state()))
-            # Re-apply workflow gating so we don't enable buttons that
-            # should still be locked (e.g. Flash without a handset selected).
-            wx.CallAfter(self._update_workflow_gating)
+        self.flash.set_buttons(enabled)
 
     def on_flash(self, event):
-        if self._busy:
-            return
-        firmware_path = self.file_path.GetValue()
-        if not firmware_path:
-            wx.MessageBox(t("dialog.error_select_firmware"),
-                          t("dialog.error_title"), wx.OK | wx.ICON_ERROR)
-            return
-
-        selected = self._selected_handset_indices()
-        if not selected:
-            wx.MessageBox(t("dialog.error_no_handset_flash"),
-                          t("dialog.error_no_handset_title"),
-                          wx.OK | wx.ICON_ERROR)
-            return
-
-        radio = self._get_selected_radio()
-        if radio:
-            keys = radio.get("bootloader_keys", t("fallback.bootloader_keys"))
-            radio_name = radio.get("name", t("fallback.radio_name"))
-            tested = radio.get("tested", False)
-        else:
-            keys = t("fallback.bootloader_keys")
-            radio_name = t("fallback.radio_name")
-            tested = False
-
-        warning = ""
-        if not tested:
-            warning = t("dialog.untested_warning").format(radio=radio_name)
-
-        # Same/older version checks (only meaningful for the single-handset path)
-        file_version = fv.extract_version_from_filename(os.path.basename(firmware_path))
-        if len(selected) == 1 and radio and file_version:
-            last = fm.get_last_flashed(radio["id"])
-            if last and last.get("version") == file_version:
-                same_dlg = wx.MessageDialog(self,
-                    t("dialog.same_version_body").format(version=file_version),
-                    t("dialog.same_version_title"),
-                    wx.YES_NO | wx.ICON_QUESTION)
-                if same_dlg.ShowModal() != wx.ID_YES:
-                    same_dlg.Destroy()
-                    return
-                same_dlg.Destroy()
-            elif last and last.get("version") and fv.compare_versions(file_version, last["version"]) < 0:
-                older_dlg = wx.MessageDialog(self,
-                    t("dialog.older_version_body").format(
-                        file_version=file_version, last_version=last['version']),
-                    t("dialog.older_version_title"),
-                    wx.YES_NO | wx.ICON_WARNING)
-                if older_dlg.ShowModal() != wx.ID_YES:
-                    older_dlg.Destroy()
-                    return
-                older_dlg.Destroy()
-
-        # Confirmation: single vs batch
-        if len(selected) == 1:
-            port_label = self._handset_ports[selected[0]]["device"]
-            dlg = wx.MessageDialog(self,
-                t("dialog.confirm_single").format(
-                    warning=warning, radio=radio_name,
-                    port=port_label, keys=keys),
-                t("dialog.confirm_title"), wx.YES_NO | wx.ICON_WARNING)
-        else:
-            ports_label = ", ".join(self._handset_ports[i]["device"] for i in selected)
-            dlg = wx.MessageDialog(self,
-                t("dialog.confirm_batch_body").format(
-                    warning=warning, count=len(selected),
-                    ports=ports_label, radio=radio_name, keys=keys),
-                t("dialog.confirm_batch_title"),
-                wx.YES_NO | wx.ICON_WARNING)
-
-        if dlg.ShowModal() != wx.ID_YES:
-            dlg.Destroy()
-            return
-        dlg.Destroy()
-
-        self.log.Clear()
-        self.progress.SetValue(0)
-        self._busy = True
-        self._busy_state = "flashing"
-        self._terminal_state = None
-        self.set_buttons(False)
-        self._set_hint("flashing")
-
-        if len(selected) == 1:
-            port = self._handset_ports[selected[0]]["device"]
-            threading.Thread(target=self._flash_thread,
-                             args=(port, firmware_path, selected[0]),
-                             daemon=True).start()
-        else:
-            threading.Thread(target=self._batch_flash_thread,
-                             args=(list(selected), firmware_path),
-                             daemon=True).start()
+        self.flash.on_flash(event)
 
     def _batch_flash_thread(self, selected_idxs, firmware_path):
-        """Sequentially flash the same firmware to every checked handset.
-
-        On per-port failure: prompt user to skip + continue or stop. Marks
-        each row's Status (Flashing… → Done/Failed/Skipped) and Progress.
-        """
-        radio = self._get_selected_radio()
-        radio_name = radio["name"] if radio else t("fallback.radio_unknown")
-
-        # Validate firmware once up front
-        driver = self._driver_for(radio)
-        try:
-            with open(firmware_path, "rb") as f:
-                firmware_bytes = f.read()
-            driver.validate_firmware(firmware_bytes, firmware_path)
-        except Exception as e:
-            self.log_msg(t("log.error_prefix").format(message=e))
-            self._terminal_state = "failed"
-            self._busy = False
-            self.set_buttons(True)
-            return
-
-        total = len(selected_idxs)
-        succeeded = failed = skipped = 0
-        try:
-            for n, idx in enumerate(selected_idxs):
-                entry = self._handset_ports[idx]
-                port = entry["device"]
-                wx.CallAfter(self._set_handset_status, idx, STATUS_FLASHING)
-                wx.CallAfter(self._set_handset_progress, idx, "0%")
-                self.log_msg(t("log.batch_start").format(
-                    n=n + 1, total=total, port=port, cable=entry['cable']))
-
-                def log_cb(msg, _idx=idx):
-                    self.log_msg(t("log.batch_per_port").format(
-                        port=self._handset_ports[_idx]['device'], message=msg))
-
-                def progress_cb(pct, _idx=idx):
-                    pct_int = int(pct)
-                    wx.CallAfter(self._set_handset_progress, _idx, f"{pct_int}%")
-
-                try:
-                    driver.flash_to_port(port, firmware_bytes,
-                                         log_cb=log_cb, progress_cb=progress_cb)
-                except Exception as e:
-                    failed += 1
-                    wx.CallAfter(self._set_handset_status, idx, STATUS_FAILED)
-                    wx.CallAfter(self._set_handset_progress, idx, "—")
-                    self.log_msg(t("log.batch_error").format(message=e))
-                    if self._is_permission_denied(e):
-                        self._log_dialout_hint(port)
-                        self.log_msg(t("log.batch_abort_permission"))
-                        for skip_idx in selected_idxs[n + 1:]:
-                            wx.CallAfter(self._set_handset_status,
-                                         skip_idx, STATUS_SKIPPED)
-                            skipped += 1
-                        break
-                    if n < total - 1:
-                        if not self._prompt_continue_batch(port, str(e)):
-                            self.log_msg(t("log.batch_stopped"))
-                            for skip_idx in selected_idxs[n + 1:]:
-                                wx.CallAfter(self._set_handset_status,
-                                             skip_idx, STATUS_SKIPPED)
-                                skipped += 1
-                            break
-                        self.log_msg(t("log.batch_continuing"))
-                else:
-                    succeeded += 1
-                    wx.CallAfter(self._set_handset_status, idx, STATUS_DONE)
-                    wx.CallAfter(self._set_handset_progress, idx, "100%")
-                self.set_progress(int((n + 1) * 100 / total))
-        finally:
-            self.log_msg(t("log.batch_summary").format(
-                ok=succeeded, failed=failed, skipped=skipped))
-            self._terminal_state = "complete" if failed == 0 and skipped == 0 else "failed"
-            self._busy = False
-            self.set_buttons(True)
+        self.flash.batch_flash_thread(selected_idxs, firmware_path)
 
     def _prompt_continue_batch(self, port, err):
-        """Block worker thread until user picks Continue or Stop on batch failure."""
-        ev = threading.Event()
-        choice = {"continue": False}
-
-        def show():
-            dlg = wx.MessageDialog(self,
-                t("dialog.batch_failure_body").format(port=port, error=err),
-                t("dialog.batch_failure_title"),
-                wx.YES_NO | wx.ICON_WARNING)
-            choice["continue"] = (dlg.ShowModal() == wx.ID_YES)
-            dlg.Destroy()
-            ev.set()
-
-        wx.CallAfter(show)
-        ev.wait()
-        return choice["continue"]
+        return self.flash.prompt_continue_batch(port, err)
 
     def _flash_thread(self, port, firmware_path, handset_idx=None):
-        radio = self._get_selected_radio()
-        radio_name = radio["name"] if radio else t("fallback.radio_unknown")
-
-        # BTF (RT-950 Pro) uses a different on-the-wire protocol than KDH;
-        # delegate to the BTF-specific path. The KDH inline flow below stays
-        # unchanged so existing translations and behavior are preserved.
-        if (radio or {}).get("protocol") == "btf":
-            return self._flash_thread_btf(port, firmware_path, handset_idx, radio)
-
-        # Derive once, up front, so both the success and failure paths pass the
-        # same identity to record_flash and to the test-report nag suppression.
-        radio_id = radio["id"] if radio else None
-        file_version = fv.extract_version_from_filename(
-            os.path.basename(firmware_path))
-
-        if handset_idx is not None:
-            wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FLASHING)
-            wx.CallAfter(self._set_handset_progress, handset_idx, "0%")
-
-        try:
-            import math
-            import time
-            import hashlib
-
-            fw_size = os.path.getsize(firmware_path)
-            if fw_size > fw.MAX_FIRMWARE_BYTES:
-                raise ValueError(t("log.file_too_large").format(size=fw_size))
-            with open(firmware_path, "rb") as f:
-                firmware = f.read()
-
-            fw.validate_firmware(firmware, firmware_path)
-            total_chunks = math.ceil(len(firmware) / 1024)
-            sha256 = hashlib.sha256(firmware).hexdigest()
-            self.log_msg(t("log.firmware_path").format(path=firmware_path))
-            self.log_msg(t("log.size_chunks").format(size=len(firmware), chunks=total_chunks))
-            self.log_msg(t("log.sha256").format(hash=sha256))
-            self.log_msg(t("log.port").format(port=port))
-            self.log_msg("")
-
-            with serial.Serial(
-                port=port, baudrate=115200, bytesize=8,
-                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=2.0, write_timeout=2.0
-            ) as ser:
-                ser.dtr = True
-                ser.rts = True
-                time.sleep(0.1)
-                ser.reset_input_buffer()
-                ser.reset_output_buffer()
-
-                self.log_msg(t("log.step_handshake"))
-                fw.send_command(ser, fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
-                self.log_msg(t("log.step_handshake_ok"))
-
-                self.log_msg(t("log.step_sending").format(chunks=total_chunks))
-                fw.send_command(ser, fw.CMD_UPDATE_DATA_PACKAGES, 0, bytes([total_chunks]))
-
-                for i in range(total_chunks):
-                    offset = i * 1024
-                    chunk = firmware[offset:offset + 1024]
-                    if len(chunk) < 1024:
-                        chunk = chunk + b'\x00' * (1024 - len(chunk))
-                    fw.send_command(ser, fw.CMD_UPDATE, i & 0xFF, chunk)
-                    pct = ((i + 1) / total_chunks) * 100
-                    self.set_progress(pct)
-                    if handset_idx is not None:
-                        wx.CallAfter(self._set_handset_progress, handset_idx, f"{int(pct)}%")
-                    if (i + 1) % 10 == 0 or i == total_chunks - 1:
-                        self.log_msg(t("log.progress_line").format(
-                            pct=f"{pct:.0f}", done=i + 1, total=total_chunks))
-
-                self.log_msg(t("log.step_finalize"))
-                fw.send_command(ser, fw.CMD_UPDATE_END, 0)
-
-            self.log_msg(t("log.step_handshake_ok"))
-            self.log_msg("")
-            self.log_msg(t("log.flash_complete"))
-            self.log_msg(t("log.power_cycle"))
-            if handset_idx is not None:
-                wx.CallAfter(self._set_handset_status, handset_idx, STATUS_DONE)
-                wx.CallAfter(self._set_handset_progress, handset_idx, "100%")
-
-            # Record flash version
-            if radio and file_version:
-                try:
-                    fm.record_flash(radio["id"], file_version, sha256)
-                    self.log_msg(t("log.recorded_flash").format(
-                        version=file_version, radio=radio_name))
-                except Exception:
-                    pass
-                # Compare against latest known
-                _, latest_ver = self._get_firmware_url_and_version(radio)
-                if latest_ver and file_version:
-                    cmp = fv.compare_versions(file_version, latest_ver)
-                    if cmp == 0:
-                        self.log_msg(t("log.fw_is_latest").format(version=file_version))
-                    elif cmp < 0:
-                        self.log_msg(t("log.fw_newer_available").format(
-                            latest=latest_ver, current=file_version))
-
-            self._terminal_state = "complete"
-            wx.CallAfter(self._offer_test_report, radio_name, firmware_path,
-                         True, "", radio_id, file_version)
-
-        except Exception as e:
-            error_msg = str(e)
-            self.log_msg(t("log.error_prefix").format(message=error_msg))
-            if self._is_permission_denied(e):
-                self._log_dialout_hint(port)
-            else:
-                self.log_msg(t("log.may_need_power_cycle"))
-            self._terminal_state = "failed"
-            if handset_idx is not None:
-                wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FAILED)
-                wx.CallAfter(self._set_handset_progress, handset_idx, "—")
-            wx.CallAfter(self._offer_test_report, radio_name, firmware_path,
-                         False, error_msg, radio_id, file_version)
-        finally:
-            self._busy = False
-            self.set_buttons(True)
+        self.flash.flash_thread(port, firmware_path, handset_idx)
 
     def _flash_thread_btf(self, port, firmware_path, handset_idx, radio):
-        # Single-port BTF flash. Mirrors _flash_thread's structure (busy state,
-        # per-handset status, log messages, post-flash version recording, test
-        # report offer) but delegates the on-the-wire work to fw_btf.
-        radio_name = radio["name"] if radio else t("fallback.radio_unknown")
-        # Derive once, up front, so both the success and failure paths pass the
-        # same identity to record_flash and to the test-report nag suppression.
-        radio_id = radio["id"] if radio else None
-        file_version = fv.extract_version_from_filename(
-            os.path.basename(firmware_path))
-        if handset_idx is not None:
-            wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FLASHING)
-            wx.CallAfter(self._set_handset_progress, handset_idx, "0%")
+        self.flash.flash_thread_btf(port, firmware_path, handset_idx, radio)
 
-        sha256 = ""
-        try:
-            import hashlib
-
-            fw_size = os.path.getsize(firmware_path)
-            if fw_size > fw_btf.MAX_FIRMWARE_BYTES:
-                raise ValueError(t("log.file_too_large").format(size=fw_size))
-            with open(firmware_path, "rb") as f:
-                firmware = f.read()
-
-            fw_btf.validate_firmware(firmware, firmware_path)
-            sha256 = hashlib.sha256(firmware).hexdigest()
-            self.log_msg(t("log.firmware_path").format(path=firmware_path))
-            self.log_msg(t("log.port").format(port=port))
-            self.log_msg("")
-
-            def log_cb(msg):
-                self.log_msg(msg)
-
-            def progress_cb(pct):
-                self.set_progress(pct)
-                if handset_idx is not None:
-                    wx.CallAfter(self._set_handset_progress,
-                                 handset_idx, f"{int(pct)}%")
-
-            fw_btf.flash_to_port(port, firmware,
-                                 log_cb=log_cb, progress_cb=progress_cb)
-
-            self.log_msg("")
-            self.log_msg(t("log.flash_complete"))
-            if handset_idx is not None:
-                wx.CallAfter(self._set_handset_status, handset_idx, STATUS_DONE)
-                wx.CallAfter(self._set_handset_progress, handset_idx, "100%")
-
-            if radio and file_version:
-                try:
-                    fm.record_flash(radio["id"], file_version, sha256)
-                    self.log_msg(t("log.recorded_flash").format(
-                        version=file_version, radio=radio_name))
-                except Exception:
-                    pass
-
-            self._terminal_state = "complete"
-            wx.CallAfter(self._offer_test_report, radio_name, firmware_path,
-                         True, "", radio_id, file_version)
-
-        except Exception as e:
-            error_msg = str(e)
-            self.log_msg(t("log.error_prefix").format(message=error_msg))
-            if self._is_permission_denied(e):
-                self._log_dialout_hint(port)
-            else:
-                self.log_msg(t("log.may_need_power_cycle"))
-            self._terminal_state = "failed"
-            if handset_idx is not None:
-                wx.CallAfter(self._set_handset_status, handset_idx, STATUS_FAILED)
-                wx.CallAfter(self._set_handset_progress, handset_idx, "—")
-            wx.CallAfter(self._offer_test_report, radio_name, firmware_path,
-                         False, error_msg, radio_id, file_version)
-        finally:
-            self._busy = False
-            self.set_buttons(True)
-
+    # _is_permission_denied and _log_dialout_hint stay on the frame: they are
+    # shared serial-error helpers HandsetController's probe thread also calls
+    # (frame._log_dialout_hint), so moving them would only add a reverse
+    # dependency for no benefit.
     def _is_permission_denied(self, exc):
         """True if the exception looks like a serial-port EACCES (Linux dialout)."""
         if isinstance(exc, PermissionError):
@@ -1622,275 +1237,23 @@ class FlasherFrame(wx.Frame):
 
     def _offer_test_report(self, radio_name, firmware_path, success, error_msg,
                            radio_id=None, file_version=None):
-        # Nag suppression: once a report was submitted or explicitly skipped for
-        # this radio id + firmware version, don't offer again for that same
-        # combination (keyed the same grain record_flash uses). A plain Skip
-        # does not record anything, so it keeps prompting on future flashes.
-        if radio_id and fm.get_test_report_status(radio_id, file_version) in (
-                "submitted", "skipped"):
-            if success:
-                self._offer_firmware_cleanup(firmware_path)
-            return
-
-        log_content = self.log.GetValue()
-        status = show_test_report_dialog(self, radio_name, firmware_path,
-                                         success, error_msg, log_content)
-        if radio_id and status:
-            try:
-                fm.mark_test_report(radio_id, file_version, status)
-            except Exception:
-                # Recording the suppression state is best-effort: a corrupt or
-                # unwritable state file must not turn a successful flash into
-                # an error dialog. Worst case the user is asked again next time.
-                pass
-        if success:
-            self._offer_firmware_cleanup(firmware_path)
+        self.flash.offer_test_report(radio_name, firmware_path, success,
+                                     error_msg, radio_id, file_version)
 
     def _offer_firmware_cleanup(self, firmware_path):
-        """Ask user if they want to delete downloaded firmware files."""
-        import firmware_download as dl
-
-        # Only offer cleanup if the firmware was downloaded by us
-        if not firmware_path or not firmware_path.startswith(dl.DOWNLOAD_DIR):
-            return
-
-        try:
-            download_dir = dl.DOWNLOAD_DIR
-            files = os.listdir(download_dir)
-            if not files:
-                return
-
-            total_size = sum(
-                os.path.getsize(os.path.join(download_dir, f))
-                for f in files
-                if os.path.isfile(os.path.join(download_dir, f))
-            )
-            size_mb = total_size / (1024 * 1024)
-
-            dlg = wx.MessageDialog(self,
-                t("dialog.cleanup_body").format(
-                    size_mb=size_mb, path=download_dir),
-                t("dialog.cleanup_title"),
-                wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
-
-            if dlg.ShowModal() == wx.ID_YES:
-                import shutil
-                shutil.rmtree(download_dir, ignore_errors=True)
-                self.log_msg(t("log.cleanup_done"))
-                # The firmware we just flashed lived in that dir and is now
-                # gone. Clear the path field so the hint and workflow gating
-                # reflect that no firmware is loaded (otherwise the textbox
-                # shows a dead path and Flash stays enabled over a missing file).
-                if firmware_path.startswith(download_dir):
-                    self.file_path.SetValue("")
-                    self._terminal_state = None
-                    self._update_workflow_gating()
-            dlg.Destroy()
-        except Exception:
-            pass
+        self.flash.offer_firmware_cleanup(firmware_path)
 
     def on_dry_run(self, event):
-        if self._busy:
-            return
-        firmware_path = self.file_path.GetValue()
-        if not firmware_path:
-            wx.MessageBox(t("dialog.error_select_firmware_first"),
-                          t("dialog.error_title"), wx.OK | wx.ICON_ERROR)
-            return
-
-        self.log.Clear()
-        self.progress.SetValue(0)
-        self._busy = True
-        self._busy_state = "dryrun"
-        self._terminal_state = None
-        self.set_buttons(False)
-        self._set_hint("dryrun")
-        threading.Thread(target=self._dryrun_thread, args=(firmware_path,), daemon=True).start()
+        self.flash.on_dry_run(event)
 
     def _dryrun_thread(self, firmware_path):
-        # BTF dry-run delegates to fw_btf.dry_run since the validation rules
-        # (vector-table SP/PC range, file-size minimum) and the packet-builder
-        # CRC self-checks differ from KDH. KDH path below is unchanged.
-        radio = self._get_selected_radio()
-        if (radio or {}).get("protocol") == "btf":
-            try:
-                self.log_msg(t("log.dryrun_header"))
-                self.log_msg("")
-                fw_btf.dry_run(firmware_path, log_cb=self.log_msg)
-                self.set_progress(100)
-                self._terminal_state = "dryrun_complete"
-            except Exception as e:
-                self.log_msg(t("log.error_prefix").format(message=e))
-                self._terminal_state = "failed"
-            finally:
-                self._busy = False
-                self.set_buttons(True)
-            return
-
-        try:
-            import os
-            import hashlib
-            import math
-
-            self.log_msg(t("log.dryrun_header"))
-            self.log_msg("")
-
-            fw_size = os.path.getsize(firmware_path)
-            if fw_size > fw.MAX_FIRMWARE_BYTES:
-                self.log_msg(t("log.fail_too_large").format(
-                    size=fw_size, max=fw.MAX_FIRMWARE_BYTES))
-                self._terminal_state = "failed"
-                return
-            with open(firmware_path, "rb") as f:
-                firmware = f.read()
-
-            fw_size = len(firmware)
-            total_chunks = math.ceil(fw_size / 1024)
-
-            if fw_size < fw.MIN_FIRMWARE_BYTES:
-                self.log_msg(t("log.fail_too_small").format(size=fw_size))
-                self._terminal_state = "failed"
-                return
-            if total_chunks > fw.MAX_CHUNKS:
-                self.log_msg(t("log.fail_too_many_chunks").format(
-                    chunks=total_chunks, max=fw.MAX_CHUNKS))
-                self._terminal_state = "failed"
-                return
-
-            sha256 = hashlib.sha256(firmware).hexdigest()
-            self.log_msg(t("log.firmware_path").format(path=firmware_path))
-            self.log_msg(t("log.size_chunks").format(size=fw_size, chunks=total_chunks))
-            self.log_msg(t("log.sha256").format(hash=sha256))
-            self.log_msg("")
-
-            sp = int.from_bytes(firmware[0:4], "little")
-            reset = int.from_bytes(firmware[4:8], "little")
-            ok_sp = 0x20000000 <= sp <= 0x20100000
-            ok_reset = 0x08000000 <= reset <= 0x08100000
-            valid_lbl = t("log.validity_valid")
-            invalid_lbl = t("log.validity_invalid")
-            self.log_msg(t("log.vector_table_check"))
-            self.log_msg(t("log.stack_pointer").format(
-                value=sp, validity=valid_lbl if ok_sp else invalid_lbl))
-            self.log_msg(t("log.reset_handler").format(
-                value=reset, validity=valid_lbl if ok_reset else invalid_lbl))
-            if not ok_sp or not ok_reset:
-                self.log_msg("")
-                self.log_msg(t("log.invalid_vector"))
-                self._terminal_state = "failed"
-                return
-
-            self.log_msg("")
-            self.log_msg(t("log.building_packets"))
-            self.set_progress(10)
-
-            for i in range(total_chunks):
-                chunk = firmware[i * 1024:(i + 1) * 1024]
-                p = fw.build_packet(fw.CMD_UPDATE, i & 0xFF, chunk)
-                payload = p[1:-3]
-                pkt_crc = (p[-3] << 8) | p[-2]
-                if fw.crc16_ccitt(payload) != pkt_crc:
-                    self.log_msg(t("log.crc_fail_chunk").format(chunk=i))
-                    self._terminal_state = "failed"
-                    return
-                self.set_progress(10 + (i + 1) / total_chunks * 90)
-
-            self.log_msg(t("log.packets_built").format(count=total_chunks + 3))
-            self.log_msg("")
-            self.log_msg(t("log.dryrun_passed"))
-            self.set_progress(100)
-            self._terminal_state = "dryrun_complete"
-
-        except Exception as e:
-            self.log_msg(t("log.error_prefix").format(message=e))
-            self._terminal_state = "failed"
-        finally:
-            self._busy = False
-            self.set_buttons(True)
+        self.flash.dryrun_thread(firmware_path)
 
     def on_diag(self, event):
-        if self._busy:
-            return
-        # Diagnostics runs on a single port — use the first checked handset.
-        selected = self._selected_handset_indices()
-        if not selected:
-            wx.MessageBox(t("dialog.error_no_handset_diag"),
-                          t("dialog.error_no_handset_title"),
-                          wx.OK | wx.ICON_ERROR)
-            return
-        port = self._handset_ports[selected[0]]["device"]
-
-        self.log.Clear()
-        self.progress.SetValue(0)
-        self._busy = True
-        self._busy_state = "diagnostics"
-        self._terminal_state = None
-        self.set_buttons(False)
-        self._set_hint("diagnostics")
-        threading.Thread(target=self._diag_thread, args=(port,), daemon=True).start()
+        self.flash.on_diag(event)
 
     def _diag_thread(self, port):
-        try:
-            import time
-
-            self.log_msg(t("log.diag_running").format(port=port))
-            self.log_msg("")
-
-            with serial.Serial(
-                port=port, baudrate=115200, bytesize=8,
-                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=1.0
-            ) as ser:
-                ser.dtr = True
-                ser.rts = True
-                time.sleep(0.1)
-
-                self.log_msg(t("log.diag_serial_info").format(
-                    baud=ser.baudrate, dtr=ser.dtr, rts=ser.rts))
-                self.log_msg(t("log.diag_modem_lines").format(
-                    cts=ser.cts, dsr=ser.dsr))
-                self.log_msg("")
-
-                self.log_msg(t("log.diag_sending"))
-                # Build the probe for the selected radio's protocol. A BTF
-                # radio (RT-950 Pro) answers a different handshake than the KDH
-                # bootloader, so sending the KDH packet would report "no
-                # response" even for a healthy BTF radio.
-                if (self._get_selected_radio() or {}).get("protocol") == "btf":
-                    packet = fw_btf.build_packet(fw_btf.CMD_PROBE)
-                else:
-                    packet = fw.build_packet(fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
-                self.log_msg(t("log.diag_tx").format(hex=packet.hex()))
-                ser.reset_input_buffer()
-                ser.write(packet)
-                ser.flush()
-
-                self.set_progress(50)
-                time.sleep(1.0)
-                avail = ser.in_waiting
-                if avail:
-                    data = ser.read(min(avail, 128))
-                    self.log_msg(t("log.diag_rx").format(count=avail, hex=data.hex()))
-                    self.log_msg("")
-                    self.log_msg(t("log.diag_responding"))
-                    self._terminal_state = "diag_complete"
-                else:
-                    self.log_msg(t("log.diag_no_rx"))
-                    self.log_msg("")
-                    self.log_msg(t("log.diag_no_response"))
-                    self.log_msg(t("log.diag_check"))
-                    self._terminal_state = "failed"
-
-            self.set_progress(100)
-
-        except Exception as e:
-            self.log_msg(t("log.error_prefix").format(message=e))
-            if self._is_permission_denied(e):
-                self._log_dialout_hint(port)
-            self._terminal_state = "failed"
-        finally:
-            self._busy = False
-            self.set_buttons(True)
+        self.flash.diag_thread(port)
 
 
 def detect_os_theme():
