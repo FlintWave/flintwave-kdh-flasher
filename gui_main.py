@@ -118,7 +118,26 @@ class FlasherFrame(wx.Frame):
         self.title_bar = TitleBar(panel, self)
         root_sizer.Add(self.title_bar, 0, wx.EXPAND)
 
-        # ---- Top row: three columns separated by ">" arrows ----
+        # ---- Main splitter: three-column workflow above, instructions/log
+        # below. Replaces the old fixed 2:1 sizer stack so the user can drag
+        # vertical space to whichever area needs it — the Instructions box was
+        # chronically crushed at the fixed ratio. Sash positions persist
+        # across runs (see _apply_sash_ratios / _on_sash_changed).
+        self._main_split = wx.SplitterWindow(
+            panel, style=wx.SP_LIVE_UPDATE | wx.SP_NOBORDER)
+        # Base floor; the real (asymmetric) limits are enforced in
+        # _clamp_main_sash — the three columns need more room than the
+        # instructions/log row before their children start overlapping.
+        self._main_split.SetMinimumPaneSize(120)
+        # Window resizes distribute ~60/40, keeping the BalenaEtcher feel.
+        self._main_split.SetSashGravity(0.6)
+        self._main_split.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGING,
+                              self._on_main_sash_changing)
+        # Gravity-driven window resizes bypass the CHANGING event and can
+        # push the top pane under its minimum; re-clamp after each resize.
+        self._main_split.Bind(wx.EVT_SIZE, self._on_main_split_size)
+
+        top_panel = wx.Panel(self._main_split)
         top_row = wx.BoxSizer(wx.HORIZONTAL)
 
         # Manifest state is owned by DownloadController (constructed above, so
@@ -133,16 +152,16 @@ class FlasherFrame(wx.Frame):
         # keeps Download disabled.
         self._variant_choice = {}
 
-        col_firmware = FirmwareColumn(panel, self)
-        col_handset = HandsetColumn(panel, self)
-        col_flash = FlashColumn(panel, self)
+        col_firmware = FirmwareColumn(top_panel, self)
+        col_handset = HandsetColumn(top_panel, self)
+        col_flash = FlashColumn(top_panel, self)
 
         # Bumped one size larger from previous 20pt to give more visual weight.
         arrow_font = wx.Font(28, wx.FONTFAMILY_DEFAULT,
                              wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
-        self.arrow1 = wx.StaticText(panel, label="›")  # firmware → handset
+        self.arrow1 = wx.StaticText(top_panel, label="›")  # firmware → handset
         self.arrow1.SetFont(arrow_font)
-        self.arrow2 = wx.StaticText(panel, label="›")  # handset → flash
+        self.arrow2 = wx.StaticText(top_panel, label="›")  # handset → flash
         self.arrow2.SetFont(arrow_font)
         # Pulse-state per arrow. Keyed by id(arrow) so we don't re-pulse
         # on every redundant gating refresh.
@@ -154,31 +173,21 @@ class FlasherFrame(wx.Frame):
         top_row.Add(col_handset, 1, wx.EXPAND | wx.ALL, 8)
         top_row.Add(self.arrow2, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT | wx.RIGHT, 4)
         top_row.Add(col_flash, 1, wx.EXPAND | wx.ALL, 8)
+        top_panel.SetSizer(top_row)
 
-        # Top row gets 2/3 of vertical space (BalenaEtcher-style); middle (hints+log) gets 1/3.
-        root_sizer.Add(top_row, 2, wx.EXPAND)
-
-        # Thin (1px) divider between top columns and bottom hint/log row,
-        # centered and ~80% of the window width.
-        divider_row = wx.BoxSizer(wx.HORIZONTAL)
-        self._divider1 = wx.StaticLine(panel, style=wx.LI_HORIZONTAL,
-                                       size=(-1, 1))
-        self._divider1.SetMinSize(wx.Size(-1, 1))
-        divider_row.AddStretchSpacer(1)
-        divider_row.Add(self._divider1, 8, wx.EXPAND)
-        divider_row.AddStretchSpacer(1)
-        # Generous breathing room above and below the divider so the columns
-        # don't feel cramped against it.
-        root_sizer.Add(divider_row, 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 16)
-
-        # ---- Middle row: instructions panel + log, each with a static label ----
-        middle_row = wx.BoxSizer(wx.HORIZONTAL)
+        # ---- Bottom half: instructions | log behind their own draggable
+        # sash (the main splitter's sash replaces the old decorative
+        # divider line).
+        self._bottom_split = wx.SplitterWindow(
+            self._main_split, style=wx.SP_LIVE_UPDATE | wx.SP_NOBORDER)
+        self._bottom_split.SetMinimumPaneSize(220)
+        self._bottom_split.SetSashGravity(0.5)
 
         # Instructions panel (left half). Use a read-only wx.TextCtrl with
         # rich-text styling for the body; native multi-line TextCtrl gives us
         # word-wrap + a v-scrollbar for free, which the previous
         # StaticText-in-ScrolledPanel approach couldn't reliably deliver.
-        self._instructions_outer = wx.Panel(panel)
+        self._instructions_outer = wx.Panel(self._bottom_split)
         self._instructions_outer.SetMinSize(wx.Size(1, -1))
         outer_sizer = wx.BoxSizer(wx.VERTICAL)
         instructions_label = self._column_heading(self._instructions_outer,
@@ -210,7 +219,7 @@ class FlasherFrame(wx.Frame):
         self._instructions_outer.SetSizer(outer_sizer)
 
         # Log panel (right half) — heading + textarea
-        self.log_panel = wx.Panel(panel)
+        self.log_panel = wx.Panel(self._bottom_split)
         self.log_panel.SetMinSize(wx.Size(200, -1))
         log_sizer = wx.BoxSizer(wx.VERTICAL)
         log_label = self._column_heading(self.log_panel, "column.log")
@@ -226,10 +235,17 @@ class FlasherFrame(wx.Frame):
         log_sizer.Add(self.log, 1, wx.EXPAND | wx.ALL, 10)
         self.log_panel.SetSizer(log_sizer)
 
-        middle_row.Add(self._instructions_outer, 1, wx.EXPAND | wx.LEFT | wx.BOTTOM, 8)
-        middle_row.AddSpacer(32)  # generous breathing room between Instructions and Log
-        middle_row.Add(self.log_panel, 1, wx.EXPAND | wx.RIGHT | wx.BOTTOM, 8)
-        root_sizer.Add(middle_row, 1, wx.EXPAND)
+        self._bottom_split.SplitVertically(self._instructions_outer,
+                                           self.log_panel)
+        self._main_split.SplitHorizontally(top_panel, self._bottom_split)
+        root_sizer.Add(self._main_split, 1, wx.EXPAND)
+
+        # Apply saved (or default) sash ratios once the window has real
+        # geometry, and persist any drag the user makes.
+        wx.CallAfter(self._apply_sash_ratios)
+        for splitter in (self._main_split, self._bottom_split):
+            splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED,
+                          self._on_sash_changed)
 
         # ---- Bottom status bar: borderless text/icon links, darker background ----
         self.status_bar_panel = StatusBar(panel, self)
@@ -739,6 +755,73 @@ class FlasherFrame(wx.Frame):
     # ------------------------------------------------------------------
     # Font controls (theme has a Mocha/Latte toggle in the status bar)
     # ------------------------------------------------------------------
+
+    # Asymmetric limits for the main (vertical) split: below ~300px the
+    # three workflow columns' children start overlapping (the variant
+    # walkthrough compresses its text first, but buttons/rows have fixed
+    # heights); the instructions/log row degrades gracefully down to ~140px
+    # since both sides are scrollable text.
+    _MAIN_TOP_MIN = 300
+    _MAIN_BOTTOM_MIN = 140
+
+    def _clamp_main_sash(self, position):
+        height = max(1, self._main_split.GetClientSize().height)
+        upper = max(self._MAIN_TOP_MIN, height - self._MAIN_BOTTOM_MIN)
+        return max(self._MAIN_TOP_MIN, min(int(position), upper))
+
+    def _on_main_sash_changing(self, event):
+        event.SetSashPosition(self._clamp_main_sash(event.GetSashPosition()))
+
+    def _on_main_split_size(self, event):
+        event.Skip()
+        if not self._main_split.IsSplit():
+            return
+
+        def _reclamp():
+            clamped = self._clamp_main_sash(
+                self._main_split.GetSashPosition())
+            if clamped != self._main_split.GetSashPosition():
+                self._main_split.SetSashPosition(clamped)
+
+        wx.CallAfter(_reclamp)
+
+    def _apply_sash_ratios(self):
+        """Set both splitter sashes from persisted ratios (or defaults).
+
+        Ratios rather than pixels so the layout scales with the window; runs
+        via wx.CallAfter once the frame has real geometry. Clamped so a
+        corrupt state file can't produce a collapsed pane.
+        """
+        try:
+            saved = fm.get_ui_sashes()
+        except Exception:
+            saved = {}
+
+        def _ratio(key, default):
+            try:
+                value = float(saved.get(key, default))
+            except (TypeError, ValueError):
+                value = default
+            return min(0.85, max(0.15, value))
+
+        height = max(1, self._main_split.GetClientSize().height)
+        width = max(1, self._bottom_split.GetClientSize().width)
+        self._main_split.SetSashPosition(
+            self._clamp_main_sash(height * _ratio("main", 0.60)))
+        self._bottom_split.SetSashPosition(int(width * _ratio("bottom", 0.50)))
+
+    def _on_sash_changed(self, event):
+        """Persist sash ratios after a user drag (best-effort)."""
+        event.Skip()
+        try:
+            height = max(1, self._main_split.GetClientSize().height)
+            width = max(1, self._bottom_split.GetClientSize().width)
+            fm.set_ui_sashes(
+                self._main_split.GetSashPosition() / height,
+                self._bottom_split.GetSashPosition() / width)
+        except Exception:
+            # Losing a sash preference is not worth surfacing an error.
+            pass
 
     def _set_font_size(self, size):
         self.font_size = size

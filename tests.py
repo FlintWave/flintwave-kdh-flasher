@@ -1025,6 +1025,18 @@ class TestFirmwareManifest(unittest.TestCase):
         loaded = fm_mod._load_state()
         self.assertEqual(loaded, data)
 
+    def test_ui_sashes_roundtrip_and_malformed(self):
+        fm_mod = self._use_temp_state()
+        self.assertEqual(fm_mod.get_ui_sashes(), {})
+        fm_mod.set_ui_sashes(0.6180339, 0.5)
+        saved = fm_mod.get_ui_sashes()
+        self.assertEqual(saved, {"main": 0.618, "bottom": 0.5})
+        # Malformed persisted value degrades to {} instead of raising.
+        state = fm_mod._load_state()
+        state["ui_sashes"] = "garbage"
+        fm_mod._save_state(state)
+        self.assertEqual(fm_mod.get_ui_sashes(), {})
+
     def test_record_flash_creates_entry(self):
         fm_mod = self._use_temp_state()
         fm_mod.record_flash("bf-f8hp-pro", "0.53", "abc123")

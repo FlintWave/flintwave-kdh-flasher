@@ -303,3 +303,19 @@ def set_language(code):
     state = _load_state()
     state["language"] = code
     _save_state(state)
+
+
+def get_ui_sashes():
+    """Return persisted splitter sash ratios ({"main": float, "bottom":
+    float}) or {} if none stored / malformed."""
+    state = _load_state()
+    value = state.get("ui_sashes", {})
+    return value if isinstance(value, dict) else {}
+
+
+def set_ui_sashes(main_ratio, bottom_ratio):
+    """Persist the window's splitter sash ratios (0..1 of the pane span)."""
+    state = _load_state()
+    state["ui_sashes"] = {"main": round(float(main_ratio), 4),
+                          "bottom": round(float(bottom_ratio), 4)}
+    _save_state(state)
