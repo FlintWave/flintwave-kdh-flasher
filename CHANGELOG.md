@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v26.07.1 — 2026-07-17
 
 ### UX / UI
 

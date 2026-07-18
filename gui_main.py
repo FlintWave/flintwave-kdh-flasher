@@ -39,7 +39,7 @@ from gui_download import DownloadController
 from gui_flash import FlashController
 from gui_handset import HandsetController
 
-VERSION = "26.07.0"
+VERSION = "26.07.1"
 
 FONT_SIZES = [9, 11, 12, 14, 16]
 
