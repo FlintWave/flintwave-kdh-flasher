@@ -1328,7 +1328,6 @@ class FlasherFrame(wx.Frame):
         try:
             import math
             import time
-            import os
             import hashlib
 
             fw_size = os.path.getsize(firmware_path)
@@ -1444,7 +1443,7 @@ class FlasherFrame(wx.Frame):
 
         sha256 = ""
         try:
-            import os, hashlib
+            import hashlib
 
             fw_size = os.path.getsize(firmware_path)
             if fw_size > fw_btf.MAX_FIRMWARE_BYTES:
