@@ -10,6 +10,7 @@
 
 ### Architecture
 
+- **Flash/dry-run/diagnostics workers extracted from the main frame** (`gui_flash.py`, decomposition slice 3 of 3) and converged onto the driver functions (`flash_to_port` / `dry_run` / new `diagnostic_probe`), giving the single-flash, dry-run, and diagnostics paths their first headless mock-bootloader coverage. That new coverage immediately caught an `UnboundLocalError` introduced on master by the test-report wiring (`os.path.basename` before a function-local `import os`) that broke single-handset flashing — fixed here before any release shipped it. `gui_main.py` drops to ~1,188 lines (from ~2,305 at the start of the decomposition).
 - **Firmware download and update-check extracted from the main frame** (`gui_download.py`, decomposition slice 2 of 3). The download worker, firmware discovery (manifest + variant gating), and the updater/manifest background tasks now live in a `DownloadController` with headless tests over a stub frame and fake downloader; the frame keeps same-named delegators and a read-only `manifest` property shim. `gui_main.py` drops to ~1,826 lines. Behavior unchanged.
 - **Hint/info rendering extracted from the main frame** (`gui_hints.py`, decomposition slice 1 of 3). The hint state machine and per-radio info panel — including the hardware-variant prompt text — now live in a `HintPresenter` with pure, headlessly tested formatting functions; the frame keeps thin same-named delegators so worker threads and sibling components are untouched. `gui_main.py` drops to ~1,978 lines. Behavior unchanged.
 

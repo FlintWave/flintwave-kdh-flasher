@@ -245,6 +245,55 @@ def probe_port(port: str, timeout: float = 1.5) -> bool:
         return False
 
 
+def diagnostic_probe(port: str, timeout: float = 1.0) -> dict:
+    """Open ``port``, send one BTF CMD_PROBE, and report the raw exchange.
+
+    Mirrors ``flash_firmware.diagnostic_probe`` so the GUI diagnostics worker
+    can dispatch with the same callable shape via ``_driver_for``. Returns the
+    same dict shape ``{baudrate, dtr, rts, cts, dsr, tx_hex, rx_count, rx_hex,
+    responding}``; any bytes back count as "responding". Raises on serial-open
+    errors so the caller can surface the dialout hint.
+    """
+    if serial is None:
+        raise RuntimeError("pyserial not installed; cannot open serial ports")
+
+    with serial.Serial(
+        port=port, baudrate=115200, bytesize=8,
+        parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+        timeout=timeout
+    ) as ser:
+        ser.dtr = True
+        ser.rts = True
+        time.sleep(0.1)
+
+        info = {
+            "baudrate": ser.baudrate,
+            "dtr": ser.dtr,
+            "rts": ser.rts,
+            "cts": ser.cts,
+            "dsr": ser.dsr,
+        }
+
+        packet = build_packet(CMD_PROBE)
+        info["tx_hex"] = packet.hex()
+        ser.reset_input_buffer()
+        ser.write(packet)
+        ser.flush()
+
+        time.sleep(1.0)
+        avail = ser.in_waiting
+        if avail:
+            data = ser.read(min(avail, 128))
+            info["rx_count"] = avail
+            info["rx_hex"] = data.hex()
+            info["responding"] = True
+        else:
+            info["rx_count"] = 0
+            info["rx_hex"] = ""
+            info["responding"] = False
+    return info
+
+
 def flash_to_port(port: str, btf_bytes: bytes,
                   log_cb=None, progress_cb=None) -> None:
     """Flash an already-loaded .BTF file to a single radio on `port`.
