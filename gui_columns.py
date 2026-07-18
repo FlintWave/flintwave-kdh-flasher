@@ -105,7 +105,22 @@ if wx is not None:
             file_row.Add(self.browse_btn, 0)
             sizer.Add(file_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
-            sizer.AddStretchSpacer(1)
+            # Hardware-variant walkthrough (question + identification steps +
+            # one answer per variant) renders here, in the column's otherwise
+            # empty space directly under the picker it refines. It previously
+            # rendered below the Instructions text, where the directions were
+            # scrolled out of view and the answers were squeezed to zero
+            # height at small window sizes (found in hardware testing).
+            # _render_variant_options fills it; hidden for concrete radios.
+            self.variant_box = wx.Panel(self)
+            self.variant_box.SetSizer(wx.BoxSizer(wx.VERTICAL))
+            self.variant_box.Hide()
+            # Proportion 1 with no competing stretch spacer: when shown, the
+            # walkthrough owns all of the column's leftover height (it was
+            # getting squeezed when it had to share); when hidden, the
+            # leftover is simply empty, same as the old stretch spacer.
+            sizer.Add(self.variant_box, 1,
+                      wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
             self.SetSizer(sizer)
             frame._rtl_targets.append(self)
 
@@ -114,6 +129,7 @@ if wx is not None:
             frame.download_btn = self.download_btn
             frame.file_path = self.file_path
             frame.browse_btn = self.browse_btn
+            frame._variant_panel = self.variant_box
 
     class HandsetColumn(wx.Panel):
         """Column 2: multi-select list of detected serial ports + selection helpers."""

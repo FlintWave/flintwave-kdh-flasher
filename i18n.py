@@ -111,12 +111,28 @@ def load_bundled_en() -> None:
 
 
 def _load_cached(code: str) -> dict | None:
-    """Read a previously downloaded catalog from the cache dir, if present."""
+    """Return the best locally available catalog for `code`, if any.
+
+    The bundled catalog (shipped with this app version) is the base and the
+    downloaded cache overlays it per key. A cache written by an older app
+    version predates keys this version ships (e.g. new feature strings), and
+    using it alone made exactly those strings silently fall back to English
+    while the rest of the UI was translated. The overlay keeps cached
+    (possibly community-refreshed) strings while guaranteeing every key this
+    build knows about resolves at least to its bundled translation.
+    """
     if code == "en":
         return dict(_en_catalog)
-    path = os.path.join(_cache_translations_dir(), f"{code}.json")
-    data = _read_json_file(path)
-    return _strip_meta(data) if data else None
+    bundled = _read_json_file(
+        os.path.join(_bundled_translations_dir(), f"{code}.json"))
+    cached = _read_json_file(
+        os.path.join(_cache_translations_dir(), f"{code}.json"))
+    if bundled is None and cached is None:
+        return None
+    merged = _strip_meta(bundled) if bundled else {}
+    if cached:
+        merged.update(_strip_meta(cached))
+    return merged
 
 
 def _write_cached(code: str, data: dict) -> None:
