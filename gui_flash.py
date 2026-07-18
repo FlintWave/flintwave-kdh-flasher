@@ -54,11 +54,6 @@ try:
 except ImportError:
     wx = None
 
-try:
-    import serial
-except ImportError:
-    serial = None
-
 import flash_firmware as fw
 import flash_btf as fw_btf
 import firmware_manifest as fm
@@ -333,8 +328,12 @@ class FlashController:
             wx.CallAfter(frame._set_handset_progress, handset_idx, "0%")
 
         try:
+            # `os` is the module-level import (line above uses os.path.basename
+            # before this try); a function-local `import os` here would make os
+            # a local for the whole function and raise UnboundLocalError on that
+            # earlier reference — a latent crash in the pre-convergence inline
+            # worker that had no headless coverage to catch it.
             import math
-            import time
             import hashlib
 
             fw_size = os.path.getsize(firmware_path)
@@ -352,42 +351,24 @@ class FlashController:
             self.log_msg(t("log.port").format(port=port))
             self.log_msg("")
 
-            with serial.Serial(
-                port=port, baudrate=115200, bytesize=8,
-                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=2.0, write_timeout=2.0
-            ) as ser:
-                ser.dtr = True
-                ser.rts = True
-                time.sleep(0.1)
-                ser.reset_input_buffer()
-                ser.reset_output_buffer()
+            def log_cb(msg):
+                self.log_msg(msg)
 
-                self.log_msg(t("log.step_handshake"))
-                fw.send_command(ser, fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
-                self.log_msg(t("log.step_handshake_ok"))
+            def progress_cb(pct):
+                self.set_progress(pct)
+                if handset_idx is not None:
+                    wx.CallAfter(frame._set_handset_progress,
+                                 handset_idx, f"{int(pct)}%")
 
-                self.log_msg(t("log.step_sending").format(chunks=total_chunks))
-                fw.send_command(ser, fw.CMD_UPDATE_DATA_PACKAGES, 0, bytes([total_chunks]))
+            # Converged onto the mock_bootloader-testable driver function: the
+            # handshake → announce → stream → finalize sequence was hand-rolled
+            # as a serial.Serial + send_command loop inline here, so the single-
+            # flash KDH path had no headless coverage. flash_to_port is the same
+            # on-the-wire flow the batch path already drives; the GUI worker is
+            # now a thin wrapper (validation + preamble/post logging + version
+            # recording + test-report offer) around it.
+            fw.flash_to_port(port, firmware, log_cb=log_cb, progress_cb=progress_cb)
 
-                for i in range(total_chunks):
-                    offset = i * 1024
-                    chunk = firmware[offset:offset + 1024]
-                    if len(chunk) < 1024:
-                        chunk = chunk + b'\x00' * (1024 - len(chunk))
-                    fw.send_command(ser, fw.CMD_UPDATE, i & 0xFF, chunk)
-                    pct = ((i + 1) / total_chunks) * 100
-                    self.set_progress(pct)
-                    if handset_idx is not None:
-                        wx.CallAfter(frame._set_handset_progress, handset_idx, f"{int(pct)}%")
-                    if (i + 1) % 10 == 0 or i == total_chunks - 1:
-                        self.log_msg(t("log.progress_line").format(
-                            pct=f"{pct:.0f}", done=i + 1, total=total_chunks))
-
-                self.log_msg(t("log.step_finalize"))
-                fw.send_command(ser, fw.CMD_UPDATE_END, 0)
-
-            self.log_msg(t("log.step_handshake_ok"))
             self.log_msg("")
             self.log_msg(t("log.flash_complete"))
             self.log_msg(t("log.power_cycle"))
@@ -451,6 +432,9 @@ class FlashController:
 
         sha256 = ""
         try:
+            # Use the module-level `os` (see flash_thread): a function-local
+            # `import os` would UnboundLocalError on the os.path.basename call
+            # above.
             import hashlib
 
             fw_size = os.path.getsize(firmware_path)
@@ -607,100 +591,25 @@ class FlashController:
         threading.Thread(target=self.dryrun_thread, args=(firmware_path,), daemon=True).start()
 
     def dryrun_thread(self, firmware_path):
-        # BTF dry-run delegates to fw_btf.dry_run since the validation rules
-        # (vector-table SP/PC range, file-size minimum) and the packet-builder
-        # CRC self-checks differ from KDH. KDH path below is unchanged.
+        # Both protocols delegate to their driver's dry_run (packet-build
+        # validation + CRC self-checks; no serial). The KDH path used to
+        # hand-roll that validation/packet-build loop inline here — the same
+        # work fw.dry_run already does and TestDryRun already covers — so it
+        # had no shared source of truth. It now routes through
+        # fw.dry_run(log_cb=…) exactly as the BTF branch already routed through
+        # fw_btf.dry_run, selected via the frame's _driver_for dispatch.
         frame = self.frame
         radio = frame._get_selected_radio()
-        if (radio or {}).get("protocol") == "btf":
-            try:
-                self.log_msg(t("log.dryrun_header"))
-                self.log_msg("")
-                fw_btf.dry_run(firmware_path, log_cb=self.log_msg)
-                self.set_progress(100)
-                frame._terminal_state = "dryrun_complete"
-            except Exception as e:
-                self.log_msg(t("log.error_prefix").format(message=e))
-                frame._terminal_state = "failed"
-            finally:
-                frame._busy = False
-                self.set_buttons(True)
-            return
-
+        driver = frame._driver_for(radio)
         try:
-            import os
-            import hashlib
-            import math
-
             self.log_msg(t("log.dryrun_header"))
             self.log_msg("")
-
-            fw_size = os.path.getsize(firmware_path)
-            if fw_size > fw.MAX_FIRMWARE_BYTES:
-                self.log_msg(t("log.fail_too_large").format(
-                    size=fw_size, max=fw.MAX_FIRMWARE_BYTES))
-                frame._terminal_state = "failed"
-                return
-            with open(firmware_path, "rb") as f:
-                firmware = f.read()
-
-            fw_size = len(firmware)
-            total_chunks = math.ceil(fw_size / 1024)
-
-            if fw_size < fw.MIN_FIRMWARE_BYTES:
-                self.log_msg(t("log.fail_too_small").format(size=fw_size))
-                frame._terminal_state = "failed"
-                return
-            if total_chunks > fw.MAX_CHUNKS:
-                self.log_msg(t("log.fail_too_many_chunks").format(
-                    chunks=total_chunks, max=fw.MAX_CHUNKS))
-                frame._terminal_state = "failed"
-                return
-
-            sha256 = hashlib.sha256(firmware).hexdigest()
-            self.log_msg(t("log.firmware_path").format(path=firmware_path))
-            self.log_msg(t("log.size_chunks").format(size=fw_size, chunks=total_chunks))
-            self.log_msg(t("log.sha256").format(hash=sha256))
-            self.log_msg("")
-
-            sp = int.from_bytes(firmware[0:4], "little")
-            reset = int.from_bytes(firmware[4:8], "little")
-            ok_sp = 0x20000000 <= sp <= 0x20100000
-            ok_reset = 0x08000000 <= reset <= 0x08100000
-            valid_lbl = t("log.validity_valid")
-            invalid_lbl = t("log.validity_invalid")
-            self.log_msg(t("log.vector_table_check"))
-            self.log_msg(t("log.stack_pointer").format(
-                value=sp, validity=valid_lbl if ok_sp else invalid_lbl))
-            self.log_msg(t("log.reset_handler").format(
-                value=reset, validity=valid_lbl if ok_reset else invalid_lbl))
-            if not ok_sp or not ok_reset:
-                self.log_msg("")
-                self.log_msg(t("log.invalid_vector"))
-                frame._terminal_state = "failed"
-                return
-
-            self.log_msg("")
-            self.log_msg(t("log.building_packets"))
-            self.set_progress(10)
-
-            for i in range(total_chunks):
-                chunk = firmware[i * 1024:(i + 1) * 1024]
-                p = fw.build_packet(fw.CMD_UPDATE, i & 0xFF, chunk)
-                payload = p[1:-3]
-                pkt_crc = (p[-3] << 8) | p[-2]
-                if fw.crc16_ccitt(payload) != pkt_crc:
-                    self.log_msg(t("log.crc_fail_chunk").format(chunk=i))
-                    frame._terminal_state = "failed"
-                    return
-                self.set_progress(10 + (i + 1) / total_chunks * 90)
-
-            self.log_msg(t("log.packets_built").format(count=total_chunks + 3))
-            self.log_msg("")
-            self.log_msg(t("log.dryrun_passed"))
+            # KDH dry_run returns False on a validation failure; BTF dry_run
+            # raises (caught below). Either signal means the dry run failed.
+            ok = driver.dry_run(firmware_path, log_cb=self.log_msg)
             self.set_progress(100)
-            frame._terminal_state = "dryrun_complete"
-
+            frame._terminal_state = (
+                "dryrun_complete" if ok is not False else "failed")
         except Exception as e:
             self.log_msg(t("log.error_prefix").format(message=e))
             frame._terminal_state = "failed"
@@ -737,55 +646,40 @@ class FlashController:
     def diag_thread(self, port):
         frame = self.frame
         try:
-            import time
-
             self.log_msg(t("log.diag_running").format(port=port))
             self.log_msg("")
 
-            with serial.Serial(
-                port=port, baudrate=115200, bytesize=8,
-                parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
-                timeout=1.0
-            ) as ser:
-                ser.dtr = True
-                ser.rts = True
-                time.sleep(0.1)
+            # Converged onto the driver's diagnostic_probe: opening the port,
+            # sending the protocol-appropriate handshake/probe and reading the
+            # reply was hand-rolled as serial.Serial inline here, so the
+            # diagnostics path had no headless coverage. The probe is dispatched
+            # through _driver_for so a BTF radio (RT-950 Pro) still gets its
+            # CMD_PROBE rather than the KDH handshake; the driver returns the
+            # raw exchange and the GUI formats the i18n log lines below.
+            driver = frame._driver_for(frame._get_selected_radio())
+            info = driver.diagnostic_probe(port)
 
-                self.log_msg(t("log.diag_serial_info").format(
-                    baud=ser.baudrate, dtr=ser.dtr, rts=ser.rts))
-                self.log_msg(t("log.diag_modem_lines").format(
-                    cts=ser.cts, dsr=ser.dsr))
+            self.log_msg(t("log.diag_serial_info").format(
+                baud=info["baudrate"], dtr=info["dtr"], rts=info["rts"]))
+            self.log_msg(t("log.diag_modem_lines").format(
+                cts=info["cts"], dsr=info["dsr"]))
+            self.log_msg("")
+
+            self.log_msg(t("log.diag_sending"))
+            self.log_msg(t("log.diag_tx").format(hex=info["tx_hex"]))
+            self.set_progress(50)
+            if info["responding"]:
+                self.log_msg(t("log.diag_rx").format(
+                    count=info["rx_count"], hex=info["rx_hex"]))
                 self.log_msg("")
-
-                self.log_msg(t("log.diag_sending"))
-                # Build the probe for the selected radio's protocol. A BTF
-                # radio (RT-950 Pro) answers a different handshake than the KDH
-                # bootloader, so sending the KDH packet would report "no
-                # response" even for a healthy BTF radio.
-                if (frame._get_selected_radio() or {}).get("protocol") == "btf":
-                    packet = fw_btf.build_packet(fw_btf.CMD_PROBE)
-                else:
-                    packet = fw.build_packet(fw.CMD_HANDSHAKE, 0, b"BOOTLOADER")
-                self.log_msg(t("log.diag_tx").format(hex=packet.hex()))
-                ser.reset_input_buffer()
-                ser.write(packet)
-                ser.flush()
-
-                self.set_progress(50)
-                time.sleep(1.0)
-                avail = ser.in_waiting
-                if avail:
-                    data = ser.read(min(avail, 128))
-                    self.log_msg(t("log.diag_rx").format(count=avail, hex=data.hex()))
-                    self.log_msg("")
-                    self.log_msg(t("log.diag_responding"))
-                    frame._terminal_state = "diag_complete"
-                else:
-                    self.log_msg(t("log.diag_no_rx"))
-                    self.log_msg("")
-                    self.log_msg(t("log.diag_no_response"))
-                    self.log_msg(t("log.diag_check"))
-                    frame._terminal_state = "failed"
+                self.log_msg(t("log.diag_responding"))
+                frame._terminal_state = "diag_complete"
+            else:
+                self.log_msg(t("log.diag_no_rx"))
+                self.log_msg("")
+                self.log_msg(t("log.diag_no_response"))
+                self.log_msg(t("log.diag_check"))
+                frame._terminal_state = "failed"
 
             self.set_progress(100)
 

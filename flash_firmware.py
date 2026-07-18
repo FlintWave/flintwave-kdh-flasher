@@ -275,6 +275,59 @@ def probe_port(port: str, timeout: float = 1.5) -> bool:
         return False
 
 
+def diagnostic_probe(port: str, timeout: float = 1.0) -> dict:
+    """Open ``port``, send one KDH handshake, and report the raw exchange.
+
+    The single-shot probe the GUI diagnostics worker drives: it surfaces the
+    serial line state and whether the radio answered at all (any bytes back =
+    "responding"), without the multi-test CLI ``run_diagnostics`` flow. Returns
+    a dict the GUI formats into its i18n diagnostics log::
+
+        {baudrate, dtr, rts, cts, dsr, tx_hex, rx_count, rx_hex, responding}
+
+    Raises on serial-open errors (e.g. PermissionError) so the caller can show
+    the dialout hint, exactly as the previous inline worker did.
+    """
+    if serial is None:
+        raise RuntimeError("pyserial not installed; cannot open serial ports")
+
+    with serial.Serial(
+        port=port, baudrate=115200, bytesize=8,
+        parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE,
+        timeout=timeout
+    ) as ser:
+        ser.dtr = True
+        ser.rts = True
+        time.sleep(0.1)
+
+        info = {
+            "baudrate": ser.baudrate,
+            "dtr": ser.dtr,
+            "rts": ser.rts,
+            "cts": ser.cts,
+            "dsr": ser.dsr,
+        }
+
+        packet = build_packet(CMD_HANDSHAKE, 0, b"BOOTLOADER")
+        info["tx_hex"] = packet.hex()
+        ser.reset_input_buffer()
+        ser.write(packet)
+        ser.flush()
+
+        time.sleep(1.0)
+        avail = ser.in_waiting
+        if avail:
+            data = ser.read(min(avail, 128))
+            info["rx_count"] = avail
+            info["rx_hex"] = data.hex()
+            info["responding"] = True
+        else:
+            info["rx_count"] = 0
+            info["rx_hex"] = ""
+            info["responding"] = False
+    return info
+
+
 def flash_to_port(port: str, firmware: bytes,
                   log_cb=None, progress_cb=None) -> None:
     """Flash already-loaded firmware bytes to a single radio on `port`.
@@ -483,11 +536,23 @@ def run_diagnostics(port: str):
         print("RESULT: Radio is responding! The flash should work.")
 
 
-def dry_run(firmware_path: str):
-    """Verify packet construction without touching serial port."""
+def dry_run(firmware_path: str, log_cb=None) -> bool:
+    """Verify packet construction without touching serial port.
+
+    ``log_cb(str)`` overrides ``print()`` for GUI integration (mirrors
+    ``flash_btf.dry_run``); the CLI leaves it None and keeps printing. The GUI
+    dry-run worker routes its log through here instead of hand-rolling the same
+    validation + packet-build + CRC-self-check loop inline.
+    """
+    def _log(msg=""):
+        if log_cb:
+            log_cb(msg)
+        else:
+            print(msg)
+
     fw_size = os.path.getsize(firmware_path)
     if fw_size > MAX_FIRMWARE_BYTES:
-        print(f"FAIL: File too large ({fw_size} bytes, max {MAX_FIRMWARE_BYTES})")
+        _log(f"FAIL: File too large ({fw_size} bytes, max {MAX_FIRMWARE_BYTES})")
         return False
 
     with open(firmware_path, "rb") as f:
@@ -497,42 +562,41 @@ def dry_run(firmware_path: str):
     total_chunks = math.ceil(fw_size / 1024)
 
     if fw_size < MIN_FIRMWARE_BYTES:
-        print(f"FAIL: Firmware too small ({fw_size} bytes)")
+        _log(f"FAIL: Firmware too small ({fw_size} bytes)")
         return False
 
     if total_chunks > MAX_CHUNKS:
-        print(f"FAIL: Too many chunks ({total_chunks}, max {MAX_CHUNKS})")
+        _log(f"FAIL: Too many chunks ({total_chunks}, max {MAX_CHUNKS})")
         return False
 
     sha256 = hashlib.sha256(firmware).hexdigest()
-    print(f"Firmware: {firmware_path}")
-    print(f"Size: {fw_size} bytes, {total_chunks} chunks")
-    print(f"SHA-256: {sha256}")
-    print()
+    _log(f"Firmware: {firmware_path}")
+    _log(f"Size: {fw_size} bytes, {total_chunks} chunks")
+    _log(f"SHA-256: {sha256}")
+    _log()
 
     sp = int.from_bytes(firmware[0:4], "little")
     reset = int.from_bytes(firmware[4:8], "little")
-    print("ARM vector table check:")
-    print(f"  Stack pointer:  0x{sp:08X}", end="")
     ok_sp = 0x20000000 <= sp <= 0x20100000
-    print(" (valid SRAM)" if ok_sp else " (INVALID)")
-    print(f"  Reset handler:  0x{reset:08X}", end="")
     ok_reset = 0x08000000 <= reset <= 0x08100000
-    print(" (valid Flash)" if ok_reset else " (INVALID)")
+    _log("ARM vector table check:")
+    _log(f"  Stack pointer:  0x{sp:08X}" + (" (valid SRAM)" if ok_sp else " (INVALID)"))
+    _log(f"  Reset handler:  0x{reset:08X}" + (" (valid Flash)" if ok_reset else " (INVALID)"))
     if not ok_sp or not ok_reset:
-        print("\nFAIL: Invalid ARM vector table")
+        _log("")
+        _log("FAIL: Invalid ARM vector table")
         return False
-    print()
+    _log()
 
-    print("Building all packets (manual download flow)...")
+    _log("Building all packets (manual download flow)...")
 
     p = build_packet(CMD_HANDSHAKE, 0, b"BOOTLOADER")
-    print(f"  CMD_HANDSHAKE:            {p.hex()}")
+    _log(f"  CMD_HANDSHAKE:            {p.hex()}")
 
     p = build_packet(CMD_UPDATE_DATA_PACKAGES, 0, bytes([total_chunks]))
-    print(f"  CMD_UPDATE_DATA_PACKAGES: {p.hex()} (chunks={total_chunks})")
+    _log(f"  CMD_UPDATE_DATA_PACKAGES: {p.hex()} (chunks={total_chunks})")
 
-    print(f"  CMD_UPDATE:               building {total_chunks} data packets...")
+    _log(f"  CMD_UPDATE:               building {total_chunks} data packets...")
     for i in range(total_chunks):
         offset = i * 1024
         chunk = firmware[offset:offset + 1024]
@@ -543,15 +607,15 @@ def dry_run(firmware_path: str):
         assert crc16_ccitt(payload) == pkt_crc, f"Chunk {i}: CRC self-check failed"
 
     p = build_packet(CMD_UPDATE_END, 0)
-    print(f"  CMD_UPDATE_END:           {p.hex()}")
+    _log(f"  CMD_UPDATE_END:           {p.hex()}")
 
-    print()
-    print(f"Total packets: {total_chunks + 3}")
-    print("All CRC self-checks passed")
+    _log()
+    _log(f"Total packets: {total_chunks + 3}")
+    _log("All CRC self-checks passed")
     last_chunk_size = fw_size - (total_chunks - 1) * 1024
-    print(f"Last chunk: {last_chunk_size} bytes")
-    print()
-    print("DRY RUN PASSED")
+    _log(f"Last chunk: {last_chunk_size} bytes")
+    _log()
+    _log("DRY RUN PASSED")
     return True
 
 

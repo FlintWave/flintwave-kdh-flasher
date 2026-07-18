@@ -1912,6 +1912,267 @@ class TestBatchFlashRouting(unittest.TestCase):
         self.assertEqual(eng_b.reassembled_firmware(), pad)
 
 
+class TestFlashControllerWrappers(unittest.TestCase):
+    """Headless, mock_bootloader-driven coverage of the extracted flash /
+    dry-run / diagnostics GUI workers (gui_flash.FlashController).
+
+    Before slice 3's driver convergence the single-flash KDH worker, the KDH
+    dry-run branch and the diagnostics worker hand-rolled ``serial.Serial`` +
+    ``send_command`` inline, so none of them had any headless coverage — they
+    could only be verified against a real radio. They now delegate to the
+    already-tested driver functions (``fw.flash_to_port`` / ``fw.dry_run`` /
+    ``driver.diagnostic_probe``), so the GUI wrapper is exercisable end-to-end
+    through ``mock_bootloader.patch_serial``, exactly like TestEndToEndFlashKDH
+    drives the driver directly. The controller touches widgets only through the
+    frame, so we bind it to a lightweight stub with fake widgets and a
+    synchronous ``wx.CallAfter``; the driver ``time.sleep`` pacing is stubbed
+    out so the suite stays fast."""
+
+    def setUp(self):
+        try:
+            import gui_flash
+            import mock_bootloader as mb
+            import flash_btf
+            import i18n
+        except ImportError:
+            self.skipTest("gui_flash / mock_bootloader not importable")
+        i18n.load_bundled_en()
+        self.gf = gui_flash
+        self.mb = mb
+        self.fw = fw
+        self.btf = flash_btf
+        import firmware_manifest as fm_mod
+        self.fm = fm_mod
+        self._orig_state_file = fm_mod.STATE_FILE
+        self._orig_state_dir = fm_mod.STATE_DIR
+        self._tmpdir = tempfile.mkdtemp()
+        fm_mod.STATE_FILE = os.path.join(self._tmpdir, "state.json")
+        fm_mod.STATE_DIR = self._tmpdir
+        # Route worker->widget writes synchronously and stub the report dialog.
+        self._saved_wx = gui_flash.wx
+        self._saved_dialog = gui_flash.show_test_report_dialog
+        gui_flash.wx = self._FakeWx
+        gui_flash.show_test_report_dialog = lambda *a, **k: None
+        # Stub the drivers' serial-pacing sleeps (MockSerial answers
+        # synchronously, so the 0.02s/chunk and 1.0s diag waits are pure
+        # latency the headless test shouldn't pay).
+        import time as _time
+        noslp = types.SimpleNamespace(sleep=lambda *a, **k: None, time=_time.time)
+        self._saved_fw_time = fw.time
+        self._saved_btf_time = flash_btf.time
+        fw.time = noslp
+        flash_btf.time = noslp
+
+    def tearDown(self):
+        self.gf.wx = self._saved_wx
+        self.gf.show_test_report_dialog = self._saved_dialog
+        self.fw.time = self._saved_fw_time
+        self.btf.time = self._saved_btf_time
+        self.fm.STATE_FILE = self._orig_state_file
+        self.fm.STATE_DIR = self._orig_state_dir
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    class _FakeWx:
+        @staticmethod
+        def CallAfter(func, *a, **k):
+            func(*a, **k)
+
+    class _FakeWidget:
+        def __init__(self, value=None):
+            self.value = value
+            self.enabled = None
+            self.label = None
+
+        def Enable(self, flag=True):
+            self.enabled = flag
+
+        def SetValue(self, v):
+            self.value = v
+
+        def GetValue(self):
+            return self.value
+
+        def Clear(self):
+            self.value = ""
+
+        def AppendText(self, s):
+            self.value = (self.value or "") + s
+
+        def SetLabel(self, s):
+            self.label = s
+
+    class _SilentEngine:
+        """A radio that swallows the probe and answers nothing (diag "no
+        response" path)."""
+        def try_extract(self, buf):
+            return ("packet", len(buf)) if buf else (None, 0)
+
+        def handle(self, packet):
+            return b""
+
+    def _frame(self, radio, **overrides):
+        f = types.SimpleNamespace()
+        f._closing = False
+        f._busy = True
+        f._busy_state = "flashing"
+        f._terminal_state = None
+        f.log = self._FakeWidget("")
+        f.progress = self._FakeWidget(0)
+        for name in ("flash_btn", "dryrun_btn", "diag_btn", "download_btn",
+                     "refresh_btn", "select_all_btn", "select_none_btn",
+                     "radio_combo", "browse_btn"):
+            setattr(f, name, self._FakeWidget())
+        f.file_path = self._FakeWidget("")
+        f.handset_status = []
+        f.handset_progress = []
+        f._set_handset_status = lambda idx, s: f.handset_status.append((idx, s))
+        f._set_handset_progress = lambda idx, s: f.handset_progress.append((idx, s))
+        f._get_selected_radio = lambda: radio
+        f._driver_for = lambda r: (
+            self.btf if (r or {}).get("protocol") == "btf" else self.fw)
+        f._get_firmware_url_and_version = lambda r: (None, None)
+        f._is_permission_denied = lambda e: False
+        f._log_dialout_hint = lambda port: None
+        f._set_hint = lambda s: None
+        f._compute_hint_state = lambda: "computed"
+        f._update_radio_info = lambda: None
+        f._update_workflow_gating = lambda: None
+        for k, v in overrides.items():
+            setattr(f, k, v)
+        return f
+
+    def _valid_kdh(self, nchunks=2):
+        header = struct.pack("<II", 0x200078E0, 0x08001185)
+        size = nchunks * 1024
+        return header + bytes((i * 7) & 0xFF for i in range(size - len(header)))
+
+    def _write(self, data, name):
+        path = os.path.join(self._tmpdir, name)
+        with open(path, "wb") as f:
+            f.write(data)
+        return path
+
+    # -- single-flash KDH wrapper (converged onto fw.flash_to_port) ------- #
+    def test_single_flash_kdh_delivers_bytes_and_completes(self):
+        radio = {"id": "acme-x1", "name": "Acme X1"}
+        frame = self._frame(radio)
+        firmware = self._valid_kdh(3)
+        path = self._write(firmware, "ACME_V1.2_x.kdhx")
+        ctrl = self.gf.FlashController(frame)
+        engine = self.mb.KDHBootloader()
+        with self.mb.patch_serial(self.fw, engine=engine):
+            ctrl.flash_thread("/dev/mock", path, handset_idx=0)
+        self.assertTrue(engine.finished)
+        self.assertEqual(engine.reassembled_firmware(), firmware)
+        self.assertEqual(frame._terminal_state, "complete")
+        self.assertFalse(frame._busy)
+        self.assertEqual(frame.progress.value, 100)
+        self.assertIn((0, self.gf.STATUS_DONE), frame.handset_status)
+        # The flashed version was recorded (single source of truth for the
+        # same/older-version guard on the next flash).
+        self.assertEqual(self.fm.get_last_flashed("acme-x1")["version"], "1.2")
+        # Buttons are re-enabled by the finally-block re-gating pass.
+        self.assertTrue(frame.flash_btn.enabled)
+
+    def test_single_flash_kdh_failure_marks_failed(self):
+        radio = {"id": "acme-x1", "name": "Acme X1"}
+        frame = self._frame(radio)
+        path = self._write(self._valid_kdh(2), "ACME_V1.2_x.kdhx")
+        ctrl = self.gf.FlashController(frame)
+        engine = self.mb.KDHBootloader(bad_handshake=True)
+        with self.mb.patch_serial(self.fw, engine=engine):
+            ctrl.flash_thread("/dev/mock", path, handset_idx=0)
+        self.assertFalse(engine.finished)
+        self.assertEqual(frame._terminal_state, "failed")
+        self.assertFalse(frame._busy)
+        self.assertIn((0, self.gf.STATUS_FAILED), frame.handset_status)
+        # A failed flash records nothing.
+        self.assertIsNone(self.fm.get_last_flashed("acme-x1"))
+
+    def _valid_btf(self, data_chunks=2):
+        off = self.btf.BTF_KEY_OFFSET + self.btf.BTF_KEY_SIZE
+        size = off + data_chunks * 1024
+        blob = bytearray(struct.pack("<II", 0x20001000, 0x08003185))
+        blob += bytes((i * 3) & 0xFF for i in range(size - 8))
+        sig = b"RT950PRO\x00"
+        blob[self.btf.BTF_MODEL_OFFSET:
+             self.btf.BTF_MODEL_OFFSET + len(sig)] = sig
+        return bytes(blob)
+
+    def test_single_flash_btf_delivers_bytes_and_completes(self):
+        # flash_thread dispatches a protocol="btf" radio to flash_thread_btf,
+        # which delegates the wire work to fw_btf.flash_to_port. This also
+        # exercises the same os-before-local-import fix in the BTF worker.
+        import contextlib
+        import io
+        radio = {"id": "rt950", "name": "RT-950 Pro", "protocol": "btf"}
+        frame = self._frame(radio)
+        path = self._write(self._valid_btf(2), "RT950_V2.0_x.BTF")
+        ctrl = self.gf.FlashController(frame)
+        engine = self.mb.BTFBootloader()
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.mb.patch_serial(self.btf, engine=engine):
+                ctrl.flash_thread("/dev/mock", path, handset_idx=0)
+        self.assertTrue(engine.finished)
+        self.assertEqual(frame._terminal_state, "complete")
+        self.assertFalse(frame._busy)
+        self.assertIn((0, self.gf.STATUS_DONE), frame.handset_status)
+
+    # -- dry-run wrapper (converged onto driver.dry_run) ----------------- #
+    def test_dryrun_kdh_passes(self):
+        radio = {"id": "acme-x1", "name": "Acme X1"}
+        frame = self._frame(radio, _busy_state="dryrun")
+        path = self._write(self._valid_kdh(2), "fw.kdhx")
+        ctrl = self.gf.FlashController(frame)
+        ctrl.dryrun_thread(path)
+        self.assertEqual(frame._terminal_state, "dryrun_complete")
+        self.assertEqual(frame.progress.value, 100)
+        self.assertFalse(frame._busy)
+
+    def test_dryrun_kdh_invalid_fails(self):
+        radio = {"id": "acme-x1", "name": "Acme X1"}
+        frame = self._frame(radio, _busy_state="dryrun")
+        path = self._write(b"\x00" * 100, "bad.kdhx")   # too small / bad vectors
+        ctrl = self.gf.FlashController(frame)
+        ctrl.dryrun_thread(path)
+        self.assertEqual(frame._terminal_state, "failed")
+        self.assertFalse(frame._busy)
+
+    # -- diagnostics wrapper (converged onto driver.diagnostic_probe) ---- #
+    def test_diagnostics_kdh_responding(self):
+        radio = {"id": "acme-x1", "name": "Acme X1"}
+        frame = self._frame(radio, _busy_state="diagnostics")
+        ctrl = self.gf.FlashController(frame)
+        engine = self.mb.KDHBootloader()
+        with self.mb.patch_serial(self.fw, engine=engine):
+            ctrl.diag_thread("/dev/mock")
+        self.assertEqual(frame._terminal_state, "diag_complete")
+        self.assertEqual(frame.progress.value, 100)
+        self.assertFalse(frame._busy)
+
+    def test_diagnostics_btf_uses_btf_probe(self):
+        radio = {"id": "rt950", "name": "RT-950 Pro", "protocol": "btf"}
+        frame = self._frame(radio, _busy_state="diagnostics")
+        ctrl = self.gf.FlashController(frame)
+        engine = self.mb.BTFBootloader()
+        with self.mb.patch_serial(self.btf, engine=engine):
+            ctrl.diag_thread("/dev/mock")
+        # A BTF radio answers CMD_PROBE; the diag path dispatched through
+        # _driver_for must send the BTF probe, not the KDH handshake.
+        self.assertEqual(engine.commands_seen()[0], self.btf.CMD_PROBE)
+        self.assertEqual(frame._terminal_state, "diag_complete")
+
+    def test_diagnostics_no_response_fails(self):
+        radio = {"id": "acme-x1", "name": "Acme X1"}
+        frame = self._frame(radio, _busy_state="diagnostics")
+        ctrl = self.gf.FlashController(frame)
+        with self.mb.patch_serial(self.fw, engine=self._SilentEngine()):
+            ctrl.diag_thread("/dev/mock")
+        self.assertEqual(frame._terminal_state, "failed")
+        self.assertFalse(frame._busy)
+
+
 class TestWorkflowStateMachine(unittest.TestCase):
     """Pure workflow logic extracted from FlasherFrame (gui_workflow).
 

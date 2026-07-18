@@ -64,6 +64,14 @@ class MockSerial:
         self.dtr = False
         self.rts = False
         self.name = port
+        # Config + readable modem-status lines the diagnostics probe inspects.
+        # Stored/defaulted so a diagnostic_probe reads them like real pyserial
+        # (baudrate echoes the constructor kwarg; cts/dsr/cd/ri default low).
+        self.baudrate = kwargs.get("baudrate")
+        self.cts = False
+        self.dsr = False
+        self.cd = False
+        self.ri = False
 
     # -- context manager -------------------------------------------------- #
     def __enter__(self):
