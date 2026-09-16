@@ -261,6 +261,7 @@ class FlasherFrame(wx.Frame):
         self.theme_btn = self.status_bar_panel.theme_btn
         self.lang_btn = self.status_bar_panel.lang_btn
         self.update_link = self.status_bar_panel.update_link
+        self.restart_btn = self.status_bar_panel.restart_btn
         root_sizer.Add(self.status_bar_panel, 0, wx.EXPAND)
 
         panel.SetSizer(root_sizer)
@@ -1125,6 +1126,15 @@ class FlasherFrame(wx.Frame):
 
     def on_about(self, event):
         show_about_dialog(self)
+
+    def _on_restart_to_update(self):
+        """Handle the 'Restart to Update' status-bar click."""
+        if self._busy:
+            wx.MessageBox(
+                t("statusbar.update_busy_warning"),
+                t("app.title"), wx.OK | wx.ICON_INFORMATION)
+            return
+        self.download._do_restart()
 
     def _on_close(self, event):
         # Signal the daemon background loops (port poll, update check) to stop

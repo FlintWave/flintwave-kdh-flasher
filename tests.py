@@ -16,6 +16,7 @@ import os
 import math
 import json
 import struct
+import sys
 import tempfile
 import types
 import unittest
@@ -591,6 +592,90 @@ class TestUpdater(unittest.TestCase):
     def test_repo_dir_exists(self):
         import updater
         self.assertTrue(os.path.isdir(updater.REPO_DIR))
+
+
+class TestUpdaterAutoUpdate(unittest.TestCase):
+    """Test auto-updater platform asset selection and install helpers."""
+
+    def test_get_platform_asset_url_linux(self):
+        import updater
+        release = {"assets": [
+            {"name": "FlintWave-Flash-x86_64.AppImage",
+             "browser_download_url": "https://example.com/appimage",
+             "size": 50_000_000},
+            {"name": "FlintWave-Flash.exe",
+             "browser_download_url": "https://example.com/exe",
+             "size": 40_000_000},
+        ]}
+        orig = sys.platform
+        try:
+            sys.platform = "linux"
+            name, url, size = updater.get_platform_asset_url(release)
+            self.assertEqual(name, "FlintWave-Flash-x86_64.AppImage")
+            self.assertEqual(url, "https://example.com/appimage")
+            self.assertEqual(size, 50_000_000)
+        finally:
+            sys.platform = orig
+
+    def test_get_platform_asset_url_windows(self):
+        import updater
+        release = {"assets": [
+            {"name": "FlintWave-Flash-x86_64.AppImage",
+             "browser_download_url": "https://example.com/appimage",
+             "size": 50_000_000},
+            {"name": "FlintWave-Flash.exe",
+             "browser_download_url": "https://example.com/exe",
+             "size": 40_000_000},
+        ]}
+        orig = sys.platform
+        try:
+            sys.platform = "win32"
+            name, url, size = updater.get_platform_asset_url(release)
+            self.assertEqual(name, "FlintWave-Flash.exe")
+            self.assertEqual(url, "https://example.com/exe")
+        finally:
+            sys.platform = orig
+
+    def test_get_platform_asset_url_missing_asset(self):
+        import updater
+        release = {"assets": [
+            {"name": "SomeOtherFile.zip",
+             "browser_download_url": "https://example.com/zip",
+             "size": 100},
+        ]}
+        name, url, size = updater.get_platform_asset_url(release)
+        self.assertIsNone(name)
+        self.assertIsNone(url)
+        self.assertIsNone(size)
+
+    def test_get_platform_asset_url_no_release(self):
+        import updater
+        name, url, size = updater.get_platform_asset_url(None)
+        self.assertIsNone(name)
+
+    def test_asset_patterns_complete(self):
+        import updater
+        self.assertIn("linux_appimage", updater.ASSET_PATTERNS)
+        self.assertIn("windows_exe", updater.ASSET_PATTERNS)
+        self.assertIn("macos_dmg", updater.ASSET_PATTERNS)
+
+    def test_can_auto_install_git(self):
+        import updater
+        orig_git = updater.is_git_install
+        try:
+            updater.is_git_install = lambda: True
+            self.assertTrue(updater.can_auto_install())
+        finally:
+            updater.is_git_install = orig_git
+
+    def test_get_current_executable_not_frozen(self):
+        import updater
+        orig = updater.is_frozen
+        try:
+            updater.is_frozen = lambda: False
+            self.assertIsNone(updater.get_current_executable())
+        finally:
+            updater.is_frozen = orig
 
 
 class TestVersionConsistency(unittest.TestCase):
