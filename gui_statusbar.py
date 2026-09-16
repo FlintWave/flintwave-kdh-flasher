@@ -95,11 +95,27 @@ if wx is not None:
             frame._tr_label(self.update_link, "statusbar.update_available")
             self.update_link.Hide()
 
+            # Update progress text — shown while downloading an update.
+            self.update_progress = wx.StaticText(self, label="")
+            self.update_progress.Hide()
+
+            # "Restart to Update" button — shown when the download is complete
+            # and the user has started work (deferred install).
+            self.restart_btn = wx.StaticText(
+                self, label=t("statusbar.restart_to_update"))
+            self.restart_btn.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+            frame._tr_label(self.restart_btn, "statusbar.restart_to_update")
+            self.restart_btn.Bind(
+                wx.EVT_LEFT_DOWN, lambda e: frame._on_restart_to_update())
+            self.restart_btn.Hide()
+
             bar_sizer.AddSpacer(12)
             bar_sizer.Add(self.font_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
             bar_sizer.Add(self.theme_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
             bar_sizer.Add(self.lang_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
             bar_sizer.AddStretchSpacer(1)
+            bar_sizer.Add(self.update_progress, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
+            bar_sizer.Add(self.restart_btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
             bar_sizer.Add(usage_link, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
             bar_sizer.Add(self.update_link, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)
             bar_sizer.Add(about_link, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 16)

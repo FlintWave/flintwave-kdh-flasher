@@ -17,6 +17,10 @@ plus the "a newer app release exists" status-bar notification. It owns:
   * **Background tasks** — ``fetch_manifest`` and ``check_update`` run on daemon
     threads at startup; ``notify_update`` / ``show_update_link`` surface a newer
     release as a clickable status-bar link.
+  * **Auto-update** — ``check_update`` now downloads the update asset in the
+    background. If the user hasn't started work yet, it installs immediately
+    and restarts. If work is in progress, the download continues silently and
+    a "Restart to Update" button appears in the status bar.
 
 ``DownloadController`` collaborates with the owning frame for everything only
 the frame can provide: the ``download_btn`` / ``file_path`` / ``radio_combo`` /
@@ -47,6 +51,8 @@ presenter, the flash workers and the ``__init__`` daemon-thread targets keep
 calling the same names, exactly as HandsetController's delegators do.
 """
 
+import os
+import tempfile
 import threading
 
 try:
@@ -71,6 +77,11 @@ class DownloadController:
         self.manifest = None
         self._update_url = None   # set by notify_update when an update is detected
 
+        # Auto-updater state
+        self._update_downloaded_path = None
+        self._update_remote_version = None
+        self._update_download_cancelled = False
+
     # ------------------------------------------------------------------
     # Background tasks
     # ------------------------------------------------------------------
@@ -83,34 +94,190 @@ class DownloadController:
             pass
 
     def check_update(self):
-        """Background check for a newer release; surface as a status-bar link.
+        """Background check for a newer release; auto-download and install.
 
-        We deliberately don't try to apply the update in-app — auto-update on
-        Linux git installs has historically been unreliable. Instead, when a
-        newer version is detected we show a clickable link in the status bar
-        that opens the GitHub releases page in the user's default browser.
+        On startup (before the user has interacted): downloads the update,
+        shows a progress indicator in the status bar, and if the user still
+        hasn't started work, installs + restarts automatically.
+
+        If the user starts work during the download: the download continues
+        silently, and once complete a "Restart to Update" button appears in
+        the status bar.
         """
         import time
-        time.sleep(2)  # Let the UI finish rendering before touching the status bar
+        time.sleep(2)
         try:
             has_update, local_info, remote_info = updater.check_for_update()
-            if has_update:
+            if not has_update:
+                return
+
+            self._update_remote_version = remote_info
+
+            # For git installs, try a quick git pull
+            if updater.is_git_install():
+                wx.CallAfter(self._show_update_checking)
+                success, msg = updater.apply_update()
+                if success and not self._user_has_started_work():
+                    wx.CallAfter(self._do_restart)
+                elif success:
+                    wx.CallAfter(self._show_restart_button)
+                else:
+                    wx.CallAfter(self.notify_update, local_info, remote_info)
+                return
+
+            # Packaged builds: fetch release info and download the asset
+            release = updater.get_latest_release_full()
+            if not release:
                 wx.CallAfter(self.notify_update, local_info, remote_info)
+                return
+
+            asset_name, asset_url, asset_size = updater.get_platform_asset_url(release)
+            if not asset_url:
+                wx.CallAfter(self.notify_update, local_info, remote_info)
+                return
+
+            if not updater.can_auto_install():
+                wx.CallAfter(self.notify_update, local_info, remote_info)
+                return
+
+            wx.CallAfter(self._show_update_progress, 0,
+                         t("statusbar.update_downloading"))
+
+            dest = os.path.join(tempfile.gettempdir(),
+                                "flintwave-flash-update-" + asset_name)
+            try:
+                def on_progress(downloaded, total):
+                    if self._update_download_cancelled:
+                        return
+                    if total > 0:
+                        pct = int(downloaded * 100 / total)
+                    else:
+                        pct = 0
+                    wx.CallAfter(self._show_update_progress, pct)
+
+                updater.download_update(asset_url, dest,
+                                        progress_callback=on_progress)
+            except Exception:
+                wx.CallAfter(self.notify_update, local_info, remote_info)
+                return
+
+            self._update_downloaded_path = dest
+
+            # Install the update (stage the binary)
+            success, msg = updater.install_update(dest)
+            if not success:
+                wx.CallAfter(self.notify_update, local_info, remote_info)
+                return
+
+            if not self._user_has_started_work():
+                wx.CallAfter(self._do_restart)
+            else:
+                wx.CallAfter(self._show_restart_button)
+
         except Exception:
+            # Background thread — never crash the app for an update failure
             pass
+
+    def _user_has_started_work(self):
+        """True if the user has interacted with any workflow step."""
+        frame = self.frame
+        if frame._closing:
+            return True
+        if frame._busy:
+            return True
+        try:
+            if frame.file_path.GetValue():
+                return True
+        except Exception:
+            # Widget may be destroyed during shutdown
+            return True
+        return False
+
+    def _show_update_checking(self):
+        frame = self.frame
+        if frame._closing:
+            return
+        self._show_update_progress(
+            -1, t("statusbar.update_checking"))
+
+    def _show_update_progress(self, pct, label=None):
+        """Show download progress in the status bar."""
+        frame = self.frame
+        if frame._closing:
+            return
+        try:
+            progress_widget = frame.status_bar_panel.update_progress
+            if label:
+                text = label
+            elif pct >= 0:
+                text = t("statusbar.update_downloading_pct").format(pct=pct)
+            else:
+                text = t("statusbar.update_checking")
+
+            progress_widget.SetLabel(text)
+            if not progress_widget.IsShown():
+                progress_widget.Show()
+                progress_widget.SetMinSize(progress_widget.GetBestSize())
+            frame.status_bar_panel.Layout()
+        except Exception:
+            # Status bar widget may not exist yet during early startup
+            pass
+
+    def _show_restart_button(self):
+        """Show the 'Restart to Update' button in the status bar."""
+        frame = self.frame
+        if frame._closing:
+            return
+        try:
+            # Hide progress text
+            frame.status_bar_panel.update_progress.Hide()
+            # Show restart button
+            restart_btn = frame.status_bar_panel.restart_btn
+            if self._update_remote_version:
+                restart_btn.SetToolTip(
+                    t("statusbar.restart_tooltip").format(
+                        version=self._update_remote_version))
+            restart_btn.Show()
+            restart_btn.SetMinSize(restart_btn.GetBestSize())
+
+            # Style the restart button to stand out
+            palette = frame.current_theme_palette
+            if palette:
+                restart_btn.SetOwnForegroundColour(wx.Colour(*palette[5]))
+
+            frame.status_bar_panel.Layout()
+        except Exception:
+            # Best-effort UI update; don't block the restart path
+            pass
+
+    def _do_restart(self):
+        """Install the staged update and restart the app."""
+        frame = self.frame
+        if frame._closing:
+            return
+        try:
+            frame.status_bar_panel.update_progress.Hide()
+            frame.status_bar_panel.restart_btn.Hide()
+            frame.status_bar_panel.Layout()
+        except Exception:
+            # Cosmetic cleanup before restart; safe to ignore
+            pass
+        if updater.is_git_install():
+            updater.restart_app()
+        else:
+            updater.apply_staged_update()
 
     def notify_update(self, local_info, remote_info):
         """An update is available — show the Update Available link in the status bar."""
         frame = self.frame
         if frame._closing or not frame:
             return
-        # Single source of truth for the running version lives in gui_main;
-        # deferred import avoids a circular import at module load (matches
-        # updater.get_current_version's pattern).
         from gui_main import VERSION
         url = updater.get_releases_url()
         self._update_url = url
         try:
+            # Hide progress/restart widgets
+            frame.status_bar_panel.update_progress.Hide()
             frame.update_link.SetURL(url)
             frame.update_link.SetToolTip(
                 t("statusbar.update_tooltip").format(
@@ -122,10 +289,6 @@ class DownloadController:
 
     def show_update_link(self):
         frame = self.frame
-        # The link was added to the sizer while hidden, which caches a 0-width
-        # slot and clips the label on Show(). Re-pin the min size to the
-        # current best size so longer translations (e.g. "Mise à jour disponible")
-        # render in full.
         frame.update_link.Show()
         try:
             frame.update_link.SetMinSize(frame.update_link.GetBestSize())
@@ -159,25 +322,18 @@ class DownloadController:
         button, the hint refresh, and the variant walkthrough panel.
         """
         frame = self.frame
-        # May be posted from the background manifest fetch after the frame has
-        # started closing — bail rather than touch destroyed widgets.
         if frame._closing or not frame:
             return
         radio = frame._get_selected_radio()
         group_sel = frame._get_selected_group()
-        # A variant family row keeps its answer controls visible (so the user
-        # can correct a mis-click) whether or not the variant is resolved yet.
         if group_sel:
             frame._render_variant_options(*group_sel)
         else:
             frame._clear_variant_panel()
 
         if radio:
-            # Concrete radio (plain row, or a group with a resolved variant).
             url, version = self.get_firmware_url_and_version(radio)
             has_url = bool(url)
-            # Never re-enable Download during an in-progress operation; the
-            # busy-end gating pass will restore the correct state.
             if not frame._busy:
                 frame.download_btn.Enable(has_url)
             if not has_url:
@@ -188,8 +344,6 @@ class DownloadController:
             else:
                 frame.download_btn.SetLabel(t("button.download_latest"))
         elif group_sel:
-            # A variant family is selected but not resolved ("I'm not sure" or
-            # unanswered): keep Download disabled until a variant is chosen.
             if not frame._busy:
                 frame.download_btn.Enable(False)
             frame.download_btn.SetLabel(t("button.identify_first"))
@@ -198,8 +352,6 @@ class DownloadController:
 
     def on_radio_changed(self, event):
         frame = self.frame
-        # Picking a different radio clears any sticky terminal state so the
-        # hint panel doesn't keep showing the previous flash's completion copy.
         frame._terminal_state = None
         self.update_radio_info()
         frame._update_workflow_gating()
@@ -212,11 +364,6 @@ class DownloadController:
         frame = self.frame
         if frame._busy:
             return
-        # _get_selected_radio() returns None for an unresolved variant group
-        # (unanswered or "I'm not sure"), so this guard also refuses to start a
-        # download until the user has identified their hardware variant — belt
-        # and suspenders behind the disabled Download button. The app never
-        # guesses; the concrete member id resolves only after an explicit answer.
         radio = frame._get_selected_radio()
         if not radio:
             return
@@ -232,7 +379,6 @@ class DownloadController:
 
         url, _ = self.get_firmware_url_and_version(radio)
 
-        # Get expected SHA-256 from manifest if available
         manifest_info = fm.get_radio_firmware_info(radio["id"], self.manifest)
         expected_sha256 = manifest_info.get("firmware_sha256") if manifest_info else None
 
@@ -254,9 +400,8 @@ class DownloadController:
             frame.log_msg("")
 
             def on_progress(pct):
-                frame.set_progress(pct * 0.8)  # 80% for download
+                frame.set_progress(pct * 0.8)
 
-            # Use url as override if it differs from the hardcoded one
             url_override = url if url != radio.get("firmware_url") else None
             kdhx_path, _ = dl.download_and_extract(
                 radio["id"], progress_callback=on_progress,
@@ -270,7 +415,7 @@ class DownloadController:
             frame.log_msg(t("log.firmware_ready"))
 
             wx.CallAfter(frame.file_path.SetValue, kdhx_path)
-            frame._terminal_state = None  # path change will recompute hint
+            frame._terminal_state = None
 
         except Exception as e:
             frame.log_msg(t("log.error_prefix").format(message=e))

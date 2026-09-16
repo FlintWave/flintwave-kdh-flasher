@@ -67,6 +67,12 @@
   "statusbar.about": "About",
   "statusbar.update_available": "Update Available",
   "statusbar.update_tooltip": "Currently running v{local} (latest available: {remote}).\nClick to open the releases page in your browser.",
+  "statusbar.update_checking": "Checking for updates…",
+  "statusbar.update_downloading": "Downloading update…",
+  "statusbar.update_downloading_pct": "Updating… {pct}%",
+  "statusbar.restart_to_update": "Restart to Update",
+  "statusbar.restart_tooltip": "Version {version} is ready to install. Click to restart now.",
+  "statusbar.update_busy_warning": "An operation is in progress. The update will install when you restart the app.",
 
   "lang.downloading": "Downloading translation for {language}…",
   "lang.download_failed": "Couldn't download the {language} translation. Staying on the previous language.",

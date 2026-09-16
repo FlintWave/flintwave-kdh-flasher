@@ -1,12 +1,13 @@
 """
 Auto-updater for flintwave-kdh-flasher.
-Checks GitHub for newer releases and either updates in-place (git)
-or directs the user to download the latest release (packaged installs).
+Checks GitHub for newer releases; downloads and installs updates where the
+OS allows, or shows a "Restart to Update" button in the status bar.
 """
 
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -22,6 +23,14 @@ EXPECTED_ORIGINS = {
 }
 API_URL = "https://api.github.com/repos/FlintWave/flintwave-kdh-flasher/releases/latest"
 
+# Asset patterns per platform. The key is used by get_platform_asset_url().
+ASSET_PATTERNS = {
+    "linux_appimage": "FlintWave-Flash-x86_64.AppImage",
+    "windows_exe":    "FlintWave-Flash.exe",
+    "windows_setup":  "FlintWave-Flash-Setup.exe",
+    "macos_dmg":      "FlintWave-Flash.dmg",
+}
+
 
 def is_git_install():
     """Check if running from a git clone (vs packaged binary)."""
@@ -35,14 +44,11 @@ def is_frozen():
 
 def get_local_version():
     """Get the VERSION string from the running code."""
-    # In frozen (PyInstaller) builds, import the version directly
-    # since source files aren't on disk.
     try:
         from gui_main import VERSION
         return VERSION
     except Exception:
         pass
-    # Fallback: read from source file (git installs)
     try:
         for gui_file in ("gui_main.py", "flash_firmware_gui.py"):
             gui_path = os.path.join(REPO_DIR, gui_file)
@@ -72,6 +78,24 @@ def get_latest_release():
             return data.get("tag_name"), data.get("html_url")
     except Exception:
         return None, None
+
+
+def get_latest_release_full():
+    """Query GitHub API for the full latest release object.
+
+    Returns the parsed JSON dict, or None on error. The dict includes
+    'tag_name', 'html_url', and 'assets' (list of asset dicts with
+    'name', 'browser_download_url', 'size').
+    """
+    try:
+        req = urllib.request.Request(API_URL, headers={
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "flintwave-kdh-flasher-updater",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return None
 
 
 def get_local_commit():
@@ -122,6 +146,168 @@ def check_for_update():
         if not local_ver:
             return False, None, remote_ver
         return local_ver != remote_ver, local_ver, remote_ver
+
+
+def get_platform_asset_url(release_data):
+    """Pick the right download asset for this platform from a release dict.
+
+    Returns (asset_name, download_url, size_bytes) or (None, None, None).
+    """
+    if not release_data or "assets" not in release_data:
+        return None, None, None
+
+    assets = {a["name"]: a for a in release_data["assets"]}
+
+    if sys.platform.startswith("linux"):
+        target = ASSET_PATTERNS["linux_appimage"]
+    elif sys.platform == "win32":
+        target = ASSET_PATTERNS["windows_exe"]
+    elif sys.platform == "darwin":
+        target = ASSET_PATTERNS["macos_dmg"]
+    else:
+        return None, None, None
+
+    asset = assets.get(target)
+    if not asset:
+        return None, None, None
+    return asset["name"], asset["browser_download_url"], asset.get("size", 0)
+
+
+def download_update(url, dest_path, progress_callback=None):
+    """Download an update asset to dest_path.
+
+    progress_callback(bytes_downloaded, total_bytes) is called periodically.
+    Returns True on success; raises on error.
+    """
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "flintwave-kdh-flasher-updater",
+        "Accept": "application/octet-stream",
+    })
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        total = int(resp.headers.get("Content-Length", 0))
+        downloaded = 0
+        with open(dest_path, "wb") as f:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                f.write(chunk)
+                downloaded += len(chunk)
+                if progress_callback:
+                    progress_callback(downloaded, total)
+    return True
+
+
+def can_auto_install():
+    """Whether this platform supports in-place install + restart.
+
+    Linux AppImage and Windows portable .exe can be replaced in-place.
+    macOS .dmg requires the user to drag-install manually.
+    Git installs use git pull instead.
+    """
+    if is_git_install():
+        return True
+    if not is_frozen():
+        return False
+    if sys.platform.startswith("linux"):
+        return True
+    if sys.platform == "win32":
+        return True
+    return False
+
+
+def get_current_executable():
+    """Path to the running executable (frozen builds only)."""
+    if is_frozen():
+        return sys.executable
+    return None
+
+
+def install_update(downloaded_path):
+    """Replace the running binary with the downloaded update.
+
+    Returns (success, message). On Linux/Windows frozen builds, stages the
+    new binary next to the old one and swaps on restart. On git installs,
+    does git pull. macOS .dmg is opened for the user to drag-install.
+    """
+    if is_git_install():
+        return apply_update()
+
+    exe = get_current_executable()
+    if not exe:
+        return False, "Cannot determine current executable path."
+
+    if sys.platform == "darwin":
+        try:
+            subprocess.Popen(["open", downloaded_path])
+            return True, "DMG opened. Drag the new version to Applications."
+        except Exception as e:
+            return False, str(e)
+
+    # Linux AppImage / Windows portable: stage the new binary
+    staged = exe + ".update"
+    try:
+        shutil.copy2(downloaded_path, staged)
+        if sys.platform.startswith("linux"):
+            os.chmod(staged, 0o755)
+        return True, staged
+    except Exception as e:
+        return False, str(e)
+
+
+def apply_staged_update():
+    """Swap the staged binary into place and restart.
+
+    Called just before exit. On Windows the running .exe can't be replaced
+    directly, so we rename the current one aside, move the new one in, and
+    spawn the replacement.
+    """
+    exe = get_current_executable()
+    if not exe:
+        return
+    staged = exe + ".update"
+    if not os.path.exists(staged):
+        return
+
+    if sys.platform == "win32":
+        old = exe + ".old"
+        try:
+            if os.path.exists(old):
+                os.remove(old)
+            os.rename(exe, old)
+            os.rename(staged, exe)
+        except Exception:
+            # If rename failed, try to restore
+            try:
+                if not os.path.exists(exe) and os.path.exists(old):
+                    os.rename(old, exe)
+            except Exception as e:
+                # Best-effort restore; the binary may be locked
+                print(f"updater: restore failed: {e}", file=sys.stderr)
+            return
+    else:
+        # Linux: direct replace
+        try:
+            os.replace(staged, exe)
+        except Exception:
+            return
+
+    restart_app()
+
+
+def restart_app():
+    """Re-launch the application and exit the current process."""
+    if is_git_install():
+        python = sys.executable
+        os.execv(python, [python] + sys.argv)
+    elif is_frozen():
+        exe = get_current_executable()
+        if exe:
+            if sys.platform == "win32":
+                subprocess.Popen([exe] + sys.argv[1:])
+                sys.exit(0)
+            else:
+                os.execv(exe, [exe] + sys.argv[1:])
 
 
 def _verify_origin():
