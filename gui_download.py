@@ -188,7 +188,8 @@ class DownloadController:
             if frame.file_path.GetValue():
                 return True
         except Exception:
-            pass
+            # Widget may be destroyed during shutdown
+            return True
         return False
 
     def _show_update_checking(self):
@@ -218,6 +219,7 @@ class DownloadController:
                 progress_widget.SetMinSize(progress_widget.GetBestSize())
             frame.status_bar_panel.Layout()
         except Exception:
+            # Status bar widget may not exist yet during early startup
             pass
 
     def _show_restart_button(self):
@@ -244,6 +246,7 @@ class DownloadController:
 
             frame.status_bar_panel.Layout()
         except Exception:
+            # Best-effort UI update; don't block the restart path
             pass
 
     def _do_restart(self):
@@ -256,6 +259,7 @@ class DownloadController:
             frame.status_bar_panel.restart_btn.Hide()
             frame.status_bar_panel.Layout()
         except Exception:
+            # Cosmetic cleanup before restart; safe to ignore
             pass
         if updater.is_git_install():
             updater.restart_app()

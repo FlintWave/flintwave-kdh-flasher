@@ -10,7 +10,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import urllib.request
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -282,8 +281,9 @@ def apply_staged_update():
             try:
                 if not os.path.exists(exe) and os.path.exists(old):
                     os.rename(old, exe)
-            except Exception:
-                pass
+            except Exception as e:
+                # Best-effort restore; the binary may be locked
+                print(f"updater: restore failed: {e}", file=sys.stderr)
             return
     else:
         # Linux: direct replace
