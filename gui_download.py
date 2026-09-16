@@ -175,6 +175,7 @@ class DownloadController:
                 wx.CallAfter(self._show_restart_button)
 
         except Exception:
+            # Background thread — never crash the app for an update failure
             pass
 
     def _user_has_started_work(self):
