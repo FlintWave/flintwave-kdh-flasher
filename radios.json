@@ -194,6 +194,19 @@
       "notes": "AT32F403A MCU with .BTF firmware container. The BTF file is sent to the radio as-is — the on-radio bootloader decrypts it using the 16-byte XOR key embedded at file offset 0x400. Vendor distributes firmware via the RT-950 Pro owners' Facebook group; community mirrors at https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware. UNTESTED on real hardware — community confirmation requested before relying on this for production flashing."
     },
     {
+      "id": "a36plus",
+      "name": "Talkpod A36 Plus",
+      "manufacturer": "Talkpod",
+      "model_type": "A36plus",
+      "firmware_url": null,
+      "firmware_page": "https://talkpodonline.com/pages/firmware-software",
+      "firmware_filename_pattern": "*.kdhx",
+      "bootloader_keys": "Hold both side keys (SK1 + SK2) while powering on. Click Flash Firmware within a few seconds of powering on. The LCD screen will flicker rapidly while the upload is in progress.",
+      "connector": "K1 Kenwood 2-pin",
+      "tested": true,
+      "notes": "Talkpod A36plus radio using the KDH bootloader. Tested on real hardware, but community confirmation is appreciated for reliability."
+    },
+    {
       "id": "generic",
       "name": "Other KDH Radio",
       "manufacturer": "Generic",
